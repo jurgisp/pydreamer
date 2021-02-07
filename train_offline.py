@@ -31,7 +31,8 @@ def main(run_name='adhoc',
 
     model = VAE(
         encoder=MinigridEncoder(),
-        decoder=MinigridDecoder())
+        decoder=MinigridDecoder(in_dim=30)
+    )
     print(f'Model: {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters')
 
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)

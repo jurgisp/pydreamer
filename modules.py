@@ -5,10 +5,12 @@ import torch.distributions as D
 
 
 def flatten(x):
+    # (N, B, ...) => (N*B, ...)
     return torch.reshape(x, (-1,) + x.shape[2:]), x.size(0)
 
 
 def unflatten(x, n):
+    # (N*B, ...) => (N, B, ...)
     return torch.reshape(x, (n, -1) + x.shape[1:])
 
 
@@ -18,17 +20,18 @@ def diag_normal(mean, std):
 
 class Posterior(nn.Module):
 
-    def __init__(self, in1_dim=256, in2_dim=256, hidden_dim=256, out_dim=30):
+    def __init__(self, in1_dim=256, in2_dim=256, hidden_dim=256, out_dim=30, min_std=0.1):
         super().__init__()
         self._model = nn.Sequential(
             nn.Linear(in1_dim + in2_dim, hidden_dim),
             nn.ELU(),
             nn.Linear(hidden_dim, 2 * out_dim))
+        self._min_std = min_std
 
     def forward(self, deter, embed):
         mean_std = self._model(torch.cat((deter, embed), dim=-1))
         mean, std = mean_std.chunk(chunks=2, dim=-1)
-        std = F.softplus(std) + 0.1
+        std = F.softplus(std) + self._min_std
         return mean, std
 
 
@@ -50,16 +53,16 @@ class MinigridEncoder(nn.Module):
 
 class MinigridDecoder(nn.Module):
 
-    def __init__(self):
+    def __init__(self, in_dim=256):
         super().__init__()
         self._model = nn.Sequential(
-            # nn.Linear(256, 256),
-            # nn.ReLU(),
+            nn.Linear(in_dim, 256),
+            nn.ReLU(),
             nn.Linear(256, 20 * 7 * 7),
             nn.Unflatten(-1, (20, 7, 7)),
-            # nn.Conv2d(4, 20, kernel_size=1)
+            # nn.Conv2d(4, 20, kernel_size=1)  # emebedding
         )
-        self.in_dim = 256
+        self.in_dim = in_dim
 
     def forward(self, x):
         return self._model(x)
