@@ -1,8 +1,10 @@
 import argparse
 import inspect
+from collections import defaultdict
 import numpy as np
 import torch
-from collections import defaultdict
+import torch.nn as nn
+import torch.nn.functional as F
 import mlflow
 
 from data import OfflineData
@@ -13,9 +15,9 @@ from modules import MinigridEncoder, MinigridDecoder
 
 def main(run_name='adhoc',
          input_dir='./data',
-         batch_length=20,
-         batch_size=10,
-         log_interval=100):
+         batch_length=50,
+         batch_size=50,
+         log_interval=40):
 
     mlflow.start_run(run_name=run_name)
 
@@ -55,6 +57,7 @@ def main(run_name='adhoc',
         batches += 1
         if batches % log_interval == 0:
             metrics = {k: np.mean(v) for k, v in metrics.items()}
+            metrics['_step'] = frames
             print(f"[{frames:07}]"
                   f"  loss: {metrics['loss']:.3f}")
             mlflow.log_metrics(metrics, step=frames)
