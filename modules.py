@@ -43,7 +43,7 @@ class MinigridEncoder(nn.Module):
             # nn.Conv2d(20, 4, kernel_size=1),  # embedding
             nn.Flatten(-3, -1),
             nn.Linear(20 * 7 * 7, 256),
-            nn.ReLU()
+            nn.ELU()
         )
         self.out_dim = 256
 
