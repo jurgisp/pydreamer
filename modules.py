@@ -29,11 +29,10 @@ class MinigridDecoder(nn.Module):
             nn.Unflatten(-1, (20, 7, 7)),
             # nn.Conv2d(4, 20, kernel_size=1)
         )
-        self._loss = nn.BCEWithLogitsLoss(reduction='none')
 
     def forward(self, x):
         return self._model(x)
 
     def loss(self, output, target):
-        loss = self._loss(output, target).sum(dim=[-1, -2, -3])
-        return loss
+        loss = F.binary_cross_entropy_with_logits(output, target, reduction='none')
+        return loss.sum(dim=[-1, -2, -3])
