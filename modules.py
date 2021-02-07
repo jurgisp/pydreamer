@@ -37,12 +37,11 @@ class Posterior(nn.Module):
 
 class MinigridEncoder(nn.Module):
 
-    def __init__(self):
+    def __init__(self, in_channels):
         super().__init__()
         self._model = nn.Sequential(
-            # nn.Conv2d(20, 4, kernel_size=1),  # embedding
             nn.Flatten(-3, -1),
-            nn.Linear(20 * 7 * 7, 256),
+            nn.Linear(in_channels * 7 * 7, 256),
             nn.ELU()
         )
         self.out_dim = 256
@@ -51,7 +50,7 @@ class MinigridEncoder(nn.Module):
         return self._model(x)
 
 
-class MinigridDecoder(nn.Module):
+class MinigridDecoderBCE(nn.Module):
 
     def __init__(self, in_dim=256):
         super().__init__()
@@ -60,7 +59,6 @@ class MinigridDecoder(nn.Module):
             nn.ReLU(),
             nn.Linear(256, 20 * 7 * 7),
             nn.Unflatten(-1, (20, 7, 7)),
-            # nn.Conv2d(4, 20, kernel_size=1)  # emebedding
         )
         self.in_dim = in_dim
 
@@ -70,3 +68,26 @@ class MinigridDecoder(nn.Module):
     def loss(self, output, target):
         loss = F.binary_cross_entropy_with_logits(output, target, reduction='none')
         return loss.sum(dim=[-1, -2, -3])
+
+
+class MinigridDecoderCE(nn.Module):
+
+    def __init__(self, in_dim=256):
+        super().__init__()
+        self._model = nn.Sequential(
+            nn.Linear(in_dim, 256),
+            nn.ReLU(),
+            nn.Linear(256, 33 * 7 * 7),
+            nn.Unflatten(-1, (33, 7, 7)),
+        )
+        self.in_dim = in_dim
+
+    def forward(self, x):
+        return self._model(x)
+
+    def loss(self, output, target):
+        output, n = flatten(output)
+        target, _ = flatten(target)
+        loss = F.cross_entropy(output, target.argmax(dim=-3), reduction='none')
+        loss = unflatten(loss, n)
+        return loss.sum(dim=[-1, -2])

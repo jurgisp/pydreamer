@@ -11,7 +11,7 @@ import mlflow
 from data import OfflineData
 from preprocessing import MinigridPreprocess
 from models import VAE
-from modules import MinigridEncoder, MinigridDecoder
+from modules import MinigridEncoder, MinigridDecoderBCE, MinigridDecoderCE
 
 
 def main(run_name='adhoc',
@@ -27,11 +27,12 @@ def main(run_name='adhoc',
 
     data = OfflineData(input_dir)
 
-    preprocess = MinigridPreprocess()
+    preprocess = MinigridPreprocess(categorical=True)
 
     model = VAE(
-        encoder=MinigridEncoder(),
-        decoder=MinigridDecoder(in_dim=30)
+        encoder=MinigridEncoder(in_channels=preprocess.img_channels),
+        # decoder=MinigridDecoderBCE(in_dim=30)
+        decoder=MinigridDecoderCE(in_dim=30)
     )
     print(f'Model: {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters')
 
