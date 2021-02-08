@@ -10,7 +10,7 @@ import mlflow
 from data import OfflineData
 from preprocessing import MinigridPreprocess
 from models import VAE
-from modules import MinigridEncoder, MinigridDecoderBCE, MinigridDecoderCE
+from modules import MinigridEncoder, MinigridDecoderCE
 
 
 DEFAULT_CONFIG = dict(
