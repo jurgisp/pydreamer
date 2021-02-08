@@ -42,7 +42,9 @@ class MinigridEncoder(nn.Module):
         self._model = nn.Sequential(
             nn.Flatten(-3, -1),
             nn.Linear(in_channels * 7 * 7, 256),
-            nn.ELU()
+            nn.ELU(),
+            nn.Linear(256, 256),
+            nn.ELU(),
         )
         self.out_dim = 256
 
@@ -52,11 +54,13 @@ class MinigridEncoder(nn.Module):
 
 class MinigridDecoderBCE(nn.Module):
 
-    def __init__(self, in_dim=256):
+    def __init__(self, in_dim=30):
         super().__init__()
         self._model = nn.Sequential(
             nn.Linear(in_dim, 256),
-            nn.ReLU(),
+            nn.ELU(),
+            nn.Linear(256, 256),
+            nn.ELU(),
             nn.Linear(256, 20 * 7 * 7),
             nn.Unflatten(-1, (20, 7, 7)),
         )
@@ -72,11 +76,13 @@ class MinigridDecoderBCE(nn.Module):
 
 class MinigridDecoderCE(nn.Module):
 
-    def __init__(self, in_dim=256):
+    def __init__(self, in_dim=30):
         super().__init__()
         self._model = nn.Sequential(
             nn.Linear(in_dim, 256),
-            nn.ReLU(),
+            nn.ELU(),
+            nn.Linear(256, 256),
+            nn.ELU(),
             nn.Linear(256, 33 * 7 * 7),
             nn.Unflatten(-1, (33, 7, 7)),
         )
