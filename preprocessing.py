@@ -56,15 +56,23 @@ class MinigridPreprocess:
         # Input:
         #   batch['image']:     np.array(N, B, 7, 7, 20)
         #   batch['image_ids']: np.array(N, B, 7, 7, 3)
+        #   batch['action']:    np.array(N, B, 7)
+        #   batch['reset']:     np.array(N, B)
         # Output:
-        #   image: torch.tensor(N, B, 20|33, 7, 7)
+        #   image:  torch.tensor(N, B, 20|33, 7, 7)
+        #   action: torch.tensor(N, B, 7)
+        #   reset:  torch.tensor(N, B)
 
         if self._categorical:
             image = self.grid_to_categorical(batch['image_ids']).transpose(0, 1, 4, 2, 3)
         else:
-            image = batch['image_ids'].transpose(0, 1, 4, 2, 3) > 0
+            image = batch['image'].transpose(0, 1, 4, 2, 3) > 0
+        image = torch.from_numpy(image).to(dtype=torch.float, device=self._device)
 
-        return torch.from_numpy(image).to(dtype=torch.float, device=self._device)
+        action = torch.from_numpy(batch['action']).to(dtype=torch.float, device=self._device)
+        reset = torch.from_numpy(batch['reset']).to(dtype=torch.bool, device=self._device)
+
+        return image, action, reset
 
     def grid_to_categorical(self, image_ids):
         n = len(MINIGRID_VALUES)
