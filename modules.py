@@ -6,7 +6,7 @@ import torch.distributions as D
 
 def flatten(x):
     # (N, B, ...) => (N*B, ...)
-    return torch.reshape(x, (-1,) + x.shape[2:]), x.size(0)
+    return torch.reshape(x, (-1,) + x.shape[2:])
 
 
 def unflatten(x, n):
@@ -14,8 +14,26 @@ def unflatten(x, n):
     return torch.reshape(x, (n, -1) + x.shape[1:])
 
 
-def diag_normal(mean, std):
+def diag_normal(mean_std):
+    mean, std = split(mean_std)
     return D.independent.Independent(D.normal.Normal(mean, std), 1)
+
+
+def zero_prior_like(mean_std):
+    # Returns prior with 0 mean and unit variance
+    mean, std = split(mean_std)
+    prior = join(torch.zeros_like(mean), torch.ones_like(std))
+    return prior
+
+
+def join(mean, std):
+    mean_std = torch.cat((mean, std), dim=-1)
+    return mean_std
+
+
+def split(mean_std):
+    mean, std = mean_std.chunk(chunks=2, dim=-1)
+    return mean, std
 
 
 class Posterior(nn.Module):
@@ -28,11 +46,15 @@ class Posterior(nn.Module):
             nn.Linear(hidden_dim, 2 * out_dim))
         self._min_std = min_std
 
-    def forward(self, deter, embed):
-        mean_std = self._model(torch.cat((deter, embed), dim=-1))
-        mean, std = mean_std.chunk(chunks=2, dim=-1)
+    def forward(self,
+                deter,  # tensor(..., D)
+                embed,  # tensor(..., E)
+                ):
+        mean, std = split(self._model(join(deter, embed)))
         std = F.softplus(std) + self._min_std
-        return mean, std
+        return (
+            join(mean, std)  # tensor(..., 2*S)
+        )
 
 
 class MinigridEncoder(nn.Module):
@@ -50,28 +72,6 @@ class MinigridEncoder(nn.Module):
 
     def forward(self, x):
         return self._model(x)
-
-
-class MinigridDecoderBCE(nn.Module):
-
-    def __init__(self, in_dim=30):
-        super().__init__()
-        self._model = nn.Sequential(
-            nn.Linear(in_dim, 256),
-            nn.ELU(),
-            nn.Linear(256, 256),
-            nn.ELU(),
-            nn.Linear(256, 20 * 7 * 7),
-            nn.Unflatten(-1, (20, 7, 7)),
-        )
-        self.in_dim = in_dim
-
-    def forward(self, x):
-        return self._model(x)
-
-    def loss(self, output, target):
-        loss = F.binary_cross_entropy_with_logits(output, target, reduction='none')
-        return loss.sum(dim=[-1, -2, -3])
 
 
 class MinigridDecoderCE(nn.Module):
@@ -92,8 +92,9 @@ class MinigridDecoderCE(nn.Module):
         return self._model(x)
 
     def loss(self, output, target):
-        output, n = flatten(output)
-        target, _ = flatten(target)
-        loss = F.cross_entropy(output, target.argmax(dim=-3), reduction='none')
+        n = output.size(0)
+        output = flatten(output)
+        target = flatten(target).argmax(dim=-3)
+        loss = F.cross_entropy(output, target, reduction='none')
         loss = unflatten(loss, n)
         return loss.sum(dim=[-1, -2])
