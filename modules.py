@@ -14,61 +14,134 @@ def unflatten(x, n):
     return torch.reshape(x, (n, -1) + x.shape[1:])
 
 
+def cat(x1, x2):
+    # (..., A), (..., B) => (..., A+B)
+    return torch.cat((x1, x2), dim=-1)
+
+
+def split(mean_std, sizes=None):
+    # (..., S+S) => (..., S), (..., S)
+    if sizes == None:
+        sizes = mean_std.size(-1) // 2
+    mean, std = mean_std.split(sizes, dim=-1)
+    return mean, std
+
+
 def diag_normal(mean_std):
     mean, std = split(mean_std)
     return D.independent.Independent(D.normal.Normal(mean, std), 1)
 
 
+def to_mean_std(x, min_std):
+    mean, std = split(x)
+    std = F.softplus(std) + min_std
+    return cat(mean, std)
+
+
 def zero_prior_like(mean_std):
     # Returns prior with 0 mean and unit variance
     mean, std = split(mean_std)
-    prior = join(torch.zeros_like(mean), torch.ones_like(std))
+    prior = cat(torch.zeros_like(mean), torch.ones_like(std))
     return prior
 
 
-def join(mean, std):
-    mean_std = torch.cat((mean, std), dim=-1)
-    return mean_std
+class RSSMCore(nn.Module):
 
-
-def split(mean_std):
-    mean, std = mean_std.chunk(chunks=2, dim=-1)
-    return mean, std
-
-
-class Posterior(nn.Module):
-
-    def __init__(self, in1_dim=256, in2_dim=256, hidden_dim=256, out_dim=30, min_std=0.1):
+    def __init__(self, embed_dim=256, action_dim=7, deter_dim=200, stoch_dim=30, hidden_dim=200, min_std=0.1):
         super().__init__()
-        self._model = nn.Sequential(
-            nn.Linear(in1_dim + in2_dim, hidden_dim),
-            nn.ELU(),
-            nn.Linear(hidden_dim, 2 * out_dim))
-        self._min_std = min_std
+        self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, min_std)
 
     def forward(self,
-                deter,  # tensor(..., D)
-                embed,  # tensor(..., E)
+                embed,     # tensor(N, B, E)
+                action,    # tensor(N, B, A)
+                reset,     # tensor(N, B)
+                in_state,  # tensor(   B, D+S)
                 ):
-        mean, std = split(self._model(join(deter, embed)))
-        std = F.softplus(std) + self._min_std
+
+        n = embed.size(0)
+        prior = []
+        post = []
+        post_sample = []
+        state = in_state
+
+        for i in range(n):
+            prior_i, post_i, sample_i, state = self._cell(embed[i], action[i], reset[i], state)
+            prior.append(prior_i)
+            post.append(post_i)
+            post_sample.append(sample_i)
+
         return (
-            join(mean, std)  # tensor(..., 2*S)
+            torch.stack(prior),          # tensor(N, B, 2*S)
+            torch.stack(post),           # tensor(N, B, 2*S)
+            torch.stack(post_sample),    # tensor(N, B, S)
+            state,                       # tensor(   B, D+S)
+        )
+
+    def init_state(self, batch_size):
+        return self._cell.init_state(batch_size)
+
+
+class RSSMCell(nn.Module):
+
+    def __init__(self, embed_dim=256, action_dim=7, deter_dim=200, stoch_dim=30, hidden_dim=200, min_std=0.1):
+        super().__init__()
+        self._stoch_dim = stoch_dim
+        self._deter_dim = deter_dim
+        self._min_std = min_std
+
+        self._za_mlp = nn.Sequential(nn.Linear(stoch_dim + action_dim, hidden_dim),
+                                     nn.ELU())
+
+        self._gru = nn.GRUCell(hidden_dim, deter_dim)
+
+        self._prior_mlp = nn.Sequential(nn.Linear(deter_dim, hidden_dim),
+                                        nn.ELU(),
+                                        nn.Linear(hidden_dim, 2 * stoch_dim))
+
+        self._post_mlp = nn.Sequential(nn.Linear(deter_dim + embed_dim, hidden_dim),
+                                       nn.ELU(),
+                                       nn.Linear(hidden_dim, 2 * stoch_dim))
+
+    def init_state(self, batch_size):
+        device = next(self._gru.parameters()).device
+        return torch.zeros((batch_size, self._deter_dim + self._stoch_dim), device=device)
+
+    def forward(self,
+                embed,     # tensor(B, E)
+                action,    # tensor(B, A)
+                reset,     # tensor(B)
+                in_state,  # tensor(B, D+S)
+                ):
+
+        in_state = in_state * ~reset.unsqueeze(1)
+        in_h, in_z = split(in_state, [self._deter_dim, self._stoch_dim])
+
+        za = self._za_mlp(cat(in_z, action))                                # (B, H)
+        h = self._gru(za, in_h)                                             # (B, D)
+        prior = to_mean_std(self._prior_mlp(h), self._min_std)              # (B, 2*S)
+        post = to_mean_std(self._post_mlp(cat(h, embed)), self._min_std)    # (B, 2*S)
+        sample = diag_normal(post).rsample()                                # (B, S)
+
+        return (
+            prior,            # tensor(B, 2*S)
+            post,             # tensor(B, 2*S)
+            sample,           # tensor(B, S)
+            cat(h, sample),   # tensor(B, D+S)
         )
 
 
 class MinigridEncoder(nn.Module):
 
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, out_dim=256):
         super().__init__()
         self._model = nn.Sequential(
             nn.Flatten(-3, -1),
             nn.Linear(in_channels * 7 * 7, 256),
             nn.ELU(),
-            nn.Linear(256, 256),
+            nn.Linear(256, out_dim),
             nn.ELU(),
         )
-        self.out_dim = 256
+        self.out_dim = out_dim
 
     def forward(self, x):
         return self._model(x)

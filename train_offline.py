@@ -9,7 +9,7 @@ import mlflow
 
 from data import OfflineData
 from preprocessing import MinigridPreprocess
-from models import VAE
+from models import VAE, RSSM
 from modules import MinigridEncoder, MinigridDecoderCE
 
 
@@ -24,7 +24,10 @@ DEFAULT_CONFIG = dict(
     batch_length=10,
     batch_size=25,
     # Model
-    stoch_dim=10
+    embed_dim=256,
+    deter_dim=256,
+    stoch_dim=10,
+    hidden_dim=256,
 )
 
 
@@ -37,24 +40,33 @@ def run(conf):
 
     preprocess = MinigridPreprocess(categorical=True)
 
-    model = VAE(
-        encoder=MinigridEncoder(in_channels=preprocess.img_channels),
-        decoder=MinigridDecoderCE(in_dim=conf.stoch_dim)
+    # model = VAE(
+    #     encoder=MinigridEncoder(in_channels=preprocess.img_channels),
+    #     decoder=MinigridDecoderCE(in_dim=conf.stoch_dim)
+    # )
+    model = RSSM(
+        encoder=MinigridEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim),
+        decoder=MinigridDecoderCE(in_dim=conf.stoch_dim),
+        deter_dim=conf.deter_dim,
+        stoch_dim=conf.stoch_dim,
+        hidden_dim=conf.hidden_dim,
     )
-    print(f'Model: {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters')
-    mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')
 
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
 
+    print(f'Model: {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters')
+    mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')
     metrics = defaultdict(list)
     step = 0
     batches = 0
     for batch in data.iterate(conf.batch_length, conf.batch_size):
 
+        image, action, reset = preprocess(batch)
+
         # Predict
 
-        image = preprocess(batch)
-        output = model(image, None)
+        state = model.init_state(image.size(1))
+        output = model(image, action, reset, state)
         loss, loss_metrics = model.loss(*output, image)
 
         # Grad step
