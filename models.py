@@ -17,27 +17,25 @@ class VAE(nn.Module):
                 obs,  # tensor(N, B, C, H, W)
                 action):
 
-        obs, n = flatten(obs)
-        embed = self._encoder(obs)
+        n = obs.size(0)
+        embed = self._encoder(flatten(obs))
 
         deter = torch.zeros_like(embed)
-        post_mean, post_std = self._posterior(deter, embed)
-        post_sample = diag_normal(post_mean, post_std).rsample()
+        post = self._posterior(deter, embed)
+        post_sample = diag_normal(post).rsample()
         obs_reconstr = self._decoder(post_sample)
 
         return (
             unflatten(obs_reconstr, n),  # tensor(N, B, C, H, W)
-            unflatten(post_mean, n),     # tensor(N, B, S)
-            unflatten(post_std, n),      # tensor(N, B, S)
+            unflatten(post, n),          # tensor(N, B, S+S)
         )
 
     def loss(self,
-             obs_reconstr, post_mean, post_std,  # forward() output
+             obs_reconstr, post,                 # forward() output
              obs_target,                         # tensor(N, B, C, H, W)
              ):
-        prior_mean = torch.zeros_like(post_mean)
-        prior_std = torch.ones_like(post_std)
-        loss_kl = D.kl.kl_divergence(diag_normal(post_mean, post_std), diag_normal(prior_mean, prior_std))
+        prior = zero_prior_like(post)
+        loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
         loss_obs = self._decoder.loss(obs_reconstr, obs_target)
         assert loss_kl.shape == loss_obs.shape  # Should be (N, B)
 
