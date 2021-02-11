@@ -64,9 +64,15 @@ class VAE(nn.Module):
                                        nn.Linear(256, 2 * decoder.in_dim))
         self._min_std = 0.1
 
+    def init_state(self, batch_size):
+        return None
+
     def forward(self,
-                obs,  # tensor(N, B, C, H, W)
-                action):
+                obs,       # tensor(N, B, C, H, W)
+                action,    # tensor(N, B, A)
+                reset,     # tensor(N, B)
+                in_state,  # tensor(   B, D+S)
+                ):
 
         n = obs.size(0)
         embed = self._encoder(flatten(obs))
