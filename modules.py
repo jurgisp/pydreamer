@@ -130,17 +130,21 @@ class RSSMCell(nn.Module):
         )
 
 
-class MinigridEncoder(nn.Module):
+class ConvEncoder(nn.Module):
 
-    def __init__(self, in_channels, out_dim=256):
+    def __init__(self, in_channels=3, kernels=(4, 4, 4, 4), stride=2, out_dim=256):
         super().__init__()
         self._model = nn.Sequential(
-            nn.Flatten(-3, -1),
-            nn.Linear(in_channels * 7 * 7, 256),
-            nn.ELU(),
-            nn.Linear(256, out_dim),
-            nn.ELU(),
-        )
+            nn.Conv2d(in_channels, 32, kernels[0], stride),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernels[1], stride),
+            nn.ReLU(),
+            nn.Conv2d(64, 128, kernels[2], stride),
+            nn.ReLU(),
+            nn.Conv2d(128, out_dim, kernels[3], stride),
+            nn.ReLU(),
+            nn.Flatten()
+            )
         self.out_dim = out_dim
 
     def forward(self, x):

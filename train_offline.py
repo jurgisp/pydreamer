@@ -10,7 +10,7 @@ import mlflow
 from data import OfflineData
 from preprocessing import MinigridPreprocess
 from models import VAE, RSSM
-from modules import MinigridEncoder, MinigridDecoderCE
+from modules import ConvEncoder, MinigridDecoderCE
 
 
 DEFAULT_CONFIG = dict(
@@ -40,17 +40,18 @@ def run(conf):
 
     preprocess = MinigridPreprocess(categorical=True)
 
-    # model = VAE(
-    #     encoder=MinigridEncoder(in_channels=preprocess.img_channels),
-    #     decoder=MinigridDecoderCE(in_dim=conf.stoch_dim)
-    # )
-    model = RSSM(
-        encoder=MinigridEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim),
-        decoder=MinigridDecoderCE(in_dim=conf.stoch_dim),
-        deter_dim=conf.deter_dim,
-        stoch_dim=conf.stoch_dim,
-        hidden_dim=conf.hidden_dim,
+    model = VAE(
+        # encoder=MinigridEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim),
+        encoder=ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1,3,3,3)),
+        decoder=MinigridDecoderCE(in_dim=conf.stoch_dim)
     )
+    # model = RSSM(
+    #     encoder=MinigridEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim),
+    #     decoder=MinigridDecoderCE(in_dim=conf.stoch_dim),
+    #     deter_dim=conf.deter_dim,
+    #     stoch_dim=conf.stoch_dim,
+    #     hidden_dim=conf.hidden_dim,
+    # )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
 
