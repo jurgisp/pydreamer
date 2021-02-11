@@ -134,6 +134,8 @@ class ConvEncoder(nn.Module):
 
     def __init__(self, in_channels=3, kernels=(4, 4, 4, 4), stride=2, out_dim=256):
         super().__init__()
+        self.out_dim = out_dim
+        assert out_dim == 256
         self._model = nn.Sequential(
             nn.Conv2d(in_channels, 32, kernels[0], stride),
             nn.ReLU(),
@@ -141,29 +143,33 @@ class ConvEncoder(nn.Module):
             nn.ReLU(),
             nn.Conv2d(64, 128, kernels[2], stride),
             nn.ReLU(),
-            nn.Conv2d(128, out_dim, kernels[3], stride),
+            nn.Conv2d(128, 256, kernels[3], stride),
             nn.ReLU(),
             nn.Flatten()
-            )
-        self.out_dim = out_dim
+        )
 
     def forward(self, x):
         return self._model(x)
 
 
-class MinigridDecoderCE(nn.Module):
+class ConvDecoderCat(nn.Module):
 
-    def __init__(self, in_dim=30):
+    def __init__(self, in_dim, out_channels=3, kernels=(5, 5, 6, 6), stride=2):
         super().__init__()
-        self._model = nn.Sequential(
-            nn.Linear(in_dim, 256),
-            nn.ELU(),
-            nn.Linear(256, 256),
-            nn.ELU(),
-            nn.Linear(256, 33 * 7 * 7),
-            nn.Unflatten(-1, (33, 7, 7)),
-        )
         self.in_dim = in_dim
+        self._model = nn.Sequential(
+            # FC
+            nn.Linear(in_dim, 1024),
+            nn.ReLU(),
+            nn.Unflatten(-1, (1024, 1, 1)),
+            # Deconv
+            nn.ConvTranspose2d(1024, 128, kernels[0], stride),
+            nn.ReLU(),
+            nn.ConvTranspose2d(128, 64, kernels[1], stride),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 32, kernels[2], stride),
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, out_channels, kernels[3], stride))
 
     def forward(self, x):
         return self._model(x)

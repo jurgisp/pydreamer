@@ -65,7 +65,7 @@ class VAE(nn.Module):
         self._min_std = 0.1
 
     def init_state(self, batch_size):
-        return None
+        return torch.zeros(batch_size)
 
     def forward(self,
                 obs,       # tensor(N, B, C, H, W)

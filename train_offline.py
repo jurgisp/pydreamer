@@ -10,7 +10,7 @@ import mlflow
 from data import OfflineData
 from preprocessing import MinigridPreprocess
 from models import VAE, RSSM
-from modules import ConvEncoder, MinigridDecoderCE
+from modules import ConvEncoder, ConvDecoderCat
 
 
 DEFAULT_CONFIG = dict(
@@ -41,9 +41,8 @@ def run(conf):
     preprocess = MinigridPreprocess(categorical=True)
 
     model = VAE(
-        # encoder=MinigridEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim),
-        encoder=ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1,3,3,3)),
-        decoder=MinigridDecoderCE(in_dim=conf.stoch_dim)
+        encoder=ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3)),
+        decoder=ConvDecoderCat(in_dim=conf.stoch_dim, out_channels=preprocess.img_channels, stride=1, kernels=(3, 3, 3, 1))
     )
     # model = RSSM(
     #     encoder=MinigridEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim),
