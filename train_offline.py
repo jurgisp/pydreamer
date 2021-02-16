@@ -16,18 +16,18 @@ from modules import ConvEncoder, ConvDecoderCat
 DEFAULT_CONFIG = dict(
     run_name='adhoc',
     input_dir='./data',
-    log_interval=40,
+    log_interval=45,
     save_path='./log/model.pt',
     save_interval=400,
     # Training
     n_steps=2_000_000,
-    batch_length=10,
-    batch_size=25,
+    batch_length=15,
+    batch_size=15,
     # Model
     embed_dim=256,
-    deter_dim=256,
+    deter_dim=200,
     stoch_dim=10,
-    hidden_dim=256,
+    hidden_dim=200,
 )
 
 
@@ -38,19 +38,19 @@ def run(conf):
 
     data = OfflineData(conf.input_dir)
 
-    preprocess = MinigridPreprocess(categorical=True)
+    preprocess = MinigridPreprocess(categorical=33)
 
-    model = VAE(
-        encoder=ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3)),
-        decoder=ConvDecoderCat(in_dim=conf.stoch_dim, out_channels=preprocess.img_channels, stride=1, kernels=(3, 3, 3, 1))
-    )
-    # model = RSSM(
-    #     encoder=MinigridEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim),
-    #     decoder=MinigridDecoderCE(in_dim=conf.stoch_dim),
-    #     deter_dim=conf.deter_dim,
-    #     stoch_dim=conf.stoch_dim,
-    #     hidden_dim=conf.hidden_dim,
+    # model = VAE(
+    #     encoder=ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3)),
+    #     decoder=ConvDecoderCat(in_dim=conf.stoch_dim, out_channels=preprocess.img_channels, stride=1, kernels=(3, 3, 3, 1))
     # )
+    model = RSSM(
+        encoder=ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3)),
+        decoder=ConvDecoderCat(in_dim=conf.stoch_dim, out_channels=preprocess.img_channels, stride=1, kernels=(3, 3, 3, 1)),
+        deter_dim=conf.deter_dim,
+        stoch_dim=conf.stoch_dim,
+        hidden_dim=conf.hidden_dim,
+    )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
 
