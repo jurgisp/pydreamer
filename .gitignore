@@ -3,7 +3,6 @@ __pycache__/
 data/
 log/
 mlruns/
-_adhoc.sh
-*.ipynb
+_*.*
 .DS_Store
 .pylintrc
