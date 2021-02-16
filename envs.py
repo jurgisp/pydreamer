@@ -6,6 +6,48 @@ import gym_minigrid.envs
 
 class MiniGrid:
 
+    GRID_VALUES = np.array([  # shape=(33,3)
+        # Invisible
+        [0, 0, 0],
+        # Empty
+        [1, 0, 0],
+        # Wall
+        [2, 5, 0],
+        # Door (color, state)
+        [4, 0, 0],
+        [4, 0, 1],
+        [4, 1, 0],
+        [4, 1, 1],
+        [4, 2, 0],
+        [4, 2, 1],
+        [4, 3, 0],
+        [4, 3, 1],
+        [4, 4, 0],
+        [4, 4, 1],
+        [4, 5, 0],
+        [4, 5, 1],
+        # Key (color)
+        [5, 0, 0],
+        [5, 1, 0],
+        [5, 2, 0],
+        [5, 3, 0],
+        [5, 4, 0],
+        [5, 5, 0],
+        # Ball (color)
+        [6, 0, 0],
+        [6, 1, 0],
+        [6, 2, 0],
+        [6, 3, 0],
+        [6, 4, 0],
+        [6, 5, 0],
+        # Box (color)
+        [7, 0, 0],
+        [7, 1, 0],
+        [7, 2, 0],
+        [7, 3, 0],
+        [7, 4, 0],
+        [7, 5, 0]])
+
     def __init__(self, env_name, max_steps=1000, seed=1337, agent_init_pos=None, agent_init_dir=0):
         entry_point = getattr(gym_minigrid.envs, env_name)
         self._env = entry_point()
@@ -17,13 +59,9 @@ class MiniGrid:
 
         grid = self._env.grid.encode()  # Grid is already generated when env is created
 
-        self._NUM_OBJECTS = len(gym_minigrid.minigrid.OBJECT_TO_IDX)
-        self._NUM_COLORS = len(gym_minigrid.minigrid.COLOR_TO_IDX)
-        self._NUM_STATES = len(gym_minigrid.minigrid.STATE_TO_IDX)
-        self._NUM_CHANNELS = self._NUM_OBJECTS + self._NUM_COLORS + self._NUM_STATES
         spaces = {}
         spaces['image_ids'] = self._env.observation_space['image']
-        spaces['image'] = gym.spaces.Box(0, 255, (7, 7, self._NUM_CHANNELS), np.uint8)
+        spaces['image'] = gym.spaces.Box(0, 255, (7, 7, 1), np.uint8)
         spaces['image_vis'] = gym.spaces.Box(0, self.max_steps, (7, 7), np.uint16)
         spaces['map'] = gym.spaces.Box(0, 255, grid.shape, np.uint8)  # Assume constant grid size
         spaces['map_vis'] = gym.spaces.Box(0, self.max_steps, grid.shape[0:2], np.uint16)
@@ -60,7 +98,7 @@ class MiniGrid:
 
         obs = {}
         obs['image_ids'] = img
-        obs['image'] = self._one_hot(img)
+        obs['image'] = self.to_categorical(img)
         obs['image_vis'] = self._obs_last_seen(img)
         obs['map'] = self._map()
         vis_mask = self._global_vis_mask(img)
@@ -70,20 +108,20 @@ class MiniGrid:
             assert obs[k].shape == self.observation_space[k].shape, f"Wrong shape {k}: {obs[k].shape} != {self.observation_space[k].shape}"
         return obs
 
-    def _one_hot(self, img):
-        out = np.zeros(self.observation_space['image'].shape, dtype=self.observation_space['image'].dtype)
-
-        # TODO perf: implement as numpy multi-index without loop
-        for i in range(img.shape[0]):
-            for j in range(img.shape[1]):
-                type_ = img[i, j, 0]
-                color = img[i, j, 1]
-                state = img[i, j, 2]
-                out[i, j, type_] = 255
-                out[i, j, self._NUM_OBJECTS + color] = 255
-                out[i, j, self._NUM_OBJECTS + self._NUM_COLORS + state] = 255
-
+    @staticmethod
+    def to_categorical(image_ids):
+        n = len(MiniGrid.GRID_VALUES)
+        out = np.zeros(image_ids.shape[:-1] + (n,))
+        for i in range(n):
+            val = MiniGrid.GRID_VALUES[i]
+            out[..., i] = (image_ids == val).all(axis=-1)
+        out = out.argmax(axis=-1).astype(np.uint8)  # (..., 7, 7, 33) => (..., 7, 7)
+        out = np.expand_dims(out, -1)               # (..., 7, 7) => (..., 7, 7, 1)
         return out
+
+    @staticmethod
+    def from_categorical(img):
+        return MiniGrid.GRID_VALUES[img[..., 0]]
 
     def _map(self, with_agent=True):
         out = self._env.grid.encode()
