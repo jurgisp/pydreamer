@@ -23,6 +23,7 @@ DEFAULT_CONFIG = dict(
     n_steps=2_000_000,
     batch_length=15,
     batch_size=15,
+    device='cpu',
     # Model
     embed_dim=256,
     deter_dim=200,
@@ -38,7 +39,8 @@ def run(conf):
 
     data = OfflineData(conf.input_dir)
 
-    preprocess = MinigridPreprocess(categorical=33)
+    device = torch.device(conf.device)
+    preprocess = MinigridPreprocess(categorical=33, device=device)
 
     # model = VAE(
     #     encoder=ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3)),
@@ -51,6 +53,7 @@ def run(conf):
         stoch_dim=conf.stoch_dim,
         hidden_dim=conf.hidden_dim,
     )
+    model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
 
