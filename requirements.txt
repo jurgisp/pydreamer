@@ -1,9 +1,11 @@
 torch==1.7.1
 torchvision==0.8.2
-gym[atari]
+gym
 gym-minigrid
 
+# Logging
 mlflow
-google.cloud.storage  # for mlflow artifacts
-imageio
+google.cloud.storage
+
+# Dashboards
 bokeh
