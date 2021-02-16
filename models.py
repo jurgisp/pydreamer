@@ -43,13 +43,13 @@ class RSSM(nn.Module):
              obs_target,                            # tensor(N, B, C, H, W)
              ):
         loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
-        loss_obs = self._decoder.loss(obs_reconstr, obs_target)
-        assert loss_kl.shape == loss_obs.shape  # Should be (N, B)
+        loss_image = self._decoder.loss(obs_reconstr, obs_target)
+        assert loss_kl.shape == loss_image.shape  # Should be (N, B)
 
         loss_kl = loss_kl.mean()  # Mean over (N, B)
-        loss_obs = loss_obs.mean()
-        loss = loss_kl + loss_obs
-        metrics = dict(loss_kl=loss_kl.detach(), loss_obs=loss_obs.detach())
+        loss_image = loss_image.mean()
+        loss = loss_kl + loss_image
+        metrics = dict(loss_kl=loss_kl.detach(), loss_image=loss_image.detach())
         return loss, metrics
 
 
@@ -91,11 +91,11 @@ class VAE(nn.Module):
              ):
         prior = zero_prior_like(post)
         loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
-        loss_obs = self._decoder.loss(obs_reconstr, obs_target)
-        assert loss_kl.shape == loss_obs.shape  # Should be (N, B)
+        loss_image = self._decoder.loss(obs_reconstr, obs_target)
+        assert loss_kl.shape == loss_image.shape  # Should be (N, B)
 
         loss_kl = loss_kl.mean()  # Mean over (N, B)
-        loss_obs = loss_obs.mean()
-        loss = loss_kl + loss_obs
-        metrics = dict(loss_kl=loss_kl.detach(), loss_obs=loss_obs.detach())
+        loss_image = loss_image.mean()
+        loss = loss_kl + loss_image
+        metrics = dict(loss_kl=loss_kl.detach(), loss_image=loss_image.detach())
         return loss, metrics

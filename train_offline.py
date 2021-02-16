@@ -95,7 +95,7 @@ def run(conf):
             print(f"[{step:07}]"
                   f"  loss: {metrics['loss']:.3f}"
                   f"  loss_kl: {metrics['loss_kl']:.3f}"
-                  f"  loss_obs: {metrics['loss_obs']:.3f}"
+                  f"  loss_image: {metrics['loss_image']:.3f}"
                   )
             mlflow.log_metrics(metrics, step=step)
             metrics = defaultdict(list)
