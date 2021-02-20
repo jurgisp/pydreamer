@@ -7,29 +7,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import mlflow
 
+import tools
 from data import OfflineData
 from preprocessing import MinigridPreprocess
 from models import VAE, RSSM
 from modules import ConvEncoder, ConvDecoderCat
-
-
-DEFAULT_CONFIG = dict(
-    run_name='adhoc',
-    input_dir='./data',
-    log_interval=45,
-    save_path='./log/model.pt',
-    save_interval=400,
-    # Training
-    n_steps=2_000_000,
-    batch_length=15,
-    batch_size=15,
-    device='cpu',
-    # Model
-    embed_dim=256,
-    deter_dim=200,
-    stoch_dim=10,
-    hidden_dim=200,
-)
 
 
 def run(conf):
@@ -119,7 +101,19 @@ def run(conf):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    for key, value in DEFAULT_CONFIG.items():
+    parser.add_argument('--configs', nargs='+', required=True)
+    args, remaining = parser.parse_known_args()
+
+    # Config from YAML
+    conf = {}
+    configs = tools.read_yamls('./config')    
+    for name in args.configs:
+        conf.update(configs[name])
+
+    # Override config from command-line
+    parser = argparse.ArgumentParser()
+    for key, value in conf.items():
         parser.add_argument(f'--{key}', type=type(value), default=value)
-    conf = parser.parse_args()
+    conf = parser.parse_args(remaining)
+
     run(conf)
