@@ -38,7 +38,7 @@ def run(conf):
     print(f'Model: {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters')
     mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4, eps=1e-5)
 
     metrics = defaultdict(list)
     batches = 0
