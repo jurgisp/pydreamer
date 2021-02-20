@@ -30,6 +30,9 @@ class MinigridPreprocess:
         image = image.to(dtype=torch.float, device=self._device)
 
         action = torch.from_numpy(batch['action']).to(dtype=torch.float, device=self._device)
-        reset = torch.from_numpy(batch['reset']).to(dtype=torch.bool, device=self._device)
+        if 'reset' in batch:
+            reset = torch.from_numpy(batch['reset']).to(dtype=torch.bool, device=self._device)
+        else:
+            reset = torch.zeros(action.shape[0:2], dtype=torch.bool, device=self._device)
 
         return image, action, reset
