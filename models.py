@@ -25,8 +25,9 @@ class RSSM(nn.Module):
 
         n = obs.size(0)
         embed = unflatten(self._encoder(flatten(obs)), n)
-        prior, post, post_sample, out_state = self._core(embed, action, reset, in_state)
-        obs_reconstr = unflatten(self._decoder(flatten(post_sample)), n)
+        prior, post, states = self._core(embed, action, reset, in_state)
+        out_state = states[-1]
+        obs_reconstr = unflatten(self._decoder(flatten(states)), n)
 
         return (
             prior,                       # tensor(N, B, 2*S)

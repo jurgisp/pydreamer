@@ -3,13 +3,13 @@ defaults:
   input_dir: ./data
   log_interval: 500
   save_path: ./log/model.pt
-  save_interval: 400
+  save_interval: 10_000
 
   # Training
   n_steps: 100_000
   batch_length: 15
   batch_size: 15
-  device: "cpu"
+  device: cuda
 
   # Model
   embed_dim: 256
