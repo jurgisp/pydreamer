@@ -8,11 +8,10 @@ RUN pip3 install --upgrade pip
 RUN pip3 install torch==1.7.1+cu101 torchvision==0.8.2+cu101 -f https://download.pytorch.org/whl/torch_stable.html
 
 WORKDIR /app
+ENV OMP_NUM_THREADS 1
+ENV PYTHONUNBUFFERED 1
 
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 
 COPY . .
-
-ENV OMP_NUM_THREADS 1
-ENV PYTHONUNBUFFERED 1

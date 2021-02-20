@@ -6,3 +6,7 @@ adhoc:
 
 decode_hz:
   input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
+  
+grad_clip:
+  grad_clip: 100
+  input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
