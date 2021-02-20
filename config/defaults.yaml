@@ -1,12 +1,12 @@
 defaults:
   run_name: none
   input_dir: ./data
-  log_interval: 45
+  log_interval: 500
   save_path: ./log/model.pt
   save_interval: 400
 
   # Training
-  n_steps: 2_000_000
+  n_steps: 100_000
   batch_length: 15
   batch_size: 15
   device: "cpu"

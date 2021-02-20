@@ -3,6 +3,7 @@ train_offline:
 
 adhoc:
   run_name: adhoc
+  log_interval: 10
 
 gpu_test:
   device: cuda
