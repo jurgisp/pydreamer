@@ -3,8 +3,6 @@ import pathlib
 from collections import defaultdict
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import mlflow
 
 import tools
@@ -42,7 +40,6 @@ def run(conf):
     print(f'Model: {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters')
     mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')
     metrics = defaultdict(list)
-    step = 0
     batches = 0
     for batch in data.iterate(conf.batch_length, conf.batch_size):
 
@@ -63,7 +60,6 @@ def run(conf):
 
         # Metrics
 
-        step += image.size(0) * image.size(1)
         batches += 1
         metrics['loss'].append(loss.item())
         for k, v in loss_metrics.items():
@@ -73,16 +69,15 @@ def run(conf):
 
         if batches % conf.log_interval == 0:
             metrics = {k: np.mean(v) for k, v in metrics.items()}
-            metrics['_step'] = step
+            metrics['_step'] = batches
             metrics['_loss'] = metrics['loss']
-            metrics['batch'] = batches
 
-            print(f"[{step:07}]"
+            print(f"[{batches:06}]"
                   f"  loss: {metrics['loss']:.3f}"
                   f"  loss_kl: {metrics['loss_kl']:.3f}"
                   f"  loss_image: {metrics['loss_image']:.3f}"
                   )
-            mlflow.log_metrics(metrics, step=step)
+            mlflow.log_metrics(metrics, step=batches)
             metrics = defaultdict(list)
 
         # Save
@@ -94,7 +89,7 @@ def run(conf):
 
         # Stop
 
-        if step >= conf.n_steps:
+        if batches >= conf.n_steps:
             print('Stopping')
             break
 
