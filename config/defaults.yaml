@@ -5,6 +5,9 @@ defaults:
   save_path: ./log/model.pt
   save_interval: 10_000
 
+  # Data
+  data_seq: True
+
   # Training
   n_steps: 100_000
   batch_length: 15

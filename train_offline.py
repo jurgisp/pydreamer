@@ -7,7 +7,7 @@ import torch.nn as nn
 import mlflow
 
 import tools
-from data import OfflineData
+from data import OfflineDataSequential, OfflineDataRandom
 from preprocessing import MinigridPreprocess
 from models import VAE, RSSM
 from modules import ConvEncoder, ConvDecoderCat
@@ -18,7 +18,8 @@ def run(conf):
     mlflow.start_run(run_name=conf.run_name)
     mlflow.log_params(vars(conf))
 
-    data = OfflineData(conf.input_dir)
+    data = (OfflineDataSequential(conf.input_dir) if conf.data_seq else
+            OfflineDataRandom(conf.input_dir))
 
     device = torch.device(conf.device)
     preprocess = MinigridPreprocess(categorical=33, device=device)

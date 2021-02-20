@@ -1,3 +1,8 @@
+shuffle:
+  data_seq: False
+  grad_clip: 100
+  input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
+
 opt_eps:
   grad_clip: 100
   input_dir: ./data/minigrid_PlaygroundV0/20210216_1343

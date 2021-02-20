@@ -3,7 +3,8 @@ import numpy as np
 import random
 
 
-class OfflineData:
+class OfflineDataSequential:
+    """Offline data which processes episodes sequentially"""
 
     def __init__(self, input_dir):
         input_dir = pathlib.Path(input_dir)
@@ -55,3 +56,45 @@ class OfflineData:
         files = self._files.copy()
         random.shuffle(files)
         return files
+
+
+
+class OfflineDataRandom:
+    """Offline data with random sampling from middle of episodes"""
+
+    def __init__(self, input_dir):
+        input_dir = pathlib.Path(input_dir)
+        self._files = list(sorted(input_dir.glob('*.npz')))
+        print(f'Offline data: {len(self._files)} episodes in {str(input_dir)}, loading...')
+        self._data = self._load_data()
+
+    def _load_data(self):
+        all_data = []
+        for path in self._files:
+            with path.open('rb') as f:
+                fdata = np.load(f)
+                data = {key: fdata[key] for key in fdata}
+                all_data.append(data)
+        return all_data
+
+    def iterate(self, batch_length, batch_size):
+        while True:
+            yield self._sample_batch(batch_length, batch_size)
+
+    def _sample_batch(self, batch_length, batch_size):
+        sequences = [self._sample_single(batch_length) for _ in range(batch_size)]
+        batch = {}
+        for key in sequences[0]:
+            batch[key] = np.stack([b[key] for b in sequences]).swapaxes(0, 1)
+        return batch
+
+    def _sample_single(self, batch_length):
+        i_episode = np.random.randint(len(self._data))
+        data = self._data[i_episode]
+
+        # TODO: this sampling undersamples episode starts and ends
+        n = data['image'].shape[0]
+        i = np.random.randint(n - batch_length)
+        j = i + batch_length
+        batch = {key: data[key][i:j] for key in data}
+        return batch
