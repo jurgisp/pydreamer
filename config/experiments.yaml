@@ -1,0 +1,8 @@
+train_offline:
+  input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
+
+adhoc:
+  run_name: adhoc
+
+gpu_test:
+  device: cuda

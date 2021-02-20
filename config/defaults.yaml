@@ -1,0 +1,18 @@
+defaults:
+  run_name: none
+  input_dir: ./data
+  log_interval: 45
+  save_path: ./log/model.pt
+  save_interval: 400
+
+  # Training
+  n_steps: 2_000_000
+  batch_length: 15
+  batch_size: 15
+  device: "cpu"
+
+  # Model
+  embed_dim: 256
+  deter_dim: 200
+  stoch_dim: 10
+  hidden_dim: 200
