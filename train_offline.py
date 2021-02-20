@@ -3,6 +3,7 @@ import pathlib
 from collections import defaultdict
 import numpy as np
 import torch
+import torch.nn as nn
 import mlflow
 
 import tools
@@ -28,19 +29,21 @@ def run(conf):
     # )
     model = RSSM(
         encoder=ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3)),
-        decoder=ConvDecoderCat(in_dim=conf.deter_dim+conf.stoch_dim, out_channels=preprocess.img_channels, stride=1, kernels=(3, 3, 3, 1)),
+        decoder=ConvDecoderCat(in_dim=conf.deter_dim + conf.stoch_dim, out_channels=preprocess.img_channels, stride=1, kernels=(3, 3, 3, 1)),
         deter_dim=conf.deter_dim,
         stoch_dim=conf.stoch_dim,
         hidden_dim=conf.hidden_dim,
     )
     model.to(device)
+    print(f'Model: {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters')
+    mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')
 
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
 
-    print(f'Model: {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters')
-    mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')
     metrics = defaultdict(list)
     batches = 0
+    grad_norm = None
+
     for batch in data.iterate(conf.batch_length, conf.batch_size):
 
         image, action, reset = preprocess(batch)
@@ -55,7 +58,8 @@ def run(conf):
 
         optimizer.zero_grad()
         loss.backward()
-        # nn.utils.clip_grad_norm_(self._dreamer.model_params(), self._grad_clip)
+        if conf.grad_clip:
+            grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
         optimizer.step()
 
         # Metrics
@@ -64,6 +68,8 @@ def run(conf):
         metrics['loss'].append(loss.item())
         for k, v in loss_metrics.items():
             metrics[k].append(v.item())
+        if grad_norm:
+            metrics['grad_norm'].append(grad_norm.item())
 
         # Log
 
@@ -101,7 +107,7 @@ if __name__ == '__main__':
 
     # Config from YAML
     conf = {}
-    configs = tools.read_yamls('./config')    
+    configs = tools.read_yamls('./config')
     for name in args.configs:
         conf.update(configs[name])
 

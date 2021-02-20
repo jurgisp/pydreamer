@@ -9,10 +9,13 @@ defaults:
   n_steps: 100_000
   batch_length: 15
   batch_size: 15
-  device: cuda
+  device: 'cuda:0'
 
   # Model
   embed_dim: 256
   deter_dim: 200
   stoch_dim: 10
   hidden_dim: 200
+
+  # Optimizer
+  grad_clip:
