@@ -1,21 +1,22 @@
+weight_init:
+  data_seq: False
+  grad_clip: 100
+
 shuffle:
   data_seq: False
   grad_clip: 100
-  input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
 
 opt_eps:
   grad_clip: 100
-  input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
 
 grad_clip:
   grad_clip: 100
-  input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
-
-decode_hz:
-  input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
 
 adhoc:
   input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
   run_name: adhoc
   device: cpu
   log_interval: 10
+
+offline_minigrid:
+  input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
