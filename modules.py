@@ -45,6 +45,18 @@ def zero_prior_like(mean_std):
     return prior
 
 
+def init_weights_tf2(m):
+    # Match TF2 initializations
+    if type(m) in {nn.Conv2d, nn.ConvTranspose2d, nn.Linear}:
+        nn.init.xavier_uniform_(m.weight.data)
+        nn.init.zeros_(m.bias.data)
+    if type(m) == nn.GRUCell:
+        nn.init.xavier_uniform_(m.weight_ih.data)
+        nn.init.orthogonal_(m.weight_hh.data)
+        nn.init.zeros_(m.bias_ih.data)
+        nn.init.zeros_(m.bias_hh.data)
+
+
 class RSSMCore(nn.Module):
 
     def __init__(self, embed_dim=256, action_dim=7, deter_dim=200, stoch_dim=30, hidden_dim=200, min_std=0.1):

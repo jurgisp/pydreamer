@@ -14,6 +14,8 @@ class RSSM(nn.Module):
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
                               hidden_dim=hidden_dim)
+        for m in self.modules():
+            init_weights_tf2(m)
 
     def forward(self,
                 obs,       # tensor(N, B, C, H, W)
