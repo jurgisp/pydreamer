@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -184,6 +185,32 @@ class ConvDecoderCat(nn.Module):
         return self._model(x)
 
     def loss(self, output, target):
+        n = output.size(0)
+        output = flatten(output)
+        target = flatten(target).argmax(dim=-3)
+        loss = F.cross_entropy(output, target, reduction='none')
+        loss = unflatten(loss, n)
+        return loss.sum(dim=[-1, -2])
+
+
+class DenseDecoder(nn.Module):
+
+    def __init__(self, in_dim, out_shape=(33, 7, 7), activation=nn.ELU):
+        super().__init__()
+        self.in_dim = in_dim
+        self._model = nn.Sequential(
+            nn.Linear(in_dim, 400),
+            activation(),
+            nn.Linear(400, 400),
+            activation(),
+            nn.Linear(400, np.prod(out_shape)),
+            nn.Unflatten(-1, out_shape))
+
+    def forward(self, x):
+        return self._model(x)
+
+    def loss(self, output, target):
+        # TODO: this is currently adatpted to categorical 3D output shape (33, 7, 7)
         n = output.size(0)
         output = flatten(output)
         target = flatten(target).argmax(dim=-3)

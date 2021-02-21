@@ -10,7 +10,7 @@ import tools
 from data import OfflineDataSequential, OfflineDataRandom
 from preprocessing import MinigridPreprocess
 from models import VAE, RSSM
-from modules import ConvEncoder, ConvDecoderCat
+from modules import ConvEncoder, ConvDecoderCat, DenseDecoder
 
 
 def run(conf):
@@ -28,9 +28,14 @@ def run(conf):
     #     encoder=ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3)),
     #     decoder=ConvDecoderCat(in_dim=conf.stoch_dim, out_channels=preprocess.img_channels, stride=1, kernels=(3, 3, 3, 1))
     # )
+    encoder = ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3))
+    if conf.image_decoder == 'cnn':
+        decoder = ConvDecoderCat(in_dim=conf.deter_dim + conf.stoch_dim, out_channels=preprocess.img_channels, stride=1, kernels=(3, 3, 3, 1))
+    else:
+        decoder = DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim, out_shape=(preprocess.img_channels, 7, 7))
     model = RSSM(
-        encoder=ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3)),
-        decoder=ConvDecoderCat(in_dim=conf.deter_dim + conf.stoch_dim, out_channels=preprocess.img_channels, stride=1, kernels=(3, 3, 3, 1)),
+        encoder=encoder,
+        decoder=decoder,
         deter_dim=conf.deter_dim,
         stoch_dim=conf.stoch_dim,
         hidden_dim=conf.hidden_dim,

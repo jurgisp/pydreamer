@@ -12,11 +12,12 @@ opt_eps:
 grad_clip:
   grad_clip: 100
 
+offline_minigrid:
+  input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
+
 adhoc:
   input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
   run_name: adhoc
   device: cpu
   log_interval: 10
-
-offline_minigrid:
-  input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
+  image_decoder: 'cnn'
