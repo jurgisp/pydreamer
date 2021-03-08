@@ -6,3 +6,4 @@ mlruns/
 _*.*
 .DS_Store
 .pylintrc
+.pip/
