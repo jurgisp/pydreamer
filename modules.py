@@ -171,7 +171,7 @@ class ConvDecoderCat(nn.Module):
         self._model = nn.Sequential(
             # FC
             nn.Linear(in_dim, 1024),  # No activation here in DreamerV2
-            nn.Unflatten(-1, (1024, 1, 1)),
+            nn.Unflatten(-1, (1024, 1, 1)),  # type: ignore
             # Deconv
             nn.ConvTranspose2d(1024, 128, kernels[0], stride),
             activation(),
