@@ -13,6 +13,8 @@ class MiniGrid:
         [1, 0, 0],
         # Wall
         [2, 5, 0],
+        # Goal
+        [8, 1, 0],
         # Door (color, state)
         [4, 0, 0],
         [4, 0, 1],
@@ -49,8 +51,7 @@ class MiniGrid:
         [7, 5, 0]])
 
     def __init__(self, env_name, max_steps=1000, seed=1337, agent_init_pos=None, agent_init_dir=0):
-        entry_point = getattr(gym_minigrid.envs, env_name)
-        self._env = entry_point()
+        self._env = gym.make(env_name)
         self._env.max_steps = max_steps
         self._env.seed(seed)
         self.max_steps = max_steps

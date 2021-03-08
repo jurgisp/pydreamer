@@ -10,7 +10,7 @@ from bokeh import layouts
 
 from envs import MiniGrid
 
-PARENT_DIR = './data/minigrid_PlaygroundV0'
+PARENT_DIR = './data/MiniGrid-MazeS15-v0'
 # DATA_DIR = './data/minigrid_PlaygroundV0/20210203_1535'
 DATA_DIR = list(reversed(sorted(pathlib.Path(PARENT_DIR).glob('*'))))[0]  # Last subdirectory
 print(f'Browsing data from: {DATA_DIR}')
@@ -21,8 +21,8 @@ episode_data = {}
 def to_rgba(img, alpha=255):
     rgba = np.zeros(img.shape[0:2], dtype=np.uint32)
     view = rgba.view(dtype=np.uint8).reshape(rgba.shape + (4,))
-    view[:, :, 0:3] = img
-    view[:, :, 3] = alpha
+    view[:, :, 0:3] = np.flipud(img)
+    view[:, :, 3] = np.flipud(alpha)
     return rgba
 
 
