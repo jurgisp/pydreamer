@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import datetime
 import time
@@ -154,6 +155,10 @@ class CollectWrapper:
 
 
 if __name__ == '__main__':
-    env = 'PlaygroundV0'
-    main(output_dir=f"data/minigrid_{env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}",
+    parser = argparse.ArgumentParser()
+    parser.add_argument('env')
+    args = parser.parse_args()
+
+    env = args.env
+    main(output_dir=f"data/{env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}",
          env_name=env)
