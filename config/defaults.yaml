@@ -19,7 +19,7 @@ defaults:
   deter_dim: 200
   stoch_dim: 10
   hidden_dim: 200
-  image_decoder: 'cnn'
+  image_decoder: cnn
 
   # Optimizer
   grad_clip:
