@@ -16,7 +16,7 @@ def main(output_dir,
     output_dir = pathlib.Path(output_dir).expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    env = MiniGrid(env_name)
+    env = MiniGrid(env_name, max_steps=500)
     env = CollectWrapper(env)
 
     if policy == 'random':

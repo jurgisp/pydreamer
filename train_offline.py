@@ -22,7 +22,7 @@ def run(conf):
             OfflineDataRandom(conf.input_dir))
 
     device = torch.device(conf.device)
-    preprocess = MinigridPreprocess(categorical=33, device=device)
+    preprocess = MinigridPreprocess(categorical=4, device=device)
 
     # model = VAE(
     #     encoder=ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3)),

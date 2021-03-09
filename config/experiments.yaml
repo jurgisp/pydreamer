@@ -1,22 +1,12 @@
-weight_init:
-  data_seq: False
-  grad_clip: 100
-
 shuffle:
   data_seq: False
-  grad_clip: 100
-
-opt_eps:
-  grad_clip: 100
-
-grad_clip:
-  grad_clip: 100
 
 offline_minigrid:
-  input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
+  input_dir: ./data/MiniGrid-Maze-v0/20210309_1541
+  grad_clip: 100
 
 adhoc:
-  input_dir: ./data/minigrid_PlaygroundV0/20210216_1343
+  input_dir: ./data/MiniGrid-Maze-v0/20210309_1541
   run_name: adhoc
   device: cpu
   log_interval: 10
