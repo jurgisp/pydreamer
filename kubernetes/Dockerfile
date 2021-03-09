@@ -13,5 +13,6 @@ ENV PYTHONUNBUFFERED 1
 
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt
+RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git#egg=gym-minigrid
 
 COPY . .

@@ -10,7 +10,7 @@ from bokeh import layouts
 
 from envs import MiniGrid
 
-PARENT_DIR = './data/MiniGrid-MazeS15-v0'
+PARENT_DIR = './data/MiniGrid-Maze-v0'
 # DATA_DIR = './data/minigrid_PlaygroundV0/20210203_1535'
 DATA_DIR = list(reversed(sorted(pathlib.Path(PARENT_DIR).glob('*'))))[0]  # Last subdirectory
 print(f'Browsing data from: {DATA_DIR}')
