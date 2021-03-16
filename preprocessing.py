@@ -13,8 +13,7 @@ class MinigridPreprocess:
 
     def __call__(self, batch):
         # Input:
-        #   batch['image']:     np.array(N, B, 7, 7, 1)
-        #   batch['image_ids']: np.array(N, B, 7, 7, 3)
+        #   batch['image']:     np.array(N, B, 7, 7)
         #   batch['action']:    np.array(N, B, 7)
         #   batch['reset']:     np.array(N, B)
         # Output:
@@ -22,9 +21,9 @@ class MinigridPreprocess:
         #   action: torch.tensor(N, B, 7)
         #   reset:  torch.tensor(N, B)
 
-        assert batch['image'].shape[-1] == 1
+        assert batch['image'].shape[-1] == 7
 
-        image = torch.from_numpy(batch['image'][..., 0]).to(torch.int64)
+        image = torch.from_numpy(batch['image']).to(torch.int64)
         image = F.one_hot(image, num_classes=self._categorical)
         image = image.permute(0, 1, 4, 2, 3)  # (..., 7, 7, 33) => (..., 33, 7, 7)
         image = image.to(dtype=torch.float, device=self._device)

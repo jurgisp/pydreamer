@@ -68,9 +68,9 @@ class RandomPolicy:
 
 class MinigridWanderPolicy:
     def __call__(self, obs):
-        front = obs['image_ids'][3, 5]
-        left = obs['image_ids'][2, 6]
-        right = obs['image_ids'][4, 6]
+        front = MiniGrid.GRID_VALUES[obs['image'][3, 5]]
+        left = MiniGrid.GRID_VALUES[obs['image'][2, 6]]
+        right = MiniGrid.GRID_VALUES[obs['image'][4, 6]]
 
         # Door on left => turn with 50%
         if left[0] == 4 and np.random.rand() < 0.50:

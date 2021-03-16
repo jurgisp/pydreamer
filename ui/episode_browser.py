@@ -10,7 +10,8 @@ from bokeh import layouts
 
 from envs import MiniGrid
 
-PARENT_DIR = './data/MiniGrid-Maze-v0'
+MAX_STEPS = 500
+PARENT_DIR = './data/MiniGrid-MazeS7-v0'
 # DATA_DIR = './data/minigrid_PlaygroundV0/20210203_1535'
 DATA_DIR = list(reversed(sorted(pathlib.Path(PARENT_DIR).glob('*'))))[0]  # Last subdirectory
 print(f'Browsing data from: {DATA_DIR}')
@@ -66,12 +67,13 @@ def load_frame(ix):
 
 
 def load_frame_minigrid(ix):
-    map_ = episode_data['map'][ix]
-    img = MiniGrid.render_map(map_)
-
-    alpha = 255
+    map_ = episode_data['map_agent'][ix]
+    # map_vis = np.ones_like(map_)
     map_vis = episode_data['map_vis'][ix]
-    alpha = (np.clip(1.0 - (map_vis / 1000), 0, 1) * 255).astype(np.uint8).T
+
+    img = MiniGrid.render_map(map_)
+    alpha = 255
+    alpha = (np.clip(1.0 - (map_vis / MAX_STEPS), 0, 1) * 255).astype(np.uint8).T
     tile_size = img.shape[0] // alpha.shape[0]
     alpha = np.repeat(np.repeat(alpha, tile_size, axis=0), tile_size, axis=1)
 
