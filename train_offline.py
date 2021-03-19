@@ -24,24 +24,25 @@ def run(conf):
     device = torch.device(conf.device)
     preprocess = MinigridPreprocess(categorical=conf.channels,
                                     image_key=conf.image_key,
+                                    map_key=conf.map_key,
                                     device=device)
 
-    # model = VAE(
-    #     encoder=ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3)),
-    #     decoder=ConvDecoderCat(in_dim=conf.stoch_dim, out_channels=preprocess.img_channels, stride=1, kernels=(3, 3, 3, 1))
-    # )
-    encoder = ConvEncoder(in_channels=preprocess.img_channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3))
-    if conf.image_decoder == 'cnn':
-        decoder = ConvDecoderCat(in_dim=conf.deter_dim + conf.stoch_dim, out_channels=preprocess.img_channels, stride=1, kernels=(3, 3, 3, 1))
-    else:
-        decoder = DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim, out_shape=(preprocess.img_channels, 7, 7))
+    encoder = ConvEncoder(in_channels=conf.channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3))
+    decoder = (
+        ConvDecoderCat(in_dim=conf.deter_dim + conf.stoch_dim, out_channels=conf.channels, stride=1, kernels=(3, 3, 3, 1))
+        if conf.image_decoder == 'cnn' else
+        DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim, out_shape=(conf.channels, 7, 7))
+    )
+    decoder_map = DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim, out_shape=(preprocess.img_channels, conf.map_size, conf.map_size))
     model = RSSM(
         encoder=encoder,
-        decoder=decoder,
+        decoder_image=decoder,
+        decoder_map=decoder_map,
         deter_dim=conf.deter_dim,
         stoch_dim=conf.stoch_dim,
         hidden_dim=conf.hidden_dim,
     )
+
     model.to(device)
     print(f'Model: {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters')
     mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')
@@ -54,13 +55,13 @@ def run(conf):
 
     for batch in data.iterate(conf.batch_length, conf.batch_size):
 
-        image, action, reset = preprocess(batch)
+        image, action, reset, map = preprocess(batch)
 
         # Predict
 
         state = model.init_state(image.size(1))
         output = model(image, action, reset, state)
-        loss, loss_metrics, loss_tensors = model.loss(*output, image)
+        loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
 
         # Grad step
 
@@ -97,13 +98,14 @@ def run(conf):
         # Log artifacts
 
         if batches % conf.log_interval == 0:
-            with torch.no_grad():
-                image_pred, image_rec = model.predict_obs(*output)
             data = batch.copy()
             data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
-            data['image_pred'] = image_pred.cpu().numpy()
-            data['image_rec'] = image_rec.cpu().numpy()
-            data = {k: v.swapaxes(0, 1) for k, v in data.items()}  # (N, B, ...) => (B, N, ...)
+            with torch.no_grad():
+                image_pred, image_rec, map_rec = model.predict_obs(*output)
+                data['image_pred'] = image_pred.cpu().numpy()
+                data['image_rec'] = image_rec.cpu().numpy()
+                data['map_rec'] = map_rec.cpu().numpy()
+            data = {k: v.swapaxes(0, 1) for k, v in data.items()}  # (N,B,...) => (B,N,...)
             tools.mlflow_log_npz(data, f'{batches:07}.npz', 'd2_wm_predict')
 
         # Save model

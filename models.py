@@ -7,10 +7,11 @@ from modules import *
 
 class RSSM(nn.Module):
 
-    def __init__(self, encoder, decoder, deter_dim=200, stoch_dim=30, hidden_dim=200):
+    def __init__(self, encoder, decoder_image, decoder_map, deter_dim=200, stoch_dim=30, hidden_dim=200):
         super().__init__()
         self._encoder = encoder
-        self._decoder = decoder
+        self._decoder_image = decoder_image
+        self._decoder_map = decoder_map
         self._deter_dim = deter_dim
         self._stoch_dim = stoch_dim
         self._core = RSSMCore(embed_dim=encoder.out_dim,
@@ -21,21 +22,24 @@ class RSSM(nn.Module):
             init_weights_tf2(m)
 
     def forward(self,
-                obs,       # tensor(N, B, C, H, W)
+                image,       # tensor(N, B, C, H, W)
                 action,    # tensor(N, B, A)
                 reset,     # tensor(N, B)
                 in_state,  # tensor(   B, D+S)
                 ):
 
-        n = obs.size(0)
-        embed = unflatten(self._encoder(flatten(obs)), n)
+        n = image.size(0)
+        embed = unflatten(self._encoder(flatten(image)), n)
         prior, post, states = self._core(embed, action, reset, in_state)
-        obs_reconstr = unflatten(self._decoder(flatten(states)), n)
+        states_flat = flatten(states)
+        image_rec = unflatten(self._decoder_image(states_flat), n)
+        map_rec = unflatten(self._decoder_map(states_flat.detach()), n)  # no gradient
 
         return (
             prior,                       # tensor(N, B, 2*S)
             post,                        # tensor(N, B, 2*S)
-            obs_reconstr,                # tensor(N, B, C, H, W)
+            image_rec,                   # tensor(N, B, C, H, W)
+            map_rec,                     # tensor(N, B, C, MH, MW)
             states,                      # tensor(N, B, D+S)
         )
 
@@ -43,23 +47,30 @@ class RSSM(nn.Module):
         return self._core.init_state(batch_size)
 
     def loss(self,
-             prior, post, obs_reconstr, states,     # forward() output
-             obs_target,                            # tensor(N, B, C, H, W)
+             prior, post, image_rec, map_rec, states,     # forward() output
+             image,                                      # tensor(N, B, C, H, W)
+             map,                                        # tensor(N, B, MH, MW)
              ):
         loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
-        loss_image = self._decoder.loss(obs_reconstr, obs_target)
-        assert loss_kl.shape == loss_image.shape  # Should be (N, B)
+        loss_image = self._decoder_image.loss(image_rec, image)
+        loss_map = self._decoder_map.loss(map_rec, map)
 
-        loss_kl_mean = loss_kl.mean()  # Mean over (N, B)
-        loss_image_mean = loss_image.mean()
-        loss = loss_kl_mean + loss_image_mean
+        # Mean over (N, B)
+        assert loss_kl.shape == loss_image.shape == loss_map.shape
+        mloss_kl = loss_kl.mean()
+        mloss_image = loss_image.mean()
+        mloss_map = loss_map.mean()
+        loss = mloss_kl + mloss_image + mloss_map
 
-        metrics = dict(loss_kl=loss_kl_mean.detach(), loss_image=loss_image_mean.detach())
-        tensors = dict(loss_kl=loss_kl.detach(), loss_image=loss_image.detach())
+        metrics = dict(loss_kl=mloss_kl.detach(),
+                       loss_image=mloss_image.detach(),
+                       loss_model=mloss_kl.detach() + mloss_image.detach(),  # model loss, without detached heads
+                       loss_map=mloss_map.detach())
+        tensors = dict(loss_kl=loss_kl.detach())
         return loss, metrics, tensors
 
     def predict_obs(self,
-                    prior, post, obs_reconstr, states,  # forward() output
+                    prior, post, image_rec, map_rec, states,  # forward() output
                     ):
         n = states.size(0)
 
@@ -67,13 +78,16 @@ class RSSM(nn.Module):
         h, z_post = split(states, [self._deter_dim, self._stoch_dim])
         z_prior = diag_normal(prior).sample()
         states_prior = cat(h, z_prior)
-        obs_pred = unflatten(self._decoder(flatten(states_prior)), n)  # (N, B, C, H, W)
+        image_pred = unflatten(self._decoder_image(flatten(states_prior)), n)  # (N, B, C, H, W)
+        image_pred_sample = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2)).sample()
 
-        obs_pred_sample = D.Categorical(logits=obs_pred.permute(0, 1, 3, 4, 2)).sample()
-        obs_reconstr_sample = D.Categorical(logits=obs_reconstr.permute(0, 1, 3, 4, 2)).sample()
+        image_rec_sample = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2)).sample()
+        map_rec_sample = D.Categorical(logits=map_rec.permute(0, 1, 3, 4, 2)).sample()
+
         return (
-            obs_pred_sample,     # tensor(N, B, H, W)
-            obs_reconstr_sample  # tensor(N, B, H, W)
+            image_pred_sample,     # tensor(N, B, H, W)
+            image_rec_sample,       # tensor(N, B, H, W)
+            map_rec_sample,       # tensor(N, B, MH, MW)
         )
 
 

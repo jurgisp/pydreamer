@@ -8,6 +8,8 @@ defaults:
   # Env
   channels: 8
   image_key: image
+  map_key: map
+  map_size: 7
 
   # Data
   data_seq: True

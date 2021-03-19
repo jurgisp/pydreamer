@@ -209,11 +209,15 @@ class DenseDecoder(nn.Module):
     def forward(self, x):
         return self._model(x)
 
-    def loss(self, output, target):
-        # TODO: this is currently adatpted to categorical 3D output shape (33, 7, 7)
+    def loss(self,
+             output,  # (N,B C,H,W)
+             target   # float(N,B,C,H,W) or int(N,B,H,W)
+             ):
         n = output.size(0)
-        output = flatten(output)
-        target = flatten(target).argmax(dim=-3)
-        loss = F.cross_entropy(output, target, reduction='none')
+        output = flatten(output)  # (N,B,C,H,W) => (NB,C,H,W)
+        target = flatten(target)  # (N,B,...) => (NB,...)
+        if output.shape == target.shape:
+            target = target.argmax(dim=-3)  # float(NB,C,H,W) => int(NB,H,W)
+        loss = F.cross_entropy(output, target, reduction='none')  # target: (NB,H,W)
         loss = unflatten(loss, n)
         return loss.sum(dim=[-1, -2])
