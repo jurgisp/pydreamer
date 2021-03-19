@@ -40,6 +40,6 @@ class MinigridPreprocess:
         else:
             reset = torch.zeros(action.shape[0:2], dtype=torch.bool, device=self._device)
 
-        map = torch.from_numpy(batch['map']).to(torch.int64)
+        map = torch.from_numpy(batch['map']).to(dtype=torch.int64, device=self._device)
 
         return image, action, reset, map
