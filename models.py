@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.distributions as D
 
 from modules import *
 
@@ -10,6 +11,8 @@ class RSSM(nn.Module):
         super().__init__()
         self._encoder = encoder
         self._decoder = decoder
+        self._deter_dim = deter_dim
+        self._stoch_dim = stoch_dim
         self._core = RSSMCore(embed_dim=encoder.out_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
@@ -27,32 +30,51 @@ class RSSM(nn.Module):
         n = obs.size(0)
         embed = unflatten(self._encoder(flatten(obs)), n)
         prior, post, states = self._core(embed, action, reset, in_state)
-        out_state = states[-1]
         obs_reconstr = unflatten(self._decoder(flatten(states)), n)
 
         return (
             prior,                       # tensor(N, B, 2*S)
             post,                        # tensor(N, B, 2*S)
             obs_reconstr,                # tensor(N, B, C, H, W)
-            out_state,                   # tensor(   B, D+S)
+            states,                      # tensor(N, B, D+S)
         )
 
     def init_state(self, batch_size):
         return self._core.init_state(batch_size)
 
     def loss(self,
-             prior, post, obs_reconstr, out_state,  # forward() output
+             prior, post, obs_reconstr, states,     # forward() output
              obs_target,                            # tensor(N, B, C, H, W)
              ):
         loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
         loss_image = self._decoder.loss(obs_reconstr, obs_target)
         assert loss_kl.shape == loss_image.shape  # Should be (N, B)
 
-        loss_kl = loss_kl.mean()  # Mean over (N, B)
-        loss_image = loss_image.mean()
-        loss = loss_kl + loss_image
-        metrics = dict(loss_kl=loss_kl.detach(), loss_image=loss_image.detach())
-        return loss, metrics
+        loss_kl_mean = loss_kl.mean()  # Mean over (N, B)
+        loss_image_mean = loss_image.mean()
+        loss = loss_kl_mean + loss_image_mean
+
+        metrics = dict(loss_kl=loss_kl_mean.detach(), loss_image=loss_image_mean.detach())
+        tensors = dict(loss_kl=loss_kl.detach(), loss_image=loss_image.detach())
+        return loss, metrics, tensors
+
+    def predict_obs(self,
+                    prior, post, obs_reconstr, states,  # forward() output
+                    ):
+        n = states.size(0)
+
+        # Make states with z sampled from prior instead of posterior
+        h, z_post = split(states, [self._deter_dim, self._stoch_dim])
+        z_prior = diag_normal(prior).sample()
+        states_prior = cat(h, z_prior)
+        obs_pred = unflatten(self._decoder(flatten(states_prior)), n)  # (N, B, C, H, W)
+
+        obs_pred_sample = D.Categorical(logits=obs_pred.permute(0, 1, 3, 4, 2)).sample()
+        obs_reconstr_sample = D.Categorical(logits=obs_reconstr.permute(0, 1, 3, 4, 2)).sample()
+        return (
+            obs_pred_sample,     # tensor(N, B, H, W)
+            obs_reconstr_sample  # tensor(N, B, H, W)
+        )
 
 
 class VAE(nn.Module):

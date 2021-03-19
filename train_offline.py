@@ -58,7 +58,7 @@ def run(conf):
 
         state = model.init_state(image.size(1))
         output = model(image, action, reset, state)
-        loss, loss_metrics = model.loss(*output, image)
+        loss, loss_metrics, loss_tensors = model.loss(*output, image)
 
         # Grad step
 
@@ -77,7 +77,7 @@ def run(conf):
         if grad_norm:
             metrics['grad_norm'].append(grad_norm.item())
 
-        # Log
+        # Log metrics
 
         if batches % conf.log_interval == 0:
             metrics = {k: np.mean(v) for k, v in metrics.items()}
@@ -92,7 +92,19 @@ def run(conf):
             mlflow.log_metrics(metrics, step=batches)
             metrics = defaultdict(list)
 
-        # Save
+        # Log artifacts
+
+        if batches % conf.log_interval == 0:
+            with torch.no_grad():
+                image_pred, image_rec = model.predict_obs(*output)
+            data = batch.copy()
+            data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
+            data['image_pred'] = image_pred.cpu().numpy()
+            data['image_rec'] = image_rec.cpu().numpy()
+            data = {k: v.swapaxes(0, 1) for k, v in data.items()}  # (N, B, ...) => (B, N, ...)
+            tools.mlflow_log_npz(data, f'{batches:07}.npz', 'd2_wm_predict')
+
+        # Save model
 
         if conf.save_path and batches % conf.save_interval == 0:
             pathlib.Path(conf.save_path).parent.mkdir(parents=True, exist_ok=True)

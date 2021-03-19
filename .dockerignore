@@ -1,4 +1,6 @@
 #data/
+data_bak/
 log/
 mlruns/
 *.ipynb
+.env
