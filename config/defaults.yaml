@@ -5,6 +5,10 @@ defaults:
   save_path: ./log/model.pt
   save_interval: 10_000
 
+  # Env
+  channels: 8
+  image_key: image
+
   # Data
   data_seq: True
 
