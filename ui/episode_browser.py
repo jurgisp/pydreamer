@@ -11,7 +11,9 @@ from bokeh import layouts
 from envs import MiniGrid
 
 MAX_STEPS = 500
-PARENT_DIR = './data/MiniGrid-MazeS7-v0'
+SHOW_MAP = 'map_agent'
+# SHOW_MAP = 'map_centered'
+PARENT_DIR = './data/MiniGrid-MazeS11-v0'
 # DATA_DIR = './data/minigrid_PlaygroundV0/20210203_1535'
 DATA_DIR = list(reversed(sorted(pathlib.Path(PARENT_DIR).glob('*'))))[0]  # Last subdirectory
 print(f'Browsing data from: {DATA_DIR}')
@@ -67,9 +69,16 @@ def load_frame(ix):
 
 
 def load_frame_minigrid(ix):
-    map_ = episode_data['map_agent'][ix]
-    # map_vis = np.ones_like(map_)
-    map_vis = episode_data['map_vis'][ix]
+    if SHOW_MAP == 'map_agent':
+        map_ = episode_data['map_agent'][ix]
+        map_vis = episode_data['map_vis'][ix]
+
+    elif SHOW_MAP == 'map_centered':
+        map_ = episode_data['map_centered'][ix]
+        map_vis = np.ones_like(map_)
+
+    else:
+        raise NotImplementedError
 
     img = MiniGrid.render_map(map_)
     alpha = 255

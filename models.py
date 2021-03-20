@@ -66,7 +66,8 @@ class RSSM(nn.Module):
                        loss_image=mloss_image.detach(),
                        loss_model=mloss_kl.detach() + mloss_image.detach(),  # model loss, without detached heads
                        loss_map=mloss_map.detach())
-        tensors = dict(loss_kl=loss_kl.detach())
+        tensors = dict(loss_kl=loss_kl.detach(),
+                       loss_map=loss_map.detach())
         return loss, metrics, tensors
 
     def predict_obs(self,

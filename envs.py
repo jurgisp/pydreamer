@@ -50,7 +50,7 @@ class MiniGrid:
         [7, 3, 0],
         [7, 4, 0],
         [7, 5, 0],
-        ])
+    ])
 
     def __init__(self, env_name, max_steps=1000, seed=1337, agent_init_pos=None, agent_init_dir=0):
         self._env = gym.make(env_name)
@@ -61,13 +61,16 @@ class MiniGrid:
         self.agent_init_dir = agent_init_dir
 
         grid = self._env.grid.encode()  # Grid is already generated when env is created
+        self.map_size = n = grid.shape[0]
+        self.map_centered_size = m = 2 * n - 3  # 11x11 => 19x19
 
         spaces = {}
         spaces['image'] = gym.spaces.Box(0, 255, (7, 7), np.uint8)
-        spaces['map'] = gym.spaces.Box(0, 255, grid.shape[0:2], np.uint8)
-        spaces['map_agent'] = gym.spaces.Box(0, 255, grid.shape[0:2], np.uint8)
-        spaces['map_masked'] = gym.spaces.Box(0, 255, grid.shape[0:2], np.uint8)
-        spaces['map_vis'] = gym.spaces.Box(0, self.max_steps, grid.shape[0:2], np.uint16)
+        spaces['map'] = gym.spaces.Box(0, 255, (n, n), np.uint8)
+        spaces['map_agent'] = gym.spaces.Box(0, 255, (n, n), np.uint8)
+        spaces['map_masked'] = gym.spaces.Box(0, 255, (n, n), np.uint8)
+        spaces['map_vis'] = gym.spaces.Box(0, self.max_steps, (n, n), np.uint16)
+        spaces['map_centered'] = gym.spaces.Box(0, 255, (m, m), np.uint8)
         self.observation_space = gym.spaces.Dict(spaces)
         self.action_space = self._env.action_space
 
@@ -102,6 +105,7 @@ class MiniGrid:
         vis_mask = self._global_vis_mask(img)
         obs['map_masked'] = obs['map_agent'] * vis_mask
         obs['map_vis'] = self._update_map_last_seen(vis_mask)
+        obs['map_centered'] = self.to_categorical(self._map_centered())
 
         for k in obs:
             assert obs[k].shape == self.observation_space[k].shape, f"Wrong shape {k}: {obs[k].shape} != {self.observation_space[k].shape}"
@@ -130,6 +134,15 @@ class MiniGrid:
                 self._env.agent_dir
             ])
         return out
+
+    def _map_centered(self):
+        n = self.map_centered_size
+        x, y = self._env.agent_pos
+        grid = self._env.grid.slice(x - (n - 1) // 2, y - (n - 1) // 2, n, n)
+        for i in range(self._env.agent_dir + 1):
+            grid = grid.rotate_left()
+        image = grid.encode()
+        return image
 
     def _reset_map_last_seen(self):
         self._map_last_seen *= 0
