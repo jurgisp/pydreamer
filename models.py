@@ -79,16 +79,18 @@ class RSSM(nn.Module):
         h, z_post = split(states, [self._deter_dim, self._stoch_dim])
         z_prior = diag_normal(prior).sample()
         states_prior = cat(h, z_prior)
-        image_pred = unflatten(self._decoder_image(flatten(states_prior)), n)  # (N, B, C, H, W)
-        image_pred_sample = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2)).sample()
+        image_pred = unflatten(self._decoder_image(flatten(states_prior)), n)  # (N,B,C,H,W)
+        image_pred_sample = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2)).sample()  # (N,B,C,H,W) => (N,B,H,W,C)
 
         image_rec_sample = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2)).sample()
-        map_rec_sample = D.Categorical(logits=map_rec.permute(0, 1, 3, 4, 2)).sample()
+
+        map_rec_sample = D.Categorical(logits=map_rec.permute(0, 1, 3, 4, 2)).sample((50,))
+        map_rec_sample = map_rec_sample.permute(1, 2, 0, 3, 4)  # (S,N,B,H,W) => (N,B,S,H,W)
 
         return (
-            image_pred_sample,     # tensor(N, B, H, W)
-            image_rec_sample,       # tensor(N, B, H, W)
-            map_rec_sample,       # tensor(N, B, MH, MW)
+            image_pred_sample,    # tensor(N,B,H,W)
+            image_rec_sample,     # tensor(N,B,H,W)
+            map_rec_sample,       # tensor(N,B,S,MH,MW)
         )
 
 
