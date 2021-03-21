@@ -60,8 +60,8 @@ def run(conf):
     metrics = defaultdict(list)
     batches = 0
     grad_norm = None
-    data_eval_iter = data_eval.iterate(500, 100)
-    # data_eval_iter = data_eval.iterate(conf.batch_length, 1000)
+    eval_iter = data_eval.iterate(conf.batch_length, 1000)
+    eval_iter_full = data_eval.iterate(500, 100)
     
     for batch in data.iterate(conf.batch_length, conf.batch_size):
 
@@ -141,17 +141,32 @@ def run(conf):
         # Evaluate
 
         if batches % conf.eval_interval == 0:
-            batch = next(data_eval_iter)
+            batch = next(eval_iter)
             image, action, reset, map = preprocess(batch)
             print(f'Eval batch: {image.shape}')
 
-            for _ in range(1):
-                with torch.no_grad():
-                    output = model(image, action, reset, model.init_state(image.size(1)))
-                    loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
-                    image_pred, image_rec, map_rec = model.predict_obs(*output)
+            with torch.no_grad():
+                output = model(image, action, reset, model.init_state(image.size(1)))
+                loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
+                image_pred, image_rec, map_rec = model.predict_obs(*output)
 
             metrics_eval = {f'eval/{k}': v.item() for k, v in loss_metrics.items()}
+            mlflow.log_metrics(metrics_eval, step=batches)
+            # log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')
+
+        # Evaluate full
+
+        if batches % conf.eval_interval == 0:
+            batch = next(eval_iter_full)
+            image, action, reset, map = preprocess(batch)
+            print(f'Eval batch: {image.shape}')
+
+            with torch.no_grad():
+                output = model(image, action, reset, model.init_state(image.size(1)))
+                loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
+                image_pred, image_rec, map_rec = model.predict_obs(*output)
+
+            metrics_eval = {f'eval_full/{k}': v.item() for k, v in loss_metrics.items()}
             mlflow.log_metrics(metrics_eval, step=batches)
             log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')
 
