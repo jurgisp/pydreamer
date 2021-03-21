@@ -3,7 +3,7 @@ import pathlib
 import sys
 sys.path.append(str(pathlib.Path(__file__).parent.parent))  # noqa
 
-
+import os
 from bokeh.plotting import figure, curdoc
 from bokeh.models import ColumnDataSource, DataTable, TableColumn
 from bokeh import layouts
@@ -13,9 +13,11 @@ from envs import MiniGrid
 MAX_STEPS = 500
 SHOW_MAP = 'map_agent'
 # SHOW_MAP = 'map_centered'
-PARENT_DIR = './data/MiniGrid-MazeS11-v0'
-# DATA_DIR = './data/minigrid_PlaygroundV0/20210203_1535'
-DATA_DIR = list(reversed(sorted(pathlib.Path(PARENT_DIR).glob('*'))))[0]  # Last subdirectory
+
+DATA_DIR = os.environ['DATA_DIR']
+if not DATA_DIR:
+    PARENT_DIR = './data/MiniGrid-MazeS11-v0'
+    DATA_DIR = list(reversed(sorted(pathlib.Path(PARENT_DIR).glob('*'))))[0]  # Last subdirectory
 print(f'Browsing data from: {DATA_DIR}')
 
 episode_data = {}

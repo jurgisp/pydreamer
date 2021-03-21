@@ -17,23 +17,31 @@ def run(conf):
 
     mlflow.start_run(run_name=conf.run_name)
     mlflow.log_params(vars(conf))
+    device = torch.device(conf.device)
 
     data = (OfflineDataSequential(conf.input_dir) if conf.data_seq else
             OfflineDataRandom(conf.input_dir))
+    data_eval = OfflineDataSequential(conf.eval_dir)
 
-    device = torch.device(conf.device)
     preprocess = MinigridPreprocess(categorical=conf.channels,
                                     image_key=conf.image_key,
                                     map_key=conf.map_key,
                                     device=device)
 
-    encoder = ConvEncoder(in_channels=conf.channels, out_dim=conf.embed_dim, stride=1, kernels=(1, 3, 3, 3))
-    decoder = (
-        ConvDecoderCat(in_dim=conf.deter_dim + conf.stoch_dim, out_channels=conf.channels, stride=1, kernels=(3, 3, 3, 1))
-        if conf.image_decoder == 'cnn' else
-        DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim, out_shape=(conf.channels, 7, 7))
-    )
-    decoder_map = DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim, out_shape=(preprocess.img_channels, conf.map_size, conf.map_size))
+    encoder = ConvEncoder(in_channels=conf.channels,
+                          out_dim=conf.embed_dim,
+                          stride=1,
+                          kernels=(1, 3, 3, 3))
+    decoder = (ConvDecoderCat(in_dim=conf.deter_dim + conf.stoch_dim,
+                              out_channels=conf.channels,
+                              stride=1,
+                              kernels=(3, 3, 3, 1))
+               if conf.image_decoder == 'cnn' else
+               DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim,
+                            out_shape=(conf.channels, 7, 7))
+               )
+    decoder_map = DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim,
+                               out_shape=(conf.channels, conf.map_size, conf.map_size))
     model = RSSM(
         encoder=encoder,
         decoder_image=decoder,
@@ -123,6 +131,18 @@ def run(conf):
         if batches >= conf.n_steps:
             print('Stopping')
             break
+
+        # Evaluate
+
+        if batches % conf.eval_interval == 0:
+            batch_eval = next(data_eval.iterate(500, 100))
+            image, action, reset, map = preprocess(batch_eval)
+            print(f'Eval batch: {image.shape}')
+            with torch.no_grad():
+                output = model(image, action, reset, model.init_state(image.size(1)))
+                loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
+                metrics_eval = {f'eval/{k}': v.item() for k, v in loss_metrics.items()}
+                mlflow.log_metrics(metrics_eval, step=batches)
 
 
 if __name__ == '__main__':

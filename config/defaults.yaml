@@ -1,9 +1,11 @@
 defaults:
   run_name: none
   input_dir: ./data
+  eval_dir: ./data_eval
   log_interval: 500
   save_path: ./log/model.pt
   save_interval: 10_000
+  eval_interval: 10_000
 
   # Env
   channels: 4
