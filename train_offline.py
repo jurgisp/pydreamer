@@ -60,7 +60,9 @@ def run(conf):
     metrics = defaultdict(list)
     batches = 0
     grad_norm = None
-
+    data_eval_iter = data_eval.iterate(500, 100)
+    # data_eval_iter = data_eval.iterate(conf.batch_length, 1000)
+    
     for batch in data.iterate(conf.batch_length, conf.batch_size):
 
         image, action, reset, map = preprocess(batch)
@@ -105,19 +107,23 @@ def run(conf):
 
         # Log artifacts
 
-        if batches % conf.log_interval == 0:
+        def log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=-1, subdir='d2_wm_predict'):
             data = batch.copy()
             data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
+            data['image_pred'] = image_pred.sample().cpu().numpy()
+            data['image_rec'] = image_rec.sample().cpu().numpy()
+            data['map_rec'] = map_rec.sample().cpu().numpy()
+            data['image_pred_p'] = image_pred.probs.cpu().numpy()
+            data['image_rec_p'] = image_rec.probs.cpu().numpy()
+            data['map_rec_p'] = map_rec.probs.cpu().numpy()
+            data = {k: v.swapaxes(0, 1)[:top] for k, v in data.items()}  # (N,B,...) => (B,N,...)
+            tools.mlflow_log_npz(data, f'{batches:07}.npz', subdir)
+
+        if batches % conf.log_interval == 0:
             with torch.no_grad():
                 image_pred, image_rec, map_rec = model.predict_obs(*output)
-                data['image_pred'] = image_pred.sample().cpu().numpy()
-                data['image_rec'] = image_rec.sample().cpu().numpy()
-                data['map_rec'] = map_rec.sample().cpu().numpy()
-                data['image_pred_p'] = image_pred.probs.cpu().numpy()
-                data['image_rec_p'] = image_rec.probs.cpu().numpy()
-                data['map_rec_p'] = map_rec.probs.cpu().numpy()
-            data = {k: v.swapaxes(0, 1) for k, v in data.items()}  # (N,B,...) => (B,N,...)
-            tools.mlflow_log_npz(data, f'{batches:07}.npz', 'd2_wm_predict')
+            log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec)
+            
 
         # Save model
 
@@ -135,14 +141,19 @@ def run(conf):
         # Evaluate
 
         if batches % conf.eval_interval == 0:
-            batch_eval = next(data_eval.iterate(500, 100))
-            image, action, reset, map = preprocess(batch_eval)
+            batch = next(data_eval_iter)
+            image, action, reset, map = preprocess(batch)
             print(f'Eval batch: {image.shape}')
-            with torch.no_grad():
-                output = model(image, action, reset, model.init_state(image.size(1)))
-                loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
-                metrics_eval = {f'eval/{k}': v.item() for k, v in loss_metrics.items()}
-                mlflow.log_metrics(metrics_eval, step=batches)
+
+            for _ in range(1):
+                with torch.no_grad():
+                    output = model(image, action, reset, model.init_state(image.size(1)))
+                    loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
+                    image_pred, image_rec, map_rec = model.predict_obs(*output)
+
+            metrics_eval = {f'eval/{k}': v.item() for k, v in loss_metrics.items()}
+            mlflow.log_metrics(metrics_eval, step=batches)
+            log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')
 
 
 if __name__ == '__main__':
