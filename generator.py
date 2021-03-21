@@ -157,8 +157,9 @@ class CollectWrapper:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('env')
+    parser.add_argument('num_steps', type=int, default=1_000_000)
     args = parser.parse_args()
 
-    env = args.env
-    main(output_dir=f"data/{env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}",
-         env_name=env)
+    main(output_dir=f"data/{args.env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}",
+         env_name=args.env,
+         num_steps=args.num_steps)
