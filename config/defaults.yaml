@@ -6,7 +6,7 @@ defaults:
   save_interval: 10_000
 
   # Env
-  channels: 8
+  channels: 4
   image_key: image
   map_key: map
   map_size: 7

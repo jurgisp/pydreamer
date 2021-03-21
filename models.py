@@ -80,17 +80,15 @@ class RSSM(nn.Module):
         z_prior = diag_normal(prior).sample()
         states_prior = cat(h, z_prior)
         image_pred = unflatten(self._decoder_image(flatten(states_prior)), n)  # (N,B,C,H,W)
-        image_pred_sample = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2)).sample()  # (N,B,C,H,W) => (N,B,H,W,C)
 
-        image_rec_sample = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2)).sample()
-
-        map_rec_sample = D.Categorical(logits=map_rec.permute(0, 1, 3, 4, 2)).sample((50,))
-        map_rec_sample = map_rec_sample.permute(1, 2, 0, 3, 4)  # (S,N,B,H,W) => (N,B,S,H,W)
+        image_pred_distr = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,H,W) => (N,B,H,W,C)
+        image_rec_distr = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2))
+        map_rec_distr = D.Categorical(logits=map_rec.permute(0, 1, 3, 4, 2))
 
         return (
-            image_pred_sample,    # tensor(N,B,H,W)
-            image_rec_sample,     # tensor(N,B,H,W)
-            map_rec_sample,       # tensor(N,B,S,MH,MW)
+            image_pred_distr,    # categorical(N,B,H,W,C)
+            image_rec_distr,     # categorical(N,B,H,W,C)
+            map_rec_distr,       # categorical(N,B,HM,WM,C)
         )
 
 

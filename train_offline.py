@@ -102,9 +102,12 @@ def run(conf):
             data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
             with torch.no_grad():
                 image_pred, image_rec, map_rec = model.predict_obs(*output)
-                data['image_pred'] = image_pred.cpu().numpy()
-                data['image_rec'] = image_rec.cpu().numpy()
-                data['map_rec'] = map_rec.cpu().numpy()
+                data['image_pred'] = image_pred.sample().cpu().numpy()
+                data['image_rec'] = image_rec.sample().cpu().numpy()
+                data['map_rec'] = map_rec.sample().cpu().numpy()
+                data['image_pred_p'] = image_pred.probs.cpu().numpy()
+                data['image_rec_p'] = image_rec.probs.cpu().numpy()
+                data['map_rec_p'] = map_rec.probs.cpu().numpy()
             data = {k: v.swapaxes(0, 1) for k, v in data.items()}  # (N,B,...) => (B,N,...)
             tools.mlflow_log_npz(data, f'{batches:07}.npz', 'd2_wm_predict')
 
