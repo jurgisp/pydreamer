@@ -2,6 +2,7 @@ import argparse
 import pathlib
 from collections import defaultdict
 import numpy as np
+import time
 import torch
 import torch.nn as nn
 import mlflow
@@ -60,6 +61,8 @@ def run(conf):
     metrics = defaultdict(list)
     batches = 0
     grad_norm = None
+    start_time = time.time()
+
     eval_iter = data_eval.iterate(conf.batch_length, 1000)
     eval_iter_full = data_eval.iterate(500, 100)
     
@@ -97,7 +100,8 @@ def run(conf):
             metrics['_step'] = batches
             metrics['_loss'] = metrics['loss']
 
-            print(f"[{batches:06}]"
+            print(f"T:{time.time()-start_time:05.0f}  "
+                  f"[{batches:06}]"
                   f"  loss: {metrics['loss']:.3f}"
                   f"  loss_kl: {metrics['loss_kl']:.3f}"
                   f"  loss_image: {metrics['loss_image']:.3f}"
@@ -159,14 +163,35 @@ def run(conf):
         if batches % conf.eval_interval == 0:
             batch = next(eval_iter_full)
             image, action, reset, map = preprocess(batch)
+            image_cat = image.argmax(axis=-3)
             print(f'Eval batch: {image.shape}')
 
-            with torch.no_grad():
-                output = model(image, action, reset, model.init_state(image.size(1)))
-                loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
-                image_pred, image_rec, map_rec = model.predict_obs(*output)
+            # Sample loss several times and do log E[p(map|state)] = log avg[exp(loss)]
+            map_losses = []
+            img_losses = []
+            metrics_eval = defaultdict(list)
+            for _ in range(conf.full_eval_samples):
+                with tools.Timer('eval_forward'):
+                    with torch.no_grad():
+                        output = model(image, action, reset, model.init_state(image.size(1)))
+                        loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
+                        image_pred, image_rec, map_rec = model.predict_obs(*output)
 
-            metrics_eval = {f'eval_full/{k}': v.item() for k, v in loss_metrics.items()}
+                map_losses.append(map_rec.log_prob(map).sum(dim=[-1, -2]))          # Keep (N,B) dim
+                img_losses.append(image_pred.log_prob(image_cat).sum(dim=[-1, -2]))
+                for k, v in loss_metrics.items():
+                    metrics_eval[k].append(v.item())
+
+            metrics_eval = {f'eval_full/{k}': np.mean(v) for k, v in metrics_eval.items()}
+
+            map_losses = torch.stack(map_losses)  # (S,N,B)
+            img_losses = torch.stack(img_losses)
+            map_losses_exp = torch.logsumexp(map_losses, dim=0) - np.log(conf.full_eval_samples)  # log avg[exp(loss)] = log sum[exp(loss)] - log(S)
+            img_losses_exp = torch.logsumexp(img_losses, dim=0) - np.log(conf.full_eval_samples)  # log avg[exp(loss)] = log sum[exp(loss)] - log(S)
+            metrics_eval['eval_full/loss_map_exp'] = -map_losses_exp.mean().item()
+            metrics_eval['eval_full/loss_image_pred_exp'] = -img_losses_exp.mean().item()
+            metrics_eval['eval_full/loss_image_pred'] = -img_losses.mean().item()
+
             mlflow.log_metrics(metrics_eval, step=batches)
             log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')
 
