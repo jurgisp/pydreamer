@@ -16,6 +16,8 @@ from modules import ConvEncoder, ConvDecoderCat, DenseDecoder
 
 def run(conf):
 
+    assert not(conf.keep_state and not conf.data_seq), "Should train sequentially if keeping state"
+
     mlflow.start_run(run_name=conf.run_name)
     mlflow.log_params(vars(conf))
     device = torch.device(conf.device)
@@ -58,23 +60,27 @@ def run(conf):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4, eps=1e-5)
 
+    eval_iter = data_eval.iterate(conf.batch_length, 1000)
+    eval_iter_full = data_eval.iterate(500, 100)
+
+    start_time = time.time()
     metrics = defaultdict(list)
     batches = 0
     grad_norm = None
-    start_time = time.time()
-
-    eval_iter = data_eval.iterate(conf.batch_length, 1000)
-    eval_iter_full = data_eval.iterate(500, 100)
+    persist_state = None
     
     for batch in data.iterate(conf.batch_length, conf.batch_size):
 
         image, action, reset, map = preprocess(batch)
+        if persist_state is None and conf.keep_state:
+            persist_state = model.init_state(image.size(1))
 
         # Predict
 
-        state = model.init_state(image.size(1))
+        state = persist_state if conf.keep_state else model.init_state(image.size(1))
         output = model(image, action, reset, state)
         loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
+        persist_state = output[-1][-1].detach()
 
         # Grad step
 
@@ -144,7 +150,7 @@ def run(conf):
 
         # Evaluate
 
-        if batches % conf.eval_interval == 0:
+        if batches % conf.eval_interval == 0 and not conf.keep_state:
             batch = next(eval_iter)
             image, action, reset, map = preprocess(batch)
             print(f'Eval batch: {image.shape}')
@@ -170,17 +176,17 @@ def run(conf):
             map_losses = []
             img_losses = []
             metrics_eval = defaultdict(list)
-            for _ in range(conf.full_eval_samples):
-                with tools.Timer('eval_forward'):
+            with tools.Timer('eval_sampling'):
+                for _ in range(conf.full_eval_samples):
                     with torch.no_grad():
                         output = model(image, action, reset, model.init_state(image.size(1)))
                         loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
                         image_pred, image_rec, map_rec = model.predict_obs(*output)
 
-                map_losses.append(map_rec.log_prob(map).sum(dim=[-1, -2]))          # Keep (N,B) dim
-                img_losses.append(image_pred.log_prob(image_cat).sum(dim=[-1, -2]))
-                for k, v in loss_metrics.items():
-                    metrics_eval[k].append(v.item())
+                    map_losses.append(map_rec.log_prob(map).sum(dim=[-1, -2]))          # Keep (N,B) dim
+                    img_losses.append(image_pred.log_prob(image_cat).sum(dim=[-1, -2]))
+                    for k, v in loss_metrics.items():
+                        metrics_eval[k].append(v.item())
 
             metrics_eval = {f'eval_full/{k}': np.mean(v) for k, v in metrics_eval.items()}
 
@@ -190,7 +196,6 @@ def run(conf):
             img_losses_exp = torch.logsumexp(img_losses, dim=0) - np.log(conf.full_eval_samples)  # log avg[exp(loss)] = log sum[exp(loss)] - log(S)
             metrics_eval['eval_full/loss_map_exp'] = -map_losses_exp.mean().item()
             metrics_eval['eval_full/loss_image_pred_exp'] = -img_losses_exp.mean().item()
-            metrics_eval['eval_full/loss_image_pred'] = -img_losses.mean().item()
 
             mlflow.log_metrics(metrics_eval, step=batches)
             log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')

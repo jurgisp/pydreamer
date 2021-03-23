@@ -15,6 +15,7 @@ defaults:
 
   # Data
   data_seq: True
+  keep_state: False
 
   # Training
   n_steps: 100_000
