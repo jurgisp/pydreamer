@@ -72,7 +72,7 @@ def run(conf):
     steps = resume_step or 0
     grad_norm = None
     persist_state = None
-    
+
     for batch in data.iterate(conf.batch_length, conf.batch_size):
 
         image, action, reset, map = preprocess(batch)
@@ -137,7 +137,6 @@ def run(conf):
             with torch.no_grad():
                 image_pred, image_rec, map_rec = model.predict_obs(*output)
             log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec)
-            
 
         # Save model
 
@@ -175,13 +174,14 @@ def run(conf):
             image_cat = image.argmax(axis=-3)
             print(f'Eval batch: {image.shape}')
 
-            # Sample loss several times and do log E[p(map|state)] = log avg[exp(loss)]
             map_losses = []
             img_losses = []
-            image_preds = []
-            image_recs = []
-            map_recs = []
             metrics_eval = defaultdict(list)
+            image_pred_sum = None
+            image_rec_sum = None
+            map_rec_sum = None
+
+            # Sample loss several times and do log E[p(map|state)] = log avg[exp(loss)]
             with tools.Timer('eval_sampling'):
                 for _ in range(conf.full_eval_samples):
                     with torch.no_grad():
@@ -191,11 +191,18 @@ def run(conf):
 
                     map_losses.append(map_rec.log_prob(map).sum(dim=[-1, -2]))          # Keep (N,B) dim
                     img_losses.append(image_pred.log_prob(image_cat).sum(dim=[-1, -2]))
+
                     for k, v in loss_metrics.items():
                         metrics_eval[k].append(v.item())
-                    image_preds.append(image_pred)
-                    image_recs.append(image_rec)
-                    map_recs.append(map_rec)
+
+                    if image_pred_sum is None:
+                        image_pred_sum = image_pred.probs
+                        image_rec_sum = image_rec.probs
+                        map_rec_sum = map_rec.probs
+                    else:
+                        image_pred_sum += image_pred.probs
+                        image_rec_sum += image_rec.probs
+                        map_rec_sum += map_rec.probs
                     # TODO: loss_tensors should be aggregated too
 
             metrics_eval = {f'eval_full/{k}': np.mean(v) for k, v in metrics_eval.items()}
@@ -207,12 +214,12 @@ def run(conf):
             metrics_eval['eval_full/loss_map_exp'] = -map_losses_exp.mean().item()
             metrics_eval['eval_full/loss_image_pred_exp'] = -img_losses_exp.mean().item()
 
-            image_pred = D.Categorical(probs=torch.mean(torch.stack([p.probs for p in image_preds]), axis=0))  # Average image predictions over samples
-            image_rec = D.Categorical(probs=torch.mean(torch.stack([p.probs for p in image_recs]), axis=0))
-            map_rec = D.Categorical(probs=torch.mean(torch.stack([p.probs for p in map_recs]), axis=0))
+            image_pred = D.Categorical(probs=image_pred_sum / conf.full_eval_samples)  # Average image predictions over samples
+            image_rec = D.Categorical(probs=image_rec_sum / conf.full_eval_samples)
+            map_rec = D.Categorical(probs=map_rec_sum / conf.full_eval_samples)
 
             mlflow.log_metrics(metrics_eval, step=steps)
-            log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')  
+            log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')
 
 
 if __name__ == '__main__':
