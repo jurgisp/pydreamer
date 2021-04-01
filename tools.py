@@ -1,3 +1,4 @@
+import warnings
 import yaml
 import tempfile
 from pathlib import Path
@@ -5,6 +6,8 @@ import io
 import time
 import numpy as np
 import mlflow
+
+warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
 
 
 def read_yamls(dir):
@@ -17,6 +20,18 @@ def read_yamls(dir):
     if no_conf:
         print(f'WARNING: No yaml files found in {dir}')
     return conf
+
+
+def mlflow_start_or_resume(run_name, resume_id=None):
+    run_id = None
+    if resume_id:
+        runs = mlflow.search_runs(filter_string=f'tags.resume_id="{resume_id}"')
+        if len(runs) > 0:
+            run_id = runs.run_id.iloc[0]
+            print(f'Mlflow resuming run {run_id} ({resume_id})')
+    run = mlflow.start_run(run_name=run_name, run_id=run_id, tags={'resume_id': resume_id})
+    print(f'Mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
+
 
 def mlflow_log_npz(data, name, subdir=None):
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -31,6 +46,7 @@ def save_npz(data, filename):
         f1.seek(0)
         with filename.open('wb') as f2:
             f2.write(f1.read())
+
 
 class Timer:
 

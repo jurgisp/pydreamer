@@ -1,5 +1,6 @@
 defaults:
   run_name: none
+  resume_id:
   input_dir: ./data
   eval_dir: ./data_eval
   log_interval: 500
@@ -24,7 +25,7 @@ defaults:
   device: 'cuda:0'
 
   # Eval
-  full_eval_samples: 50
+  full_eval_samples: 100
 
   # Model
   embed_dim: 256

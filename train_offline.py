@@ -8,6 +8,7 @@ import torch.nn as nn
 import mlflow
 
 import tools
+from tools import mlflow_start_or_resume
 from data import OfflineDataSequential, OfflineDataRandom
 from preprocessing import MinigridPreprocess
 from models import VAE, RSSM
@@ -15,10 +16,9 @@ from modules import ConvEncoder, ConvDecoderCat, DenseDecoder
 
 
 def run(conf):
-
     assert not(conf.keep_state and not conf.data_seq), "Should train sequentially if keeping state"
 
-    mlflow.start_run(run_name=conf.run_name)
+    mlflow_start_or_resume(conf.run_name, conf.resume_id)
     mlflow.log_params(vars(conf))
     device = torch.device(conf.device)
 
