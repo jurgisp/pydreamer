@@ -68,9 +68,11 @@ def run(conf):
     eval_iter_full = data_eval.iterate(500, 100)
 
     start_time = time.time()
-    metrics = defaultdict(list)
     steps = resume_step or 0
-    grad_norm = None
+    last_time = start_time
+    last_steps = steps
+    metrics = defaultdict(list)
+
     persist_state = None
 
     for batch in data.iterate(conf.batch_length, conf.batch_size):
@@ -92,6 +94,7 @@ def run(conf):
         loss.backward()
         if conf.grad_clip:
             grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
+            metrics['grad_norm'].append(grad_norm.item())
         optimizer.step()
 
         # Metrics
@@ -100,8 +103,6 @@ def run(conf):
         metrics['loss'].append(loss.item())
         for k, v in loss_metrics.items():
             metrics[k].append(v.item())
-        if grad_norm:
-            metrics['grad_norm'].append(grad_norm.item())
 
         # Log metrics
 
@@ -110,11 +111,17 @@ def run(conf):
             metrics['_step'] = steps
             metrics['_loss'] = metrics['loss']
 
-            print(f"T:{time.time()-start_time:05.0f}  "
+            t = time.time()
+            fps = (steps - last_steps) / (t - last_time)
+            metrics['fps'] = fps
+            last_time, last_steps = t, steps
+
+            print(f"T:{t-start_time:05.0f}  "
                   f"[{steps:06}]"
                   f"  loss: {metrics['loss']:.3f}"
                   f"  loss_kl: {metrics['loss_kl']:.3f}"
                   f"  loss_image: {metrics['loss_image']:.3f}"
+                  f"  fps: {metrics['fps']:.3f}"
                   )
             mlflow.log_metrics(metrics, step=steps)
             metrics = defaultdict(list)
