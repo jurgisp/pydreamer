@@ -54,6 +54,7 @@ def run(conf):
         stoch_dim=conf.stoch_dim,
         hidden_dim=conf.hidden_dim,
     )
+    model.to(device)
     print(f'Model: {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters')
     mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')
 
@@ -62,8 +63,6 @@ def run(conf):
     resume_step = tools.mlflow_load_checkpoint(model, optimizer)
     if resume_step:
         print(f'Loaded model from checkpoint epoch {resume_step}')
-
-    model.to(device)
 
     eval_iter = data_eval.iterate(conf.batch_length, 1000)
     eval_iter_full = data_eval.iterate(500, 100)
