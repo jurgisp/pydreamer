@@ -5,6 +5,7 @@ import numpy as np
 import time
 import torch
 import torch.nn as nn
+import torch.distributions as D
 import mlflow
 
 import tools
@@ -178,6 +179,9 @@ def run(conf):
             # Sample loss several times and do log E[p(map|state)] = log avg[exp(loss)]
             map_losses = []
             img_losses = []
+            image_preds = []
+            image_recs = []
+            map_recs = []
             metrics_eval = defaultdict(list)
             with tools.Timer('eval_sampling'):
                 for _ in range(conf.full_eval_samples):
@@ -190,6 +194,10 @@ def run(conf):
                     img_losses.append(image_pred.log_prob(image_cat).sum(dim=[-1, -2]))
                     for k, v in loss_metrics.items():
                         metrics_eval[k].append(v.item())
+                    image_preds.append(image_pred)
+                    image_recs.append(image_rec)
+                    map_recs.append(map_rec)
+                    # TODO: loss_tensors should be aggregated too
 
             metrics_eval = {f'eval_full/{k}': np.mean(v) for k, v in metrics_eval.items()}
 
@@ -200,8 +208,12 @@ def run(conf):
             metrics_eval['eval_full/loss_map_exp'] = -map_losses_exp.mean().item()
             metrics_eval['eval_full/loss_image_pred_exp'] = -img_losses_exp.mean().item()
 
+            image_pred = D.Categorical(probs=torch.mean(torch.stack([p.probs for p in image_preds]), axis=0))  # Average image predictions over samples
+            image_rec = D.Categorical(probs=torch.mean(torch.stack([p.probs for p in image_recs]), axis=0))
+            map_rec = D.Categorical(probs=torch.mean(torch.stack([p.probs for p in map_recs]), axis=0))
+
             mlflow.log_metrics(metrics_eval, step=steps)
-            log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')
+            log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')  
 
 
 if __name__ == '__main__':
