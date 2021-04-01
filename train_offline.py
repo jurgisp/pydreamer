@@ -53,19 +53,23 @@ def run(conf):
         stoch_dim=conf.stoch_dim,
         hidden_dim=conf.hidden_dim,
     )
-
-    model.to(device)
     print(f'Model: {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters')
     mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')
 
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4, eps=1e-5)
+
+    resume_step = tools.mlflow_load_checkpoint(model, optimizer)
+    if resume_step:
+        print(f'Loaded model from checkpoint epoch {resume_step}')
+
+    model.to(device)
 
     eval_iter = data_eval.iterate(conf.batch_length, 1000)
     eval_iter_full = data_eval.iterate(500, 100)
 
     start_time = time.time()
     metrics = defaultdict(list)
-    batches = 0
+    steps = resume_step or 0
     grad_norm = None
     persist_state = None
     
@@ -92,7 +96,7 @@ def run(conf):
 
         # Metrics
 
-        batches += 1
+        steps += 1
         metrics['loss'].append(loss.item())
         for k, v in loss_metrics.items():
             metrics[k].append(v.item())
@@ -101,18 +105,18 @@ def run(conf):
 
         # Log metrics
 
-        if batches % conf.log_interval == 0:
+        if steps % conf.log_interval == 0:
             metrics = {k: np.mean(v) for k, v in metrics.items()}
-            metrics['_step'] = batches
+            metrics['_step'] = steps
             metrics['_loss'] = metrics['loss']
 
             print(f"T:{time.time()-start_time:05.0f}  "
-                  f"[{batches:06}]"
+                  f"[{steps:06}]"
                   f"  loss: {metrics['loss']:.3f}"
                   f"  loss_kl: {metrics['loss_kl']:.3f}"
                   f"  loss_image: {metrics['loss_image']:.3f}"
                   )
-            mlflow.log_metrics(metrics, step=batches)
+            mlflow.log_metrics(metrics, step=steps)
             metrics = defaultdict(list)
 
         # Log artifacts
@@ -127,9 +131,9 @@ def run(conf):
             data['image_rec_p'] = image_rec.probs.cpu().numpy()
             data['map_rec_p'] = map_rec.probs.cpu().numpy()
             data = {k: v.swapaxes(0, 1)[:top] for k, v in data.items()}  # (N,B,...) => (B,N,...)
-            tools.mlflow_log_npz(data, f'{batches:07}.npz', subdir)
+            tools.mlflow_log_npz(data, f'{steps:07}.npz', subdir)
 
-        if batches % conf.log_interval == 0:
+        if steps % conf.log_interval == 0:
             with torch.no_grad():
                 image_pred, image_rec, map_rec = model.predict_obs(*output)
             log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec)
@@ -137,20 +141,19 @@ def run(conf):
 
         # Save model
 
-        if conf.save_path and batches % conf.save_interval == 0:
-            pathlib.Path(conf.save_path).parent.mkdir(parents=True, exist_ok=True)
-            torch.save(model.state_dict(), conf.save_path)
-            print(f'Saved to {conf.save_path}')
+        if steps % conf.save_interval == 0:
+            tools.mlflow_save_checkpoint(model, optimizer, steps)
+            print(f'Saved model checkpoint')
 
         # Stop
 
-        if batches >= conf.n_steps:
+        if steps >= conf.n_steps:
             print('Stopping')
             break
 
         # Evaluate
 
-        if batches % conf.eval_interval == 0 and not conf.keep_state:
+        if steps % conf.eval_interval == 0 and not conf.keep_state:
             batch = next(eval_iter)
             image, action, reset, map = preprocess(batch)
             print(f'Eval batch: {image.shape}')
@@ -161,12 +164,12 @@ def run(conf):
                 image_pred, image_rec, map_rec = model.predict_obs(*output)
 
             metrics_eval = {f'eval/{k}': v.item() for k, v in loss_metrics.items()}
-            mlflow.log_metrics(metrics_eval, step=batches)
+            mlflow.log_metrics(metrics_eval, step=steps)
             # log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')
 
         # Evaluate full
 
-        if batches % conf.eval_interval == 0:
+        if steps % conf.eval_interval == 0:
             batch = next(eval_iter_full)
             image, action, reset, map = preprocess(batch)
             image_cat = image.argmax(axis=-3)
@@ -197,7 +200,7 @@ def run(conf):
             metrics_eval['eval_full/loss_map_exp'] = -map_losses_exp.mean().item()
             metrics_eval['eval_full/loss_image_pred_exp'] = -img_losses_exp.mean().item()
 
-            mlflow.log_metrics(metrics_eval, step=batches)
+            mlflow.log_metrics(metrics_eval, step=steps)
             log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')
 
 
@@ -215,7 +218,7 @@ if __name__ == '__main__':
     # Override config from command-line
     parser = argparse.ArgumentParser()
     for key, value in conf.items():
-        parser.add_argument(f'--{key}', type=type(value), default=value)
+        parser.add_argument(f'--{key}', type=type(value) if value is not None else str, default=value)
     conf = parser.parse_args(remaining)
 
     run(conf)
