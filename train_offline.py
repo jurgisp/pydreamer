@@ -150,21 +150,21 @@ def run(conf):
             print('Stopping')
             break
 
-        # Evaluate
+        # Evaluate single batch (does not make sense if keeping state)
 
-        if steps % conf.eval_interval == 0 and not conf.keep_state:
-            batch = next(eval_iter)
-            image, action, reset, map = preprocess(batch)
-            print(f'Eval batch: {image.shape}')
+        # if steps % conf.eval_interval == 0 and not conf.keep_state:
+        #     batch = next(eval_iter)
+        #     image, action, reset, map = preprocess(batch)
+        #     print(f'Eval batch: {image.shape}')
 
-            with torch.no_grad():
-                output = model(image, action, reset, model.init_state(image.size(1)))
-                loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
-                image_pred, image_rec, map_rec = model.predict_obs(*output)
+        #     with torch.no_grad():
+        #         output = model(image, action, reset, model.init_state(image.size(1)))
+        #         loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
+        #         image_pred, image_rec, map_rec = model.predict_obs(*output)
 
-            metrics_eval = {f'eval/{k}': v.item() for k, v in loss_metrics.items()}
-            mlflow.log_metrics(metrics_eval, step=steps)
-            # log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')
+        #     metrics_eval = {f'eval/{k}': v.item() for k, v in loss_metrics.items()}
+        #     mlflow.log_metrics(metrics_eval, step=steps)
+        #     # log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')
 
         # Evaluate full
 
@@ -172,7 +172,7 @@ def run(conf):
             batch = next(eval_iter_full)
             image, action, reset, map = preprocess(batch)
             image_cat = image.argmax(axis=-3)
-            print(f'Eval batch: {image.shape}')
+            print(f'Eval full {image.shape} for {conf.full_eval_samples} samples')
 
             map_losses = []
             img_losses = []
