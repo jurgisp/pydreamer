@@ -43,7 +43,7 @@ def main(output_dir,
 
         # Save to npz
 
-        fname = output_dir / f'ep{episodes:06}-{epsteps:04}.npz'
+        fname = output_dir / f's{seed}-ep{episodes:06}-{epsteps:04}.npz'
         with fname.open('wb') as f:
             np.savez_compressed(f, **data)
 
