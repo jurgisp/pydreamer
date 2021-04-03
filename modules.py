@@ -195,16 +195,21 @@ class ConvDecoderCat(nn.Module):
 
 class DenseDecoder(nn.Module):
 
-    def __init__(self, in_dim, out_shape=(33, 7, 7), activation=nn.ELU):
+    def __init__(self, in_dim, out_shape=(33, 7, 7), activation=nn.ELU, hidden_dim=400, hidden_layers=2):
         super().__init__()
         self.in_dim = in_dim
-        self._model = nn.Sequential(
-            nn.Linear(in_dim, 400),
-            activation(),
-            nn.Linear(400, 400),
-            activation(),
-            nn.Linear(400, np.prod(out_shape)),
-            nn.Unflatten(-1, out_shape))
+        layers = []
+        layers += [
+            nn.Linear(in_dim, hidden_dim),
+            activation()]
+        for _ in range(hidden_layers - 1):
+            layers += [
+                nn.Linear(hidden_dim, hidden_dim),
+                activation()]
+        layers += [
+            nn.Linear(hidden_dim, np.prod(out_shape)),
+            nn.Unflatten(-1, out_shape)]
+        self._model = nn.Sequential(*layers)
 
     def forward(self, x):
         return self._model(x)

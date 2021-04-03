@@ -12,8 +12,8 @@ import tools
 from tools import mlflow_start_or_resume
 from data import OfflineDataSequential, OfflineDataRandom
 from preprocessing import MinigridPreprocess
-from models import VAE, RSSM
-from modules import ConvEncoder, ConvDecoderCat, DenseDecoder
+from models import *
+from modules import *
 
 
 def run(conf):
@@ -45,7 +45,8 @@ def run(conf):
                             out_shape=(conf.channels, 7, 7))
                )
     decoder_map = DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim,
-                               out_shape=(conf.channels, conf.map_size, conf.map_size))
+                               out_shape=(conf.channels, conf.map_size, conf.map_size),
+                               hidden_layers=4)
     model = RSSM(
         encoder=encoder,
         decoder_image=decoder,
