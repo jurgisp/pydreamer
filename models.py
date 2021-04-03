@@ -92,15 +92,22 @@ class RSSM(nn.Module):
         )
 
 
-class VAE(nn.Module):
+class CondVAE(nn.Module):
+    # Conditioned VAE
 
-    def __init__(self, encoder, decoder):
+    def __init__(self, encoder, decoder, state_dim=230, hidden_dim=200, latent_dim=30):
         super().__init__()
         self._encoder = encoder
         self._decoder = decoder
-        self._post_mlp = nn.Sequential(nn.Linear(encoder.out_dim, 256),
+
+        self._prior_mlp = nn.Sequential(nn.Linear(state_dim, hidden_dim),
+                                        nn.ELU(),
+                                        nn.Linear(hidden_dim, 2 * latent_dim))
+
+        self._post_mlp = nn.Sequential(nn.Linear(state_dim + encoder.out_dim, hidden_dim),
                                        nn.ELU(),
-                                       nn.Linear(256, 2 * decoder.in_dim))
+                                       nn.Linear(hidden_dim, 2 * latent_dim))
+
         self._min_std = 0.1
 
     def init_state(self, batch_size):
@@ -108,33 +115,34 @@ class VAE(nn.Module):
 
     def forward(self,
                 obs,       # tensor(N, B, C, H, W)
-                action,    # tensor(N, B, A)
-                reset,     # tensor(N, B)
-                in_state,  # tensor(   B, D+S)
+                state,     # tensor(N, B, D+S)
                 ):
 
         n = obs.size(0)
         embed = self._encoder(flatten(obs))
-        post = to_mean_std(self._post_mlp(embed), self._min_std)
-        post_sample = diag_normal(post).rsample()
-        obs_reconstr = self._decoder(post_sample)
+        state = flatten(state)
+
+        prior = to_mean_std(self._prior_mlp(state), self._min_std)              # (N*B, 2*Z)
+        post = to_mean_std(self._post_mlp(cat(state, embed)), self._min_std)    # (N*B, 2*Z)
+        sample = diag_normal(post).rsample()                                    # (N*B, Z)
+        obs_rec = self._decoder(sample)
 
         return (
-            unflatten(obs_reconstr, n),  # tensor(N, B, C, H, W)
-            unflatten(post, n),          # tensor(N, B, S+S)
+            unflatten(prior, n),         # tensor(N, B, 2*Z)
+            unflatten(post, n),          # tensor(N, B, 2*Z)
+            unflatten(obs_rec, n),       # tensor(N, B, C, H, W)
         )
 
     def loss(self,
-             obs_reconstr, post,                 # forward() output
+             prior, post, obs_rec,                 # forward() output
              obs_target,                         # tensor(N, B, C, H, W)
              ):
-        prior = zero_prior_like(post)
         loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
-        loss_image = self._decoder.loss(obs_reconstr, obs_target)
-        assert loss_kl.shape == loss_image.shape  # Should be (N, B)
+        loss_obs = self._decoder.loss(obs_rec, obs_target)
 
-        loss_kl = loss_kl.mean()  # Mean over (N, B)
-        loss_image = loss_image.mean()
+        # Mean over (N, B)
+        assert loss_kl.shape == loss_obs.shape
+        loss_kl, loss_image = loss_kl.mean(), loss_obs.mean()
         loss = loss_kl + loss_image
-        metrics = dict(loss_kl=loss_kl.detach(), loss_image=loss_image.detach())
+        metrics = dict(loss_kl=loss_kl.detach(), loss_obs=loss_image.detach())
         return loss, metrics
