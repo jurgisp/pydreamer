@@ -1,4 +1,6 @@
 defaults:
+  # Job
+  n_steps: 100_000
   run_name: none
   resume_id:
   input_dir: ./data
@@ -10,17 +12,14 @@ defaults:
   # Env
   channels: 4
   image_key: image
-  map_key: map
-  map_size: 7
-
-  # Data
-  data_seq: True
-  keep_state: False
+  map_key: map_centered
+  map_size: 19
 
   # Training
-  n_steps: 100_000
-  batch_length: 15
-  batch_size: 15
+  data_seq: True
+  keep_state: True
+  batch_length: 50
+  batch_size: 50
   device: 'cuda:0'
 
   # Eval
@@ -31,7 +30,7 @@ defaults:
   deter_dim: 200
   stoch_dim: 10
   hidden_dim: 200
-  image_decoder: cnn
+  image_decoder: dense
 
   # Optimizer
-  grad_clip:
+  grad_clip: 100
