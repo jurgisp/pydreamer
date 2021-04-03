@@ -10,13 +10,14 @@ from envs import MiniGrid
 def main(output_dir,
          env_name,
          num_steps=1_000_000,
-         policy='minigrid_wander'
+         policy='minigrid_wander',
+         seed=1
          ):
 
     output_dir = pathlib.Path(output_dir).expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    env = MiniGrid(env_name, max_steps=500)
+    env = MiniGrid(env_name, max_steps=500, seed=seed)
     env = CollectWrapper(env)
 
     if policy == 'random':
@@ -157,9 +158,11 @@ class CollectWrapper:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('env')
-    parser.add_argument('num_steps', type=int, default=1_000_000)
+    parser.add_argument('--num_steps', type=int, default=1_000_000)
+    parser.add_argument('--seed', type=int, default=1)
     args = parser.parse_args()
 
     main(output_dir=f"data/{args.env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}",
          env_name=args.env,
-         num_steps=args.num_steps)
+         num_steps=args.num_steps,
+         seed=args.seed)
