@@ -6,12 +6,16 @@ import pathlib
 import gym
 from envs import MiniGrid
 
+import tools
+
 
 def main(output_dir,
          env_name,
          num_steps=1_000_000,
          policy='minigrid_wander',
-         seed=1
+         seed=1,
+         delete_old=0,
+         delete_every=100
          ):
 
     output_dir = pathlib.Path(output_dir).expanduser()
@@ -39,17 +43,17 @@ def main(output_dir,
             obs, reward, done, info = env.step(action)
             steps += 1
             epsteps += 1
-        data = info['episode']
+        data = info['episode']  # type: ignore
 
         # Save to npz
 
         fname = output_dir / f's{seed}-ep{episodes:06}-{epsteps:04}.npz'
-        with fname.open('wb') as f:
-            np.savez_compressed(f, **data)
+        tools.save_npz(data, fname)
 
-        episodes += 1
+        # Log
+
         fps = epsteps / (time.time() - timer + 1e-6)
-        if episodes == 1:
+        if episodes == 0:
             print('Data sample: ', {k: v.shape for k, v in data.items()})
 
         print(f"[{steps:08}/{num_steps:08}] "
@@ -57,6 +61,19 @@ def main(output_dir,
               f",  explored%: {(data['map_vis'][-1] < 1000).mean():.3f}"
               f",  fps: {fps:.0f}"
               )
+
+        # Delete old
+
+        if delete_old and episodes % delete_every == 0:
+            for i_new in range(episodes - delete_every + 1, episodes + 1):
+                i_old = i_new - delete_old
+                if i_old < 0:
+                    continue
+                del_fname = output_dir / f's{seed}-ep{i_old:06}-{epsteps:04}.npz'  # TODO: problem if epstep changes
+                print(f'Deleting {del_fname}')
+                del_fname.unlink()
+
+        episodes += 1
 
 
 class RandomPolicy:
@@ -158,11 +175,17 @@ class CollectWrapper:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('env')
+    parser.add_argument('--output_dir', type=str, default=None)
     parser.add_argument('--num_steps', type=int, default=1_000_000)
     parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--delete_old', type=int, default=0)
     args = parser.parse_args()
 
-    main(output_dir=f"data/{args.env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}",
+    output_dir = args.output_dir or f"data/{args.env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}"
+
+    main(output_dir=output_dir,
          env_name=args.env,
          num_steps=args.num_steps,
-         seed=args.seed)
+         seed=args.seed,
+         delete_old=args.delete_old,
+         )

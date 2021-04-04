@@ -87,7 +87,7 @@ class Timer:
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        dt = time.time() - self.start_time
+        dt = time.time() - self.start_time  # type: ignore
         # self.times.append(dt)
         self.start_time = None
         if self.verbose:
