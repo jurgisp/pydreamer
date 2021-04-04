@@ -1,5 +1,6 @@
 import argparse
 import pathlib
+import subprocess
 from collections import defaultdict
 import numpy as np
 import time
@@ -18,6 +19,24 @@ from modules import *
 
 def run(conf):
     assert not(conf.keep_state and not conf.data_seq), "Should train sequentially if keeping state"
+
+    if conf.generator_run:
+        # Start train
+        cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 1 --output_dir {conf.input_dir} --delete_old {conf.generator_buffer}'
+        print(f'Starting data generator:\n{cmd}')
+        p1 = subprocess.Popen(cmd.split(' '))
+        # Start eval
+        cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 2 --output_dir {conf.eval_dir} --delete_old {conf.generator_buffer}'
+        print(f'Starting data generator:\n{cmd}')
+        p2 = subprocess.Popen(cmd.split(' '))
+        # Check
+        time.sleep(5)
+        assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
+        # Wait
+        print(f'Waiting for {conf.generator_wait} sec for initial data')
+        time.sleep(conf.generator_wait)
+        # Check again
+        assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
 
     mlflow_start_or_resume(conf.run_name, conf.resume_id)
     mlflow.log_params(vars(conf))

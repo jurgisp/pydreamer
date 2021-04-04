@@ -20,7 +20,7 @@ defaults:
   keep_state: True
   batch_length: 50
   batch_size: 50
-  device: 'cuda:0'
+  device: "cuda:0"
 
   # Eval
   full_eval_samples: 100
@@ -34,3 +34,9 @@ defaults:
 
   # Optimizer
   grad_clip: 100
+
+  # Generator
+  generator_run: False
+  generator_env:
+  generator_wait: 300
+  generator_buffer: 2000
