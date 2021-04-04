@@ -26,7 +26,7 @@ def run(conf):
         print(f'Starting data generator:\n{cmd}')
         p1 = subprocess.Popen(cmd.split(' '))
         # Start eval
-        cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 2 --output_dir {conf.eval_dir} --delete_old {conf.generator_buffer}'
+        cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 2 --output_dir {conf.eval_dir} --delete_old {conf.generator_buffer} --sleep 20'
         print(f'Starting data generator:\n{cmd}')
         p2 = subprocess.Popen(cmd.split(' '))
         # Check

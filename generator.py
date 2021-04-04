@@ -11,17 +11,15 @@ import tools
 
 def main(output_dir,
          env_name,
-         num_steps=1_000_000,
+         conf,
          policy='minigrid_wander',
-         seed=1,
-         delete_old=0,
-         delete_every=100
+         delete_every=100,
          ):
 
     output_dir = pathlib.Path(output_dir).expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    env = MiniGrid(env_name, max_steps=500, seed=seed)
+    env = MiniGrid(env_name, max_steps=500, seed=conf.seed)
     env = CollectWrapper(env)
 
     if policy == 'random':
@@ -32,7 +30,7 @@ def main(output_dir,
         assert False, 'Unknown policy'
 
     steps, episodes = 0, 0
-    while steps < num_steps:
+    while steps < conf.num_steps:
 
         # Unroll one episode
 
@@ -47,7 +45,7 @@ def main(output_dir,
 
         # Save to npz
 
-        fname = output_dir / f's{seed}-ep{episodes:06}-{epsteps:04}.npz'
+        fname = output_dir / f's{conf.seed}-ep{episodes:06}-{epsteps:04}.npz'
         tools.save_npz(data, fname)
 
         # Log
@@ -56,7 +54,7 @@ def main(output_dir,
         if episodes == 0:
             print('Data sample: ', {k: v.shape for k, v in data.items()})
 
-        print(f"[{steps:08}/{num_steps:08}] "
+        print(f"[{steps:08}/{conf.num_steps:08}] "
               f"Episode data: {data['image'].shape} written to {fname}"
               f",  explored%: {(data['map_vis'][-1] < 1000).mean():.3f}"
               f",  fps: {fps:.0f}"
@@ -64,14 +62,17 @@ def main(output_dir,
 
         # Delete old
 
-        if delete_old and episodes % delete_every == 0:
+        if conf.delete_old and episodes % delete_every == 0:
             for i_new in range(episodes - delete_every + 1, episodes + 1):
-                i_old = i_new - delete_old
+                i_old = i_new - conf.delete_old
                 if i_old < 0:
                     continue
-                del_fname = output_dir / f's{seed}-ep{i_old:06}-{epsteps:04}.npz'  # TODO: problem if epstep changes
+                del_fname = output_dir / f's{conf.seed}-ep{i_old:06}-{epsteps:04}.npz'  # TODO: problem if epstep changes
                 print(f'Deleting {del_fname}')
                 del_fname.unlink()
+
+        if conf.sleep:
+            time.sleep(conf.sleep)
 
         episodes += 1
 
@@ -179,13 +180,9 @@ if __name__ == '__main__':
     parser.add_argument('--num_steps', type=int, default=1_000_000)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--delete_old', type=int, default=0)
+    parser.add_argument('--sleep', type=int, default=0)
     args = parser.parse_args()
 
     output_dir = args.output_dir or f"data/{args.env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}"
 
-    main(output_dir=output_dir,
-         env_name=args.env,
-         num_steps=args.num_steps,
-         seed=args.seed,
-         delete_old=args.delete_old,
-         )
+    main(output_dir, args.env, args)
