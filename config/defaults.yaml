@@ -3,8 +3,8 @@ defaults:
   n_steps: 100_000
   run_name: none
   resume_id:
-  input_dir: ./data
-  eval_dir: ./data_eval
+  input_dir: ./data/train
+  eval_dir: ./data/eval
   log_interval: 500
   save_interval: 5000
   eval_interval: 5000

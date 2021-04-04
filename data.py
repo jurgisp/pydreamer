@@ -1,15 +1,24 @@
 import pathlib
 import numpy as np
 import random
+import time
 
 
 class OfflineDataSequential:
     """Offline data which processes episodes sequentially"""
 
-    def __init__(self, input_dir):
-        input_dir = pathlib.Path(input_dir)
-        self._files = list(sorted(input_dir.glob('*.npz')))
-        print(f'Offline data: {len(self._files)} episodes in {str(input_dir)}')
+    def __init__(self, input_dir, reload_interval=300):
+        self.input_dir = pathlib.Path(input_dir)
+        self.reload_interval = reload_interval
+        self._reload_files()
+
+    def _reload_files(self):
+        self._files = list(sorted(self.input_dir.glob('*.npz')))
+        self._last_reload = time.time()
+        print(f'Found data: {len(self._files)} episodes in {str(self.input_dir)}')
+
+    def _should_reload_files(self):
+        return time.time() - self._last_reload > self.reload_interval
 
     def iterate(self, batch_length, batch_size):
         # Parallel iteration over (batch_size) iterators
@@ -27,16 +36,20 @@ class OfflineDataSequential:
         # TODO: join files so we don't miss the last step indicating done
 
         is_first = True
-        while True:
-            for file in self._shuffle_files():
-                for batch in self._iter_file(file, batch_length, skip_random=is_first):
-                    yield batch
-                is_first = False
+        for file in self._iter_shuffled_files():
+            for batch in self._iter_file(file, batch_length, skip_random=is_first):
+                yield batch
+            is_first = False
 
     def _iter_file(self, file, batch_length, skip_random=False):
-        with file.open('rb') as f:
-            fdata = np.load(f)
-            data = {key: fdata[key] for key in fdata}
+        try:
+            with file.open('rb') as f:
+                fdata = np.load(f)
+                data = {key: fdata[key] for key in fdata}
+        except Exception as e:
+            print('Error reading file - skipping')
+            print(e)
+            return
 
         n = data['image'].shape[0]
         data['reset'] = np.zeros(n, bool)
@@ -52,11 +65,14 @@ class OfflineDataSequential:
             batch = {key: data[key][i:j] for key in data}
             yield batch
 
-    def _shuffle_files(self):
-        files = self._files.copy()
-        random.shuffle(files)
-        return files
-
+    def _iter_shuffled_files(self):
+        while True:
+            i = random.randint(0, len(self._files) - 1)
+            f = self._files[i]
+            if not f.exists() or self._should_reload_files():
+                self._reload_files()
+            else:
+                yield self._files[i]
 
 
 class OfflineDataRandom:
