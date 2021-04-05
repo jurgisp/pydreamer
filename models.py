@@ -7,11 +7,11 @@ from modules import *
 
 class RSSM(nn.Module):
 
-    def __init__(self, encoder, decoder_image, decoder_map, deter_dim=200, stoch_dim=30, hidden_dim=200):
+    def __init__(self, encoder, decoder, map_model, deter_dim=200, stoch_dim=30, hidden_dim=200):
         super().__init__()
         self._encoder = encoder
-        self._decoder_image = decoder_image
-        self._decoder_map = decoder_map
+        self._decoder_image = decoder
+        self._map_model = map_model
         self._deter_dim = deter_dim
         self._stoch_dim = stoch_dim
         self._core = RSSMCore(embed_dim=encoder.out_dim,
@@ -22,9 +22,10 @@ class RSSM(nn.Module):
             init_weights_tf2(m)
 
     def forward(self,
-                image,       # tensor(N, B, C, H, W)
+                image,     # tensor(N, B, C, H, W)
                 action,    # tensor(N, B, A)
                 reset,     # tensor(N, B)
+                map,       # tensor(N, B, C, MH, MW)
                 in_state,  # tensor(   B, D+S)
                 ):
 
@@ -33,13 +34,13 @@ class RSSM(nn.Module):
         prior, post, states = self._core(embed, action, reset, in_state)
         states_flat = flatten(states)
         image_rec = unflatten(self._decoder_image(states_flat), n)
-        map_rec = unflatten(self._decoder_map(states_flat.detach()), n)  # no gradient
+        map_out = self._map_model(map, states.detach())
 
         return (
             prior,                       # tensor(N, B, 2*S)
             post,                        # tensor(N, B, 2*S)
             image_rec,                   # tensor(N, B, C, H, W)
-            map_rec,                     # tensor(N, B, C, MH, MW)
+            map_out,                     # tuple, map.forward() output
             states,                      # tensor(N, B, D+S)
         )
 
@@ -47,28 +48,29 @@ class RSSM(nn.Module):
         return self._core.init_state(batch_size)
 
     def loss(self,
-             prior, post, image_rec, map_rec, states,     # forward() output
+             prior, post, image_rec, map_out, states,     # forward() output
              image,                                      # tensor(N, B, C, H, W)
              map,                                        # tensor(N, B, MH, MW)
              ):
         loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
         loss_image = self._decoder_image.loss(image_rec, image)
-        loss_map = self._decoder_map.loss(map_rec, map)
+        log_tensors = dict(loss_kl=loss_kl.detach())
+        assert loss_kl.shape == loss_image.shape
+        loss_kl = loss_kl.mean()        # (N, B) => ()
+        loss_image = loss_image.mean()
+        loss = loss_kl + loss_image
 
-        # Mean over (N, B)
-        assert loss_kl.shape == loss_image.shape == loss_map.shape
-        mloss_kl = loss_kl.mean()
-        mloss_image = loss_image.mean()
-        mloss_map = loss_map.mean()
-        loss = mloss_kl + mloss_image + mloss_map
+        loss_map, metrics_map = self._map_model.loss(*map_out, map)
+        loss += loss_map
 
-        metrics = dict(loss_kl=mloss_kl.detach(),
-                       loss_image=mloss_image.detach(),
-                       loss_model=mloss_kl.detach() + mloss_image.detach(),  # model loss, without detached heads
-                       loss_map=mloss_map.detach())
-        tensors = dict(loss_kl=loss_kl.detach(),
-                       loss_map=loss_map.detach())
-        return loss, metrics, tensors
+        metrics = dict(loss_kl=loss_kl.detach(),
+                       loss_image=loss_image.detach(),
+                       loss_model=loss_kl.detach() + loss_image.detach(),  # model loss, without detached heads
+                       loss_map=loss_map.detach(),
+                       loss_map_kl=metrics_map['loss_kl'],
+                       loss_map_rec=metrics_map['loss_rec'],
+                       )
+        return loss, metrics, log_tensors
 
     def predict_obs(self,
                     prior, post, image_rec, map_rec, states,  # forward() output
@@ -99,6 +101,7 @@ class CondVAE(nn.Module):
         super().__init__()
         self._encoder = encoder
         self._decoder = decoder
+        assert decoder.in_dim == state_dim + latent_dim
 
         self._prior_mlp = nn.Sequential(nn.Linear(state_dim, hidden_dim),
                                         nn.ELU(),
@@ -125,7 +128,7 @@ class CondVAE(nn.Module):
         prior = to_mean_std(self._prior_mlp(state), self._min_std)              # (N*B, 2*Z)
         post = to_mean_std(self._post_mlp(cat(state, embed)), self._min_std)    # (N*B, 2*Z)
         sample = diag_normal(post).rsample()                                    # (N*B, Z)
-        obs_rec = self._decoder(sample)
+        obs_rec = self._decoder(cat(state, sample))
 
         return (
             unflatten(prior, n),         # tensor(N, B, 2*Z)
@@ -138,11 +141,9 @@ class CondVAE(nn.Module):
              obs_target,                         # tensor(N, B, C, H, W)
              ):
         loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
-        loss_obs = self._decoder.loss(obs_rec, obs_target)
-
-        # Mean over (N, B)
-        assert loss_kl.shape == loss_obs.shape
-        loss_kl, loss_image = loss_kl.mean(), loss_obs.mean()
-        loss = loss_kl + loss_image
-        metrics = dict(loss_kl=loss_kl.detach(), loss_obs=loss_image.detach())
+        loss_rec = self._decoder.loss(obs_rec, obs_target)
+        assert loss_kl.shape == loss_rec.shape
+        loss_kl, loss_rec = loss_kl.mean(), loss_rec.mean()  # (N, B) => ()
+        loss = loss_kl + loss_rec
+        metrics = dict(loss_kl=loss_kl.detach(), loss_rec=loss_rec.detach())
         return loss, metrics

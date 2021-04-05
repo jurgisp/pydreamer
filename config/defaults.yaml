@@ -31,6 +31,7 @@ defaults:
   stoch_dim: 10
   hidden_dim: 200
   image_decoder: dense
+  map_stoch_dim: 30
 
   # Optimizer
   grad_clip: 100

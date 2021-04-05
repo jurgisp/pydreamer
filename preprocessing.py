@@ -3,6 +3,14 @@ import torch
 import torch.nn.functional as F
 
 
+def to_onehot(x_np, n_categories):
+    x = torch.from_numpy(x_np).to(torch.int64)
+    x = F.one_hot(x, num_classes=n_categories)
+    x = x.permute(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
+    x = x.to(dtype=torch.float)
+    return x
+
+
 class MinigridPreprocess:
 
     def __init__(self, device='cpu', categorical=33, image_key='image', map_key='map'):
@@ -28,10 +36,7 @@ class MinigridPreprocess:
 
         image = batch['image']
         assert image.shape[-1] == 7, f'Unexpected image shape {image.shape}'
-        image = torch.from_numpy(image).to(torch.int64)
-        image = F.one_hot(image, num_classes=self._categorical)
-        image = image.permute(0, 1, 4, 2, 3)  # (..., 7, 7, 33) => (..., 33, 7, 7)
-        image = image.to(dtype=torch.float, device=self._device)
+        image = to_onehot(image, self._categorical).to(device=self._device)
 
         action = torch.from_numpy(batch['action']).to(dtype=torch.float, device=self._device)
 
@@ -40,6 +45,6 @@ class MinigridPreprocess:
         else:
             reset = torch.zeros(action.shape[0:2], dtype=torch.bool, device=self._device)
 
-        map = torch.from_numpy(batch['map']).to(dtype=torch.int64, device=self._device)
+        map = to_onehot(batch['map'], self._categorical).to(device=self._device)
 
         return image, action, reset, map
