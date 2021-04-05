@@ -73,7 +73,7 @@ class RSSM(nn.Module):
         return loss, metrics, log_tensors
 
     def predict_obs(self,
-                    prior, post, image_rec, map_rec, states,  # forward() output
+                    prior, post, image_rec, map_out, states,  # forward() output
                     ):
         n = states.size(0)
 
@@ -85,7 +85,7 @@ class RSSM(nn.Module):
 
         image_pred_distr = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,H,W) => (N,B,H,W,C)
         image_rec_distr = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2))
-        map_rec_distr = D.Categorical(logits=map_rec.permute(0, 1, 3, 4, 2))
+        map_rec_distr = self._map_model.predict_obs(*map_out)
 
         return (
             image_pred_distr,    # categorical(N,B,H,W,C)
@@ -120,6 +120,7 @@ class CondVAE(nn.Module):
                 obs,       # tensor(N, B, C, H, W)
                 state,     # tensor(N, B, D+S)
                 ):
+        states_in = state
 
         n = obs.size(0)
         embed = self._encoder(flatten(obs))
@@ -134,10 +135,11 @@ class CondVAE(nn.Module):
             unflatten(prior, n),         # tensor(N, B, 2*Z)
             unflatten(post, n),          # tensor(N, B, 2*Z)
             unflatten(obs_rec, n),       # tensor(N, B, C, H, W)
+            states_in
         )
 
     def loss(self,
-             prior, post, obs_rec,                 # forward() output
+             prior, post, obs_rec, states,       # forward() output
              obs_target,                         # tensor(N, B, C, H, W)
              ):
         loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
@@ -147,3 +149,13 @@ class CondVAE(nn.Module):
         loss = loss_kl + loss_rec
         metrics = dict(loss_kl=loss_kl.detach(), loss_rec=loss_rec.detach())
         return loss, metrics
+
+    def predict_obs(self,
+                    prior, post, obs_rec, states,                 # forward() output
+                    ):
+        n = prior.size(0)
+        # Sample from prior instead of posterior
+        sample = diag_normal(prior).sample()
+        obs_pred = unflatten(self._decoder(flatten(cat(states, sample))), n)    # (N,B,C,MH,MW)
+        obs_pred_distr = D.Categorical(logits=obs_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,MH,MW) => (N,B,MH,MW,C)
+        return obs_pred_distr       # categorical(N,B,HM,WM,C)

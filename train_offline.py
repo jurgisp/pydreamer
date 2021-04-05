@@ -110,7 +110,7 @@ def run(conf):
 
         state = persist_state if conf.keep_state else model.init_state(image.size(1))
         output = model(image, action, reset, map, state)
-        loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
+        loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
         persist_state = output[-1][-1].detach()
 
         # Grad step
@@ -143,9 +143,12 @@ def run(conf):
 
             print(f"T:{t-start_time:05.0f}  "
                   f"[{steps:06}]"
-                  f"  loss: {metrics['loss']:.3f}"
+                  f"  loss_model: {metrics['loss_model']:.3f}"
                   f"  loss_kl: {metrics['loss_kl']:.3f}"
                   f"  loss_image: {metrics['loss_image']:.3f}"
+                  f"  loss_map: {metrics['loss_map']:.3f}"
+                  f"  loss_map_kl: {metrics['loss_map_kl']:.3f}"
+                  f"  loss_map_rec: {metrics['loss_map_rec']:.3f}"
                   f"  fps: {metrics['fps']:.3f}"
                   )
             mlflow.log_metrics(metrics, step=steps)
@@ -203,7 +206,6 @@ def run(conf):
         if steps % conf.eval_interval == 0:
             batch = next(eval_iter_full)
             image, action, reset, map = preprocess(batch)
-            image_cat = image.argmax(axis=-3)
             print(f'Eval full {image.shape} for {conf.full_eval_samples} samples')
 
             map_losses = []
@@ -217,12 +219,12 @@ def run(conf):
             with tools.Timer('eval_sampling'):
                 for _ in range(conf.full_eval_samples):
                     with torch.no_grad():
-                        output = model(image, action, reset, model.init_state(image.size(1)))
-                        loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
+                        output = model(image, action, reset, map, model.init_state(image.size(1)))
+                        loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
                         image_pred, image_rec, map_rec = model.predict_obs(*output)
 
-                    map_losses.append(map_rec.log_prob(map).sum(dim=[-1, -2]))          # Keep (N,B) dim
-                    img_losses.append(image_pred.log_prob(image_cat).sum(dim=[-1, -2]))
+                    map_losses.append(map_rec.log_prob(map.argmax(axis=-3)).sum(dim=[-1, -2]))          # Keep (N,B) dim
+                    img_losses.append(image_pred.log_prob(image.argmax(axis=-3)).sum(dim=[-1, -2]))
 
                     for k, v in loss_metrics.items():
                         metrics_eval[k].append(v.item())
