@@ -24,11 +24,11 @@ def run(conf):
         # Start train
         cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 1 --output_dir {conf.input_dir} --delete_old {conf.generator_buffer}'
         print(f'Starting data generator:\n{cmd}')
-        p1 = subprocess.Popen(cmd.split(' '))
+        p1 = subprocess.Popen(cmd.split(' '), stdout=subprocess.DEVNULL)
         # Start eval
         cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 2 --output_dir {conf.eval_dir} --delete_old {conf.generator_buffer} --sleep 20'
         print(f'Starting data generator:\n{cmd}')
-        p2 = subprocess.Popen(cmd.split(' '))
+        p2 = subprocess.Popen(cmd.split(' '), stdout=subprocess.DEVNULL)
         # Check
         time.sleep(5)
         assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'

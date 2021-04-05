@@ -39,4 +39,4 @@ defaults:
   generator_run: False
   generator_env:
   generator_wait: 300
-  generator_buffer: 2000
+  generator_buffer: 0
