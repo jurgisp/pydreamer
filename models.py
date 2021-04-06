@@ -61,15 +61,14 @@ class RSSM(nn.Module):
         loss = loss_kl + loss_image
 
         loss_map, metrics_map = self._map_model.loss(*map_out, map)
+        metrics_map = {k.replace('loss_', 'loss_map_'): v for k, v in metrics_map.items()}  # loss_kl => loss_map_kl
         loss += loss_map
 
         metrics = dict(loss_kl=loss_kl.detach(),
                        loss_image=loss_image.detach(),
                        loss_model=loss_kl.detach() + loss_image.detach(),  # model loss, without detached heads
                        loss_map=loss_map.detach(),
-                       loss_map_kl=metrics_map['loss_kl'],
-                       loss_map_rec=metrics_map['loss_rec'],
-                       )
+                       **metrics_map)
         return loss, metrics, log_tensors
 
     def predict_obs(self,
@@ -113,9 +112,6 @@ class CondVAE(nn.Module):
 
         self._min_std = 0.1
 
-    def init_state(self, batch_size):
-        return torch.zeros(batch_size)
-
     def forward(self,
                 obs,       # tensor(N, B, C, H, W)
                 state,     # tensor(N, B, D+S)
@@ -157,5 +153,35 @@ class CondVAE(nn.Module):
         # Sample from prior instead of posterior
         sample = diag_normal(prior).sample()
         obs_pred = unflatten(self._decoder(flatten(cat(states, sample))), n)    # (N,B,C,MH,MW)
+        obs_pred_distr = D.Categorical(logits=obs_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,MH,MW) => (N,B,MH,MW,C)
+        return obs_pred_distr       # categorical(N,B,HM,WM,C)
+
+
+class DirectHead(nn.Module):
+
+    def __init__(self, decoder):
+        super().__init__()
+        self._decoder = decoder
+
+    def forward(self,
+                obs,       # tensor(N, B, C, H, W)
+                state,     # tensor(N, B, D+S)
+                ):
+        n = obs.size(0)
+        obs_pred = self._decoder(flatten(state))
+        return (
+            unflatten(obs_pred, n),       # tensor(N, B, C, H, W)
+        )
+
+    def loss(self,
+             obs_pred,          # forward() output
+             obs_target,        # tensor(N, B, C, H, W)
+             ):
+        loss = self._decoder.loss(obs_pred, obs_target).mean()
+        return loss, {}
+
+    def predict_obs(self,
+                    obs_pred,                 # forward() output
+                    ):
         obs_pred_distr = D.Categorical(logits=obs_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,MH,MW) => (N,B,MH,MW,C)
         return obs_pred_distr       # categorical(N,B,HM,WM,C)

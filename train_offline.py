@@ -51,15 +51,23 @@ def run(conf):
                                     map_key=conf.map_key,
                                     device=device)
 
-    map_model = CondVAE(
-        encoder=DenseEncoder(in_dim=conf.map_size * conf.map_size * conf.channels,
-                             out_dim=conf.embed_dim,
-                             hidden_layers=3),
-        decoder=DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim + conf.map_stoch_dim,
-                             out_shape=(conf.channels, conf.map_size, conf.map_size),
-                             hidden_layers=4),
-        state_dim=conf.deter_dim + conf.stoch_dim,
-        latent_dim=conf.map_stoch_dim)
+    if conf.map_model == 'vae':
+        map_model = CondVAE(
+            encoder=DenseEncoder(in_dim=conf.map_size * conf.map_size * conf.channels,
+                                 out_dim=conf.embed_dim,
+                                 hidden_layers=3),
+            decoder=DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim + conf.map_stoch_dim,
+                                 out_shape=(conf.channels, conf.map_size, conf.map_size),
+                                 hidden_layers=4),
+            state_dim=conf.deter_dim + conf.stoch_dim,
+            latent_dim=conf.map_stoch_dim
+        )
+    else:
+        map_model = DirectHead(
+            decoder=DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim,
+                                 out_shape=(conf.channels, conf.map_size, conf.map_size),
+                                 hidden_layers=4),
+        )
 
     model = RSSM(
         encoder=ConvEncoder(in_channels=conf.channels,
@@ -147,8 +155,8 @@ def run(conf):
                   f"  loss_kl: {metrics['loss_kl']:.3f}"
                   f"  loss_image: {metrics['loss_image']:.3f}"
                   f"  loss_map: {metrics['loss_map']:.3f}"
-                  f"  loss_map_kl: {metrics['loss_map_kl']:.3f}"
-                  f"  loss_map_rec: {metrics['loss_map_rec']:.3f}"
+                  f"  loss_map_kl: {metrics.get('loss_map_kl',0):.3f}"
+                  f"  loss_map_rec: {metrics.get('loss_map_rec',0):.3f}"
                   f"  fps: {metrics['fps']:.3f}"
                   )
             mlflow.log_metrics(metrics, step=steps)
