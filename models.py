@@ -75,12 +75,15 @@ class RSSM(nn.Module):
         loss += loss_map
 
         loss_mem = self._mem_model.loss(*mem_out)
+        loss += loss_mem
 
-        metrics = dict(loss_kl=loss_kl.detach(),
-                       loss_image=loss_image.detach(),
-                       loss_model=loss_kl.detach() + loss_image.detach(),  # model loss, without detached heads
+        metrics = dict(loss_kl=loss_kl.detach(),        # for backwards-compatibility
+                       loss_image=loss_image.detach(),  # for backwards-compatibility
+                       loss_model_kl=loss_kl.detach(),
+                       loss_model_image=loss_image.detach(),
+                       loss_model_mem=loss_mem.detach(),
+                       loss_model=loss_kl.detach() + loss_image.detach() + loss_mem.detach(),  # model loss, without detached heads
                        loss_map=loss_map.detach(),
-                       loss_mem=loss_mem.detach(),
                        **metrics_map)
         return loss, metrics, log_tensors
 

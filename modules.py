@@ -319,8 +319,8 @@ class GlobalStateCell(nn.Module):
     def init_state(self, batch_size):
         device = next(self._gru.parameters()).device
         state = torch.zeros((batch_size, self._mem_dim), device=device)
-        post = self._post_mlp(state).detach()
-        return (state, post)
+        post = to_mean_std(self._post_mlp(state), self._min_std)
+        return (state.detach(), post.detach())
 
     def forward(self,
                 embed,     # tensor(B, E)
