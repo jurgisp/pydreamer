@@ -28,7 +28,7 @@ defaults:
   # Model
   embed_dim: 256
   deter_dim: 200
-  stoch_dim: 10
+  stoch_dim: 30
   hidden_dim: 200
   image_decoder: dense
   map_stoch_dim: 30
