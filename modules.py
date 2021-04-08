@@ -72,20 +72,20 @@ class RSSMCore(nn.Module):
                 ):
 
         n = embed.size(0)
-        prior = []
-        post = []
+        priors = []
+        posts = []
         states = []
         state = in_state
 
         for i in range(n):
-            prior_i, post_i, state = self._cell(embed[i], action[i], reset[i], state)
-            prior.append(prior_i)
-            post.append(post_i)
+            prior, post, state = self._cell(embed[i], action[i], reset[i], state)
+            priors.append(prior)
+            posts.append(post)
             states.append(state)
 
         return (
-            torch.stack(prior),          # tensor(N, B, 2*S)
-            torch.stack(post),           # tensor(N, B, 2*S)
+            torch.stack(priors),          # tensor(N, B, 2*S)
+            torch.stack(posts),           # tensor(N, B, 2*S)
             torch.stack(states),         # tensor(N, B, D+S)
         )
 

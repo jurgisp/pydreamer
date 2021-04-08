@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+kubectl config use-context gke_human-ui_europe-west4-b_mlflow-cluster
+
 MLFLOW_EXPERIMENT_NAME=$1
 EXPERIMENT=$2
 TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")

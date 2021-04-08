@@ -32,7 +32,7 @@ defaults:
   hidden_dim: 200
   image_decoder: dense
   map_stoch_dim: 30
-  map_model: direct
+  map_model: vae
 
   # Optimizer
   grad_clip: 100
