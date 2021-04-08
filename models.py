@@ -36,7 +36,7 @@ class RSSM(nn.Module):
         mem_out = self._mem_model(embed, action, reset, in_mem_state)
         mem_sample, mem_state = mem_out[0], mem_out[-1]
 
-        prior, post, states = self._core(embed, action, reset, in_state)
+        prior, post, states = self._core(embed, action, reset, in_state, mem_sample)
         states_flat = flatten(states)
 
         image_rec = unflatten(self._decoder_image(states_flat), n)
