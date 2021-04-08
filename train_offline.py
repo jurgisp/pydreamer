@@ -69,6 +69,8 @@ def run(conf):
                                  hidden_layers=4),
         )
 
+    mem_model = GlobalStateCore(embed_dim=conf.embed_dim, mem_dim=conf.deter_dim, stoch_dim=conf.stoch_dim, hidden_dim=conf.hidden_dim)
+
     model = RSSM(
         encoder=ConvEncoder(in_channels=conf.channels,
                             out_dim=conf.embed_dim,
@@ -83,6 +85,7 @@ def run(conf):
                               out_shape=(conf.channels, 7, 7))
                  ),
         map_model=map_model,
+        mem_model=mem_model,
         deter_dim=conf.deter_dim,
         stoch_dim=conf.stoch_dim,
         hidden_dim=conf.hidden_dim,
@@ -106,20 +109,22 @@ def run(conf):
     last_steps = steps
     metrics = defaultdict(list)
 
-    persist_state = None
+    state = None
 
     for batch in data.iterate(conf.batch_length, conf.batch_size):
 
         image, action, reset, map = preprocess(batch)
-        if persist_state is None and conf.keep_state:
-            persist_state = model.init_state(image.size(1))
+        if state is None or not conf.keep_state:
+            state = model.init_state(image.size(1))
 
         # Predict
 
-        state = persist_state if conf.keep_state else model.init_state(image.size(1))
         output = model(image, action, reset, map, state)
+        state = output[-1]
+
+        # Loss
+
         loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
-        persist_state = output[-1][-1].detach()
 
         # Grad step
 
