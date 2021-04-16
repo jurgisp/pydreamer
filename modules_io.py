@@ -218,9 +218,9 @@ class NoHead(nn.Module):
     def forward(self, obs, state):
         return (obs,)
 
-    def loss(self, *args):
-        return torch.tensor(0.0), {}
+    def loss(self, obs, obs_target):
+        return torch.tensor(0.0, device=obs.device), {}
 
     def predict_obs(self, obs):
-        zeros = torch.zeros(obs.shape[:2] + self.out_shape)  # (N,B,C,MH,MW)
+        zeros = torch.zeros(obs.shape[:2] + self.out_shape, device=obs.device)  # (N,B,C,MH,MW)
         return D.Categorical(logits=zeros.permute(0, 1, 3, 4, 2))  # (N,B,MH,MW,C)

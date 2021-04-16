@@ -12,15 +12,16 @@ class NoMemory(nn.Module):
     def __init__(self):
         super().__init__()
         self.global_dim = 0
+        self._empty = nn.parameter.Parameter(torch.FloatTensor(), requires_grad=False)  # To keep track of device
 
     def forward(self, embed, action, reset, in_state):
         return (in_state,)
 
     def init_state(self, batch_size):
-        return torch.FloatTensor()
+        return self._empty
 
     def loss(self, *args):
-        return torch.tensor(0.0)
+        return torch.tensor(0.0, device=self._empty.device)
 
 
 class GlobalStateMem(nn.Module):
