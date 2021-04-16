@@ -14,7 +14,9 @@ from tools import mlflow_start_or_resume, param_count
 from data import OfflineDataSequential, OfflineDataRandom
 from preprocessing import MinigridPreprocess
 from models import *
-from modules import *
+from modules_io import *
+from modules_mem import *
+from modules_tools import *
 
 
 def run_generator(conf):
@@ -56,7 +58,7 @@ def run(conf):
                                     device=device)
 
     if conf.map_model == 'vae':
-        map_model = CondVAE(
+        map_model = CondVAEHead(
             encoder=DenseEncoder(in_dim=conf.map_size * conf.map_size * conf.channels,
                                  out_dim=conf.embed_dim,
                                  hidden_layers=3),
@@ -80,7 +82,7 @@ def run(conf):
                                 stoch_dim=conf.stoch_dim,
                                 hidden_dim=conf.hidden_dim)
 
-    model = RSSM(
+    model = WorldModel(
         encoder=ConvEncoder(in_channels=conf.channels,
                             out_dim=conf.embed_dim,
                             stride=1,
