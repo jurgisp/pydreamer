@@ -7,7 +7,7 @@ from modules import *
 
 class RSSM(nn.Module):
 
-    def __init__(self, encoder, decoder, map_model, mem_model, deter_dim=200, stoch_dim=30, hidden_dim=200):
+    def __init__(self, encoder, decoder, map_model, mem_model, deter_dim=200, stoch_dim=30, hidden_dim=200, global_dim=30):
         super().__init__()
         self._encoder = encoder
         self._decoder_image = decoder
@@ -18,7 +18,8 @@ class RSSM(nn.Module):
         self._core = RSSMCore(embed_dim=encoder.out_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
-                              hidden_dim=hidden_dim)
+                              hidden_dim=hidden_dim,
+                              global_dim=global_dim)
         for m in self.modules():
             init_weights_tf2(m)
 
@@ -201,3 +202,15 @@ class DirectHead(nn.Module):
                     ):
         obs_pred_distr = D.Categorical(logits=obs_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,MH,MW) => (N,B,MH,MW,C)
         return obs_pred_distr       # categorical(N,B,HM,WM,C)
+
+
+class NoHead(nn.Module):
+
+    def forward(self, *args):
+        return ()
+
+    def loss(self):
+        return 0.0, {}
+
+    def predict_obs(self):
+        return None  # TODO

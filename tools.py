@@ -74,6 +74,10 @@ def save_npz(data, filename):
             f2.write(f1.read())
 
 
+def param_count(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 class Timer:
 
     def __init__(self, name='timer', verbose=True):

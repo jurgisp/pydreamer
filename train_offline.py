@@ -10,33 +10,37 @@ import torch.distributions as D
 import mlflow
 
 import tools
-from tools import mlflow_start_or_resume
+from tools import mlflow_start_or_resume, param_count
 from data import OfflineDataSequential, OfflineDataRandom
 from preprocessing import MinigridPreprocess
 from models import *
 from modules import *
 
 
+def run_generator(conf):
+    # Start train
+    cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 1 --output_dir {conf.input_dir} --delete_old {conf.generator_buffer}'
+    print(f'Starting data generator:\n{cmd}')
+    p1 = subprocess.Popen(cmd.split(' '), stdout=subprocess.DEVNULL)
+    # Start eval
+    cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 2 --output_dir {conf.eval_dir} --delete_old {conf.generator_buffer} --sleep 20'
+    print(f'Starting data generator:\n{cmd}')
+    p2 = subprocess.Popen(cmd.split(' '), stdout=subprocess.DEVNULL)
+    # Check
+    time.sleep(5)
+    assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
+    # Wait
+    print(f'Waiting for {conf.generator_wait} sec for initial data')
+    time.sleep(conf.generator_wait)
+    # Check again
+    assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
+
+
 def run(conf):
     assert not(conf.keep_state and not conf.data_seq), "Should train sequentially if keeping state"
 
     if conf.generator_run:
-        # Start train
-        cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 1 --output_dir {conf.input_dir} --delete_old {conf.generator_buffer}'
-        print(f'Starting data generator:\n{cmd}')
-        p1 = subprocess.Popen(cmd.split(' '), stdout=subprocess.DEVNULL)
-        # Start eval
-        cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 2 --output_dir {conf.eval_dir} --delete_old {conf.generator_buffer} --sleep 20'
-        print(f'Starting data generator:\n{cmd}')
-        p2 = subprocess.Popen(cmd.split(' '), stdout=subprocess.DEVNULL)
-        # Check
-        time.sleep(5)
-        assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
-        # Wait
-        print(f'Waiting for {conf.generator_wait} sec for initial data')
-        time.sleep(conf.generator_wait)
-        # Check again
-        assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
+        run_generator(conf)
 
     mlflow_start_or_resume(conf.run_name, conf.resume_id)
     mlflow.log_params(vars(conf))
@@ -62,14 +66,19 @@ def run(conf):
             state_dim=conf.deter_dim + conf.stoch_dim,
             latent_dim=conf.map_stoch_dim
         )
-    else:
+    elif conf.map_model == 'direct':
         map_model = DirectHead(
             decoder=DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim,
                                  out_shape=(conf.channels, conf.map_size, conf.map_size),
                                  hidden_layers=4),
         )
+    else:
+        map_model = NoHead()
 
-    mem_model = GlobalStateCore(embed_dim=conf.embed_dim, mem_dim=conf.deter_dim, stoch_dim=conf.stoch_dim, hidden_dim=conf.hidden_dim)
+    mem_model = GlobalStateCore(embed_dim=conf.embed_dim,
+                                mem_dim=conf.deter_dim,
+                                stoch_dim=conf.stoch_dim,
+                                hidden_dim=conf.hidden_dim)
 
     model = RSSM(
         encoder=ConvEncoder(in_channels=conf.channels,
@@ -89,9 +98,14 @@ def run(conf):
         deter_dim=conf.deter_dim,
         stoch_dim=conf.stoch_dim,
         hidden_dim=conf.hidden_dim,
+        global_dim=30,  # TODO
     )
     model.to(device)
-    print(f'Model: {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters')
+
+    print(f'Model: {param_count(model)} parameters')
+    for submodel in [model._encoder, model._decoder_image, model._core, map_model, mem_model]:
+        print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
+    print(model)
     mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')  # type: ignore
 
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4, eps=1e-5)  # type: ignore
