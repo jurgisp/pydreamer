@@ -7,11 +7,28 @@ import torch.distributions as D
 from modules_tools import *
 
 
-class GlobalStateCore(nn.Module):
+class NoMemory(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.global_dim = 0
+
+    def forward(self, embed, action, reset, in_state):
+        return (in_state,)
+
+    def init_state(self, batch_size):
+        return torch.FloatTensor()
+
+    def loss(self, *args):
+        return torch.tensor(0.0)
+
+
+class GlobalStateMem(nn.Module):
 
     def __init__(self, embed_dim=256, action_dim=7, mem_dim=200, stoch_dim=30, hidden_dim=200, min_std=0.1):
         super().__init__()
         self._cell = GlobalStateCell(embed_dim, action_dim, mem_dim, stoch_dim, hidden_dim, min_std)
+        self.global_dim = stoch_dim
 
     def forward(self,
                 embed,     # tensor(N, B, E)

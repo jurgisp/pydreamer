@@ -211,11 +211,16 @@ class DirectHead(nn.Module):
 
 class NoHead(nn.Module):
 
-    def forward(self, *args):
-        return ()
+    def __init__(self, out_shape):
+        super().__init__()
+        self.out_shape = out_shape  # (C,MH,MW)
 
-    def loss(self):
-        return 0.0, {}
+    def forward(self, obs, state):
+        return (obs,)
 
-    def predict_obs(self):
-        return None  # TODO
+    def loss(self, *args):
+        return torch.tensor(0.0), {}
+
+    def predict_obs(self, obs):
+        zeros = torch.zeros(obs.shape[:2] + self.out_shape)  # (N,B,C,MH,MW)
+        return D.Categorical(logits=zeros.permute(0, 1, 3, 4, 2))  # (N,B,MH,MW,C)

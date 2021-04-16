@@ -75,12 +75,15 @@ def run(conf):
                                  hidden_layers=4),
         )
     else:
-        map_model = NoHead()
+        map_model = NoHead(out_shape=(conf.channels, conf.map_size, conf.map_size))
 
-    mem_model = GlobalStateCore(embed_dim=conf.embed_dim,
-                                mem_dim=conf.deter_dim,
-                                stoch_dim=conf.stoch_dim,
-                                hidden_dim=conf.hidden_dim)
+    if conf.mem_model == 'global_state':
+        mem_model = GlobalStateMem(embed_dim=conf.embed_dim,
+                                   mem_dim=conf.deter_dim,
+                                   stoch_dim=conf.stoch_dim,
+                                   hidden_dim=conf.hidden_dim)
+    else:
+        mem_model = NoMemory()
 
     model = WorldModel(
         encoder=ConvEncoder(in_channels=conf.channels,
@@ -100,7 +103,6 @@ def run(conf):
         deter_dim=conf.deter_dim,
         stoch_dim=conf.stoch_dim,
         hidden_dim=conf.hidden_dim,
-        global_dim=30,  # TODO
     )
     model.to(device)
 

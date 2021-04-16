@@ -8,7 +8,7 @@ from modules_rssm import *
 
 class WorldModel(nn.Module):
 
-    def __init__(self, encoder, decoder, map_model, mem_model, deter_dim=200, stoch_dim=30, hidden_dim=200, global_dim=30):
+    def __init__(self, encoder, decoder, map_model, mem_model, deter_dim=200, stoch_dim=30, hidden_dim=200):
         super().__init__()
         self._encoder = encoder
         self._decoder_image = decoder
@@ -20,7 +20,7 @@ class WorldModel(nn.Module):
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
                               hidden_dim=hidden_dim,
-                              global_dim=global_dim)
+                              global_dim=mem_model.global_dim)
         for m in self.modules():
             init_weights_tf2(m)
 
@@ -38,7 +38,8 @@ class WorldModel(nn.Module):
         mem_out = self._mem_model(embed, action, reset, in_mem_state)
         mem_sample, mem_state = mem_out[0], mem_out[-1]
 
-        prior, post, states = self._core(embed, action, reset, in_state, mem_sample)
+        glob_state = mem_sample
+        prior, post, states = self._core(embed, action, reset, in_state, glob_state)
         states_flat = flatten(states)
 
         image_rec = unflatten(self._decoder_image(states_flat), n)
