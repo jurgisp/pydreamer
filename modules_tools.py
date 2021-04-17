@@ -34,8 +34,18 @@ def diag_normal(mean_std):
 
 
 def to_mean_std(x, min_std):
+    # DreamerV2:
+    # std = {
+    #     'softplus': lambda: tf.nn.softplus(std),
+    #     'abs': lambda: tf.math.abs(std + 1),
+    #     'sigmoid': lambda: tf.nn.sigmoid(std),
+    #     'sigmoid2': lambda: 2 * tf.nn.sigmoid(std / 2),
+    # }[self._std_act]()
+    # std = std + self._min_std
+
     mean, std = split(x)
-    std = F.softplus(std) + min_std
+    # std = F.softplus(std) + min_std
+    std = 2 * torch.sigmoid(std / 2) + min_std
     return cat(mean, std)
 
 
@@ -56,4 +66,3 @@ def init_weights_tf2(m):
         nn.init.orthogonal_(m.weight_hh.data)
         nn.init.zeros_(m.bias_ih.data)
         nn.init.zeros_(m.bias_hh.data)
-
