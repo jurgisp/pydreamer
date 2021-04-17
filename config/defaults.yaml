@@ -34,6 +34,7 @@ defaults:
   map_stoch_dim: 30
   map_model: direct
   mem_model: none
+  mem_loss_type:
 
   # Optimizer
   grad_clip: 100

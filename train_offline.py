@@ -81,7 +81,8 @@ def run(conf):
         mem_model = GlobalStateMem(embed_dim=conf.embed_dim,
                                    mem_dim=conf.deter_dim,
                                    stoch_dim=conf.stoch_dim,
-                                   hidden_dim=conf.hidden_dim)
+                                   hidden_dim=conf.hidden_dim,
+                                   loss_type=conf.mem_loss_type)
     else:
         mem_model = NoMemory()
 
@@ -175,11 +176,10 @@ def run(conf):
             print(f"T:{t-start_time:05.0f}  "
                   f"[{steps:06}]"
                   f"  loss_model: {metrics['loss_model']:.3f}"
-                  f"  loss_kl: {metrics['loss_kl']:.3f}"
-                  f"  loss_image: {metrics['loss_image']:.3f}"
+                  f"  loss_model_kl: {metrics['loss_model_kl']:.3f}"
+                  f"  loss_model_image: {metrics['loss_model_image']:.3f}"
+                  f"  loss_model_mem: {metrics.get('loss_model_mem',0):.3f}"
                   f"  loss_map: {metrics['loss_map']:.3f}"
-                  f"  loss_map_kl: {metrics.get('loss_map_kl',0):.3f}"
-                  f"  loss_map_rec: {metrics.get('loss_map_rec',0):.3f}"
                   f"  fps: {metrics['fps']:.3f}"
                   )
             mlflow.log_metrics(metrics, step=steps)

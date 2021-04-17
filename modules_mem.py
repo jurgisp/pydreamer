@@ -27,10 +27,11 @@ class NoMemory(nn.Module):
 
 class GlobalStateMem(nn.Module):
 
-    def __init__(self, embed_dim=256, action_dim=7, mem_dim=200, stoch_dim=30, hidden_dim=200, min_std=0.1):
+    def __init__(self, embed_dim=256, action_dim=7, mem_dim=200, stoch_dim=30, hidden_dim=200, min_std=0.1, loss_type='last_kl'):
         super().__init__()
         self._cell = GlobalStateCell(embed_dim, action_dim, mem_dim, stoch_dim, hidden_dim, min_std)
         self.global_dim = stoch_dim
+        self.loss_type = loss_type
 
     def forward(self,
                 embed,     # tensor(N, B, E)
@@ -66,11 +67,23 @@ class GlobalStateMem(nn.Module):
     def loss(self,
              sample, states, posts, in_state_post, out_state_post,       # forward() output
              ):
-        in_post = in_state_post[1]
-        priors = torch.cat([in_post.unsqueeze(0), posts[:-1]])
-        loss_kl = D.kl.kl_divergence(diag_normal(posts), diag_normal(priors))  # KL between consecutive posteriors
-        loss_kl = loss_kl.mean()        # (N, B) => ()
-        return loss_kl
+        if self.loss_type == 'chained_kl':
+            in_post = in_state_post[1]
+            priors = torch.cat([in_post.unsqueeze(0), posts[:-1]])
+            loss_kl = D.kl.kl_divergence(diag_normal(posts), diag_normal(priors))  # KL between consecutive posteriors
+            loss_kl = loss_kl.mean()        # (N, B) => ()
+            return loss_kl
+
+        if self.loss_type == 'last_kl':
+            post = posts[-1]  # (B, 2S)
+            prior = zero_prior_like(post)
+            loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
+            # Divide by N, because loss_kl is for the whole sequence, and returned loss is assumed per-step
+            loss_kl = loss_kl.mean() / posts.shape[0]  # (B) => ()
+            return loss_kl
+
+        assert False
+
 
 
 class GlobalStateCell(nn.Module):
