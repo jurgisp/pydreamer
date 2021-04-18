@@ -68,7 +68,7 @@ class WorldModel(nn.Module):
         in_state, in_mem_state = in_state_full
         n = image.size(0)
         embed = unflatten(self._encoder(flatten(image)), n)
-        mem_out = self._mem_model(embed, action, reset, in_mem_state)
+        mem_out = self._mem_model(embed[:-1], action[:-1], reset[:-1], in_mem_state)  # Diff from forward(): hide last observation
         mem_sample, mem_state = mem_out[0], mem_out[-1]
 
         glob_state = mem_sample
