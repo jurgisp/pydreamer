@@ -2,6 +2,7 @@ import argparse
 import pathlib
 import subprocess
 from collections import defaultdict
+from typing import Iterator
 import numpy as np
 import time
 import torch
@@ -187,22 +188,10 @@ def run(conf):
 
         # Log artifacts
 
-        def log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=-1, subdir='d2_wm_predict'):
-            data = batch.copy()
-            data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
-            data['image_pred'] = image_pred.sample().cpu().numpy()
-            data['image_rec'] = image_rec.sample().cpu().numpy()
-            data['map_rec'] = map_rec.sample().cpu().numpy()
-            data['image_pred_p'] = image_pred.probs.cpu().numpy()
-            data['image_rec_p'] = image_rec.probs.cpu().numpy()
-            data['map_rec_p'] = map_rec.probs.cpu().numpy()
-            data = {k: v.swapaxes(0, 1)[:top] for k, v in data.items()}  # (N,B,...) => (B,N,...)
-            tools.mlflow_log_npz(data, f'{steps:07}.npz', subdir)
-
         if steps % conf.log_interval == 0:
             with torch.no_grad():
                 image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state_in)
-            log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec)
+            log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec)
 
         # Save model
 
@@ -216,86 +205,95 @@ def run(conf):
             print('Stopping')
             break
 
-        # Evaluate, same way as train (evaluate/...)
+        # Evaluate
 
         if steps % conf.eval_interval == 0:
-            print(f'Eval: {conf.eval_batches} batches size {conf.batch_length, conf.batch_size}')
+            # Same batch as train
+            eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size)
+            evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.eval_samples)
 
-            metrics_eval = defaultdict(list)
-            state_eval = model.init_state(image.size(1))
+            # Full episodes
+            eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size)
+            evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples)
 
-            for _ in range(conf.eval_batches):
-                batch = next(eval_iter)
-                image, action, reset, map = preprocess(batch)
 
-                with torch.no_grad():
-                    output = model(image, action, reset, map, state_eval)
-                    state_eval = output[-1]
-                    loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
+def evaluate(prefix: str, steps: int, model: WorldModel, data_iterator: Iterator, preprocess: MinigridPreprocess, eval_batches=1, eval_samples=1):
 
-                    for k, v in loss_metrics.items():
-                        metrics_eval[k].append(v.item())
+    start_time = time.time()
+    metrics_eval = defaultdict(list)
 
-            metrics_eval = {f'eval/{k}': np.mean(v) for k, v in metrics_eval.items()}
-            mlflow.log_metrics(metrics_eval, step=steps)
+    for i_batch in range(eval_batches):
 
-        # Evaluate, full episodes (evaluate_full/...)
+        batch = next(data_iterator)
+        image, action, reset, map = preprocess(batch)
 
-        if steps % conf.eval_interval == 0:
-            print(f'Eval full: 1 batch size {conf.full_eval_length, conf.full_eval_size} x {conf.full_eval_samples} samples')
-            batch = next(eval_iter_full)
-            image, action, reset, map = preprocess(batch)
+        if i_batch == 0:
+            print(f'Evaluation ({prefix}): batches={eval_batches} size={tuple(image.shape[0:2])} samples={eval_samples}')
 
-            map_losses = []
-            img_losses = []
-            metrics_eval = defaultdict(list)
-            loss_tensors = {}
-            image_pred_sum = None
-            image_rec_sum = None
-            map_rec_sum = None
+        logprobs_map = []
+        logprobs_img = []
+        image_pred_sum = None
+        image_rec_sum = None
+        map_rec_sum = None
+        loss_tensors = {}
 
-            # Sample loss several times and do log E[p(map|state)] = log avg[exp(loss)]
-            with tools.Timer('eval_sampling'):
-                for _ in range(conf.full_eval_samples):
-                    with torch.no_grad():
-                        # output = model(image, action, reset, map, model.init_state(image.size(1)))
-                        # loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
-                        image_pred, image_rec, map_rec = model.predict(image, action, reset, map, model.init_state(image.size(1)))
+        state_eval = model.init_state(image.size(1))  # TODO: what if keeping state?
 
-                    map_losses.append(map_rec.log_prob(map.argmax(axis=-3)).sum(dim=[-1, -2]))          # Keep (N,B) dim
-                    img_losses.append(image_pred.log_prob(image.argmax(axis=-3)).sum(dim=[-1, -2]))
+        # Sample loss several times and do log E[p(map|state)] = log avg[exp(loss)]
+        for _ in range(eval_samples):
+            with torch.no_grad():
+                output = model(image, action, reset, map, state_eval)
+                loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
+                image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state_eval)
 
-                    # for k, v in loss_metrics.items():
-                    #     metrics_eval[k].append(v.item())
+            logprobs_map.append(map_rec.log_prob(map.argmax(axis=-3)).sum(dim=[-1, -2]))          # Keep (N,B) dim
+            logprobs_img.append(image_pred.log_prob(image.argmax(axis=-3)).sum(dim=[-1, -2]))
 
-                    if image_pred_sum is None:
-                        image_pred_sum = image_pred.probs
-                        image_rec_sum = image_rec.probs
-                        map_rec_sum = map_rec.probs
-                    else:
-                        image_pred_sum += image_pred.probs
-                        image_rec_sum += image_rec.probs
-                        map_rec_sum += map_rec.probs
-                    # TODO: loss_tensors should be aggregated too
+            for k, v in loss_metrics.items():
+                metrics_eval[k].append(v.item())
 
-            # metrics_eval = {f'eval_full/{k}': np.mean(v) for k, v in metrics_eval.items()}
+            if image_pred_sum is None:
+                image_pred_sum = image_pred.probs
+                image_rec_sum = image_rec.probs
+                map_rec_sum = map_rec.probs
+            else:
+                image_pred_sum += image_pred.probs
+                image_rec_sum += image_rec.probs
+                map_rec_sum += map_rec.probs
+            # TODO: loss_tensors should be aggregated too
 
-            map_losses = torch.stack(map_losses)  # (S,N,B)
-            img_losses = torch.stack(img_losses)
-            map_losses_exp = torch.logsumexp(map_losses, dim=0) - np.log(conf.full_eval_samples)  # log avg[exp(loss)] = log sum[exp(loss)] - log(S)
-            img_losses_exp = torch.logsumexp(img_losses, dim=0) - np.log(conf.full_eval_samples)  # log avg[exp(loss)] = log sum[exp(loss)] - log(S)
+        logprobs_map = torch.stack(logprobs_map)  # (S,N,B)
+        logprobs_img = torch.stack(logprobs_img)
+        logprob_map = torch.logsumexp(logprobs_map, dim=0) - np.log(eval_samples)  # log avg[exp(loss)] = log sum[exp(loss)] - log(S)
+        logprob_img = torch.logsumexp(logprobs_img, dim=0) - np.log(eval_samples)  # log avg[exp(loss)] = log sum[exp(loss)] - log(S)
+        image_pred = D.Categorical(probs=image_pred_sum / eval_samples)  # Average image predictions over samples
+        image_rec = D.Categorical(probs=image_rec_sum / eval_samples)
+        map_rec = D.Categorical(probs=map_rec_sum / eval_samples)
 
-            metrics_eval['eval_full/logprob_map'] = -map_losses_exp.mean().item()
-            metrics_eval['eval_full/logprob_image'] = -img_losses_exp.mean().item()
-            metrics_eval['eval_full/logprob_map_last'] = -map_losses_exp[-1].mean().item()
-            metrics_eval['eval_full/logprob_image_last'] = -img_losses_exp[-1].mean().item()
+        metrics_eval['logprob_map'].append(-logprob_map.mean().item())
+        metrics_eval['logprob_image'].append(-logprob_img.mean().item())
+        metrics_eval['logprob_map_last'].append(-logprob_map[-1].mean().item())
+        metrics_eval['logprob_image_last'].append(-logprob_img[-1].mean().item())
+        if i_batch == 0:  # Log just one batch
+            log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir=f'd2_wm_predict_{prefix}')
 
-            image_pred = D.Categorical(probs=image_pred_sum / conf.full_eval_samples)  # Average image predictions over samples
-            image_rec = D.Categorical(probs=image_rec_sum / conf.full_eval_samples)
-            map_rec = D.Categorical(probs=map_rec_sum / conf.full_eval_samples)
+    metrics_eval = {f'{prefix}/{k}': np.mean(v) for k, v in metrics_eval.items()}
+    mlflow.log_metrics(metrics_eval, step=steps)
 
-            mlflow.log_metrics(metrics_eval, step=steps)
-            log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')
+    print(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec')
+
+
+def log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec, top=-1, subdir='d2_wm_predict'):
+    data = batch.copy()
+    data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
+    data['image_pred'] = image_pred.sample().cpu().numpy()
+    data['image_rec'] = image_rec.sample().cpu().numpy()
+    data['map_rec'] = map_rec.sample().cpu().numpy()
+    data['image_pred_p'] = image_pred.probs.cpu().numpy()
+    data['image_rec_p'] = image_rec.probs.cpu().numpy()
+    data['map_rec_p'] = map_rec.probs.cpu().numpy()
+    data = {k: v.swapaxes(0, 1)[:top] for k, v in data.items()}  # (N,B,...) => (B,N,...)
+    tools.mlflow_log_npz(data, f'{steps:07}.npz', subdir)
 
 
 if __name__ == '__main__':

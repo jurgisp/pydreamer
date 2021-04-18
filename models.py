@@ -68,6 +68,7 @@ class WorldModel(nn.Module):
         in_state, in_mem_state = in_state_full
         n = image.size(0)
         embed = unflatten(self._encoder(flatten(image)), n)
+        # mem_out = self._mem_model(embed, action, reset, in_mem_state)
         mem_out = self._mem_model(embed[:-1], action[:-1], reset[:-1], in_mem_state)  # Diff from forward(): hide last observation
         mem_sample, mem_state = mem_out[0], mem_out[-1]
 
@@ -121,9 +122,7 @@ class WorldModel(nn.Module):
         loss_mem = self._mem_model.loss(*mem_out)
         loss += loss_mem
 
-        metrics = dict(loss_kl=loss_kl.detach(),        # for backwards-compatibility
-                       loss_image=loss_image.detach(),  # for backwards-compatibility
-                       loss_model_kl=loss_kl.detach(),
+        metrics = dict(loss_model_kl=loss_kl.detach(),
                        loss_model_image=loss_image.detach(),
                        loss_model_mem=loss_mem.detach(),
                        loss_model=loss_kl.detach() + loss_image.detach() + loss_mem.detach(),  # model loss, without detached heads

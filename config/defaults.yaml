@@ -23,10 +23,12 @@ defaults:
   device: "cuda:0"
 
   # Eval
-  eval_batches: 100
+  eval_batches: 50
+  eval_samples: 100
+  full_eval_batches: 1
+  full_eval_samples: 100
   full_eval_length: 500
   full_eval_size: 100
-  full_eval_samples: 100
 
   # Model
   embed_dim: 256
