@@ -55,9 +55,50 @@ class WorldModel(nn.Module):
             (states[-1].detach(), mem_state),     # out_state_full: Any
         )
 
+    def predict(self,
+                image,     # tensor(N, B, C, H, W)
+                action,    # tensor(N, B, A)
+                reset,     # tensor(N, B)
+                map,       # tensor(N, B, C, MH, MW)
+                in_state_full,  # Any
+                ):
+
+        # Version of forward() for prediction
+
+        in_state, in_mem_state = in_state_full
+        n = image.size(0)
+        embed = unflatten(self._encoder(flatten(image)), n)
+        mem_out = self._mem_model(embed, action, reset, in_mem_state)
+        mem_sample, mem_state = mem_out[0], mem_out[-1]
+
+        glob_state = mem_sample
+        prior, post, states = self._core(embed, action, reset, in_state, glob_state)
+        states_flat = flatten(states)
+
+        image_rec = unflatten(self._decoder_image(states_flat), n)
+        map_out = self._map_model(map, states.detach())
+
+        #
+
+        # Make states with z sampled from prior instead of posterior
+        h, z_post = split(states, [self._deter_dim, self._stoch_dim])
+        z_prior = diag_normal(prior).sample()
+        states_prior = cat(h, z_prior)
+        image_pred = unflatten(self._decoder_image(flatten(states_prior)), n)  # (N,B,C,H,W)
+
+        image_pred_distr = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,H,W) => (N,B,H,W,C)
+        image_rec_distr = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2))
+        map_rec_distr = self._map_model.predict_obs(*map_out)
+
+        return (
+            image_pred_distr,    # categorical(N,B,H,W,C)
+            image_rec_distr,     # categorical(N,B,H,W,C)
+            map_rec_distr,       # categorical(N,B,HM,WM,C)
+        )
+
     def init_state(self, batch_size):
         return (
-            self._core.init_state(batch_size), 
+            self._core.init_state(batch_size),
             self._mem_model.init_state(batch_size))
 
     def loss(self,
@@ -89,24 +130,3 @@ class WorldModel(nn.Module):
                        loss_map=loss_map.detach(),
                        **metrics_map)
         return loss, metrics, log_tensors
-
-    def predict_obs(self,
-                    prior, post, image_rec, map_out, states, mem_out, out_state_full,  # forward() output
-                    ):
-        n = states.size(0)
-
-        # Make states with z sampled from prior instead of posterior
-        h, z_post = split(states, [self._deter_dim, self._stoch_dim])
-        z_prior = diag_normal(prior).sample()
-        states_prior = cat(h, z_prior)
-        image_pred = unflatten(self._decoder_image(flatten(states_prior)), n)  # (N,B,C,H,W)
-
-        image_pred_distr = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,H,W) => (N,B,H,W,C)
-        image_rec_distr = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2))
-        map_rec_distr = self._map_model.predict_obs(*map_out)
-
-        return (
-            image_pred_distr,    # categorical(N,B,H,W,C)
-            image_rec_distr,     # categorical(N,B,H,W,C)
-            map_rec_distr,       # categorical(N,B,HM,WM,C)
-        )
