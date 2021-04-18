@@ -282,8 +282,11 @@ def run(conf):
             img_losses = torch.stack(img_losses)
             map_losses_exp = torch.logsumexp(map_losses, dim=0) - np.log(conf.full_eval_samples)  # log avg[exp(loss)] = log sum[exp(loss)] - log(S)
             img_losses_exp = torch.logsumexp(img_losses, dim=0) - np.log(conf.full_eval_samples)  # log avg[exp(loss)] = log sum[exp(loss)] - log(S)
+
             metrics_eval['eval_full/loss_map_exp'] = -map_losses_exp.mean().item()
             metrics_eval['eval_full/loss_image_pred_exp'] = -img_losses_exp.mean().item()
+            metrics_eval['eval_full/loss_map_last_exp'] = -map_losses_exp[-1].mean().item()
+            metrics_eval['eval_full/loss_image_last_pred_exp'] = -img_losses_exp[-1].mean().item()
 
             image_pred = D.Categorical(probs=image_pred_sum / conf.full_eval_samples)  # Average image predictions over samples
             image_rec = D.Categorical(probs=image_rec_sum / conf.full_eval_samples)
