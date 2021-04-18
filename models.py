@@ -16,11 +16,12 @@ class WorldModel(nn.Module):
         self._mem_model = mem_model
         self._deter_dim = deter_dim
         self._stoch_dim = stoch_dim
+        self._global_dim = mem_model.global_dim
         self._core = RSSMCore(embed_dim=encoder.out_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
                               hidden_dim=hidden_dim,
-                              global_dim=mem_model.global_dim)
+                              global_dim=self._global_dim)
         for m in self.modules():
             init_weights_tf2(m)
 
@@ -50,7 +51,7 @@ class WorldModel(nn.Module):
             post,                        # tensor(N, B, 2*S)
             image_rec,                   # tensor(N, B, C, H, W)
             map_out,                     # tuple, map.forward() output
-            states,                      # tensor(N, B, D+S)
+            states,                      # tensor(N, B, D+S+G)
             mem_out,                     # Any
             (states[-1].detach(), mem_state),     # out_state_full: Any
         )
@@ -82,9 +83,9 @@ class WorldModel(nn.Module):
         #
 
         # Make states with z sampled from prior instead of posterior
-        h, z_post = split(states, [self._deter_dim, self._stoch_dim])
+        h, z_post, g = split(states, [self._deter_dim, self._stoch_dim, self._global_dim])
         z_prior = diag_normal(prior).sample()
-        states_prior = cat(h, z_prior)
+        states_prior = cat3(h, z_prior, g)
         image_pred = unflatten(self._decoder_image(flatten(states_prior)), n)  # (N,B,C,H,W)
 
         image_pred_distr = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,H,W) => (N,B,H,W,C)

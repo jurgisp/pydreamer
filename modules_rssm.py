@@ -13,11 +13,11 @@ class RSSMCore(nn.Module):
         self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, min_std)
 
     def forward(self,
-                embed,     # tensor(N, B, E)
-                action,    # tensor(N, B, A)
-                reset,     # tensor(N, B)
-                in_state,  # tensor(   B, D+S)
-                glob_state,  # tensor(   B, MR)
+                embed,       # tensor(N, B, E)
+                action,      # tensor(N, B, A)
+                reset,       # tensor(N, B)
+                in_state,    # tensor(   B, D+S+G)
+                glob_state,  # tensor(   B, G)
                 ):
 
         n = embed.size(0)
@@ -33,9 +33,9 @@ class RSSMCore(nn.Module):
             states.append(state)
 
         return (
-            torch.stack(priors),          # tensor(N, B, 2*S)
-            torch.stack(posts),           # tensor(N, B, 2*S)
-            torch.stack(states),         # tensor(N, B, D+S)
+            torch.stack(priors),         # tensor(N, B, 2*S)
+            torch.stack(posts),          # tensor(N, B, 2*S)
+            torch.stack(states),         # tensor(N, B, D+S+G)
         )
 
     def init_state(self, batch_size):
@@ -48,6 +48,7 @@ class RSSMCell(nn.Module):
         super().__init__()
         self._stoch_dim = stoch_dim
         self._deter_dim = deter_dim
+        self._global_dim = global_dim
         self._min_std = min_std
 
         self._za_mlp = nn.Sequential(nn.Linear(stoch_dim + action_dim + global_dim, hidden_dim),
@@ -55,38 +56,39 @@ class RSSMCell(nn.Module):
 
         self._gru = nn.GRUCell(hidden_dim, deter_dim)
 
-        self._prior_mlp = nn.Sequential(nn.Linear(deter_dim, hidden_dim),
+        self._prior_mlp = nn.Sequential(nn.Linear(deter_dim + global_dim, hidden_dim),
                                         nn.ELU(),
                                         nn.Linear(hidden_dim, 2 * stoch_dim))
 
-        self._post_mlp = nn.Sequential(nn.Linear(deter_dim + embed_dim, hidden_dim),
+        self._post_mlp = nn.Sequential(nn.Linear(deter_dim + global_dim + embed_dim, hidden_dim),
                                        nn.ELU(),
                                        nn.Linear(hidden_dim, 2 * stoch_dim))
 
     def init_state(self, batch_size):
         device = next(self._gru.parameters()).device
-        return torch.zeros((batch_size, self._deter_dim + self._stoch_dim), device=device)
+        return torch.zeros((batch_size, self._deter_dim + self._stoch_dim + self._global_dim ), device=device)
 
     def forward(self,
                 embed,     # tensor(B, E)
                 action,    # tensor(B, A)
                 reset,     # tensor(B)
-                in_state,  # tensor(B, D+S)
-                glob_state,   # tensor(B, MR)
+                in_state,  # tensor(B, D+S+G)
+                glob_state,   # tensor(B, G)
                 ):
 
         in_state = in_state * ~reset.unsqueeze(1)
-        in_h, in_z = split(in_state, [self._deter_dim, self._stoch_dim])
+        in_h, in_z, _ = split(in_state, [self._deter_dim, self._stoch_dim, self._global_dim])
 
         za = self._za_mlp(cat(cat(in_z, action), glob_state))                 # (B, H)
         h = self._gru(za, in_h)                                             # (B, D)
-        prior = to_mean_std(self._prior_mlp(h), self._min_std)              # (B, 2*S)
-        post = to_mean_std(self._post_mlp(cat(h, embed)), self._min_std)    # (B, 2*S)
+        hg = cat(h, glob_state)
+        prior = to_mean_std(self._prior_mlp(hg), self._min_std)             # (B, 2*S)
+        post = to_mean_std(self._post_mlp(cat(hg, embed)), self._min_std)    # (B, 2*S)
         sample = diag_normal(post).rsample()                                # (B, S)
 
         return (
-            prior,            # tensor(B, 2*S)
-            post,             # tensor(B, 2*S)
-            cat(h, sample),   # tensor(B, D+S)
+            prior,                        # tensor(B, 2*S)
+            post,                         # tensor(B, 2*S)
+            cat3(h, sample, glob_state),  # tensor(B, D+S+G)
         )
 

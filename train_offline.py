@@ -57,20 +57,22 @@ def run(conf):
                                     map_key=conf.map_key,
                                     device=device)
 
+    state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim
+
     if conf.map_model == 'vae':
         map_model = CondVAEHead(
             encoder=DenseEncoder(in_dim=conf.map_size * conf.map_size * conf.channels,
                                  out_dim=conf.embed_dim,
                                  hidden_layers=3),
-            decoder=DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim + conf.map_stoch_dim,
+            decoder=DenseDecoder(in_dim=state_dim + conf.map_stoch_dim,
                                  out_shape=(conf.channels, conf.map_size, conf.map_size),
                                  hidden_layers=4),
-            state_dim=conf.deter_dim + conf.stoch_dim,
+            state_dim=state_dim,
             latent_dim=conf.map_stoch_dim
         )
     elif conf.map_model == 'direct':
         map_model = DirectHead(
-            decoder=DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim,
+            decoder=DenseDecoder(in_dim=state_dim,
                                  out_shape=(conf.channels, conf.map_size, conf.map_size),
                                  hidden_layers=4),
         )
@@ -80,7 +82,7 @@ def run(conf):
     if conf.mem_model == 'global_state':
         mem_model = GlobalStateMem(embed_dim=conf.embed_dim,
                                    mem_dim=conf.deter_dim,
-                                   stoch_dim=conf.stoch_dim,
+                                   stoch_dim=conf.global_dim,
                                    hidden_dim=conf.hidden_dim,
                                    loss_type=conf.mem_loss_type)
     else:
@@ -91,12 +93,12 @@ def run(conf):
                             out_dim=conf.embed_dim,
                             stride=1,
                             kernels=(1, 3, 3, 3)),
-        decoder=(ConvDecoderCat(in_dim=conf.deter_dim + conf.stoch_dim,
+        decoder=(ConvDecoderCat(in_dim=state_dim,
                                 out_channels=conf.channels,
                                 stride=1,
                                 kernels=(3, 3, 3, 1))
                  if conf.image_decoder == 'cnn' else
-                 DenseDecoder(in_dim=conf.deter_dim + conf.stoch_dim,
+                 DenseDecoder(in_dim=state_dim,
                               out_shape=(conf.channels, 7, 7))
                  ),
         map_model=map_model,

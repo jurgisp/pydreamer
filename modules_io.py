@@ -136,7 +136,7 @@ class CondVAEHead(nn.Module):
 
     def forward(self,
                 obs,       # tensor(N, B, C, H, W)
-                state,     # tensor(N, B, D+S)
+                state,     # tensor(N, B, D+S+G)
                 ):
         states_in = state
 
@@ -187,7 +187,7 @@ class DirectHead(nn.Module):
 
     def forward(self,
                 obs,       # tensor(N, B, C, H, W)
-                state,     # tensor(N, B, D+S)
+                state,     # tensor(N, B, D+S+G)
                 ):
         n = obs.size(0)
         obs_pred = self._decoder(flatten(state))

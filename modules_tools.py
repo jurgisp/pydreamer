@@ -19,13 +19,14 @@ def cat(x1, x2):
     # (..., A), (..., B) => (..., A+B)
     return torch.cat((x1, x2), dim=-1)
 
+def cat3(x1, x2, x3):
+    return torch.cat((x1, x2, x3), dim=-1)
 
 def split(mean_std, sizes=None):
     # (..., S+S) => (..., S), (..., S)
     if sizes == None:
         sizes = mean_std.size(-1) // 2
-    mean, std = mean_std.split(sizes, dim=-1)
-    return mean, std
+    return mean_std.split(sizes, dim=-1)
 
 
 def diag_normal(mean_std):
