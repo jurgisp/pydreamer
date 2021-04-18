@@ -49,9 +49,8 @@ def run(conf):
     mlflow.log_params(vars(conf))
     device = torch.device(conf.device)
 
-    data = (OfflineDataSequential(conf.input_dir) if conf.data_seq else
-            OfflineDataRandom(conf.input_dir))
-    data_eval = OfflineDataSequential(conf.eval_dir)
+    data = (OfflineDataSequential(conf.input_dir) if conf.data_seq else OfflineDataRandom(conf.input_dir))
+    data_eval = (OfflineDataSequential(conf.eval_dir) if conf.data_seq else OfflineDataRandom(conf.eval_dir))
 
     preprocess = MinigridPreprocess(categorical=conf.channels,
                                     image_key=conf.image_key,
