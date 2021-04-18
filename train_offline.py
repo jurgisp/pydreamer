@@ -119,9 +119,6 @@ def run(conf):
     if resume_step:
         print(f'Loaded model from checkpoint epoch {resume_step}')
 
-    eval_iter = data_eval.iterate(conf.batch_length, 1000)
-    eval_iter_full = data_eval.iterate(500, 100)
-
     start_time = time.time()
     steps = resume_step or 0
     last_time = start_time
@@ -130,6 +127,8 @@ def run(conf):
 
     state = None
 
+    eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size)
+    eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size)
     for batch in data.iterate(conf.batch_length, conf.batch_size):
 
         image, action, reset, map = preprocess(batch)
@@ -216,28 +215,35 @@ def run(conf):
             print('Stopping')
             break
 
-        # Evaluate single batch (does not make sense if keeping state)
-
-        # if steps % conf.eval_interval == 0 and not conf.keep_state:
-        #     batch = next(eval_iter)
-        #     image, action, reset, map = preprocess(batch)
-        #     print(f'Eval batch: {image.shape}')
-
-        #     with torch.no_grad():
-        #         output = model(image, action, reset, model.init_state(image.size(1)))
-        #         loss, loss_metrics, loss_tensors = model.loss(*output, image, map)
-        #         image_pred, image_rec, map_rec = model.predict_obs(*output)
-
-        #     metrics_eval = {f'eval/{k}': v.item() for k, v in loss_metrics.items()}
-        #     mlflow.log_metrics(metrics_eval, step=steps)
-        #     # log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir='d2_wm_predict_eval')
-
-        # Evaluate full
+        # Evaluate, same way as train (evaluate/...)
 
         if steps % conf.eval_interval == 0:
+            print(f'Eval: {conf.eval_batches} batches size {conf.batch_length, conf.batch_size}')
+
+            metrics_eval = defaultdict(list)
+            state_eval = model.init_state(image.size(1))
+
+            for _ in range(conf.eval_batches):
+                batch = next(eval_iter)
+                image, action, reset, map = preprocess(batch)
+
+                with torch.no_grad():
+                    output = model(image, action, reset, map, state_eval)
+                    state_eval = output[-1]
+                    loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
+
+                    for k, v in loss_metrics.items():
+                        metrics_eval[k].append(v.item())
+
+            metrics_eval = {f'eval/{k}': np.mean(v) for k, v in metrics_eval.items()}
+            mlflow.log_metrics(metrics_eval, step=steps)
+
+        # Evaluate, full episodes (evaluate_full/...)
+
+        if steps % conf.eval_interval == 0:
+            print(f'Eval full: 1 batch size {conf.full_eval_length, conf.full_eval_size} x {conf.full_eval_samples} samples')
             batch = next(eval_iter_full)
             image, action, reset, map = preprocess(batch)
-            print(f'Eval full {image.shape} for {conf.full_eval_samples} samples')
 
             map_losses = []
             img_losses = []
