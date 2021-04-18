@@ -127,9 +127,8 @@ def run(conf):
     metrics = defaultdict(list)
 
     state = None
+    eval_iter, eval_iter_full = None, None
 
-    eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size)
-    eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size)
     for batch in data.iterate(conf.batch_length, conf.batch_size):
 
         image, action, reset, map = preprocess(batch)
@@ -209,11 +208,13 @@ def run(conf):
 
         if steps % conf.eval_interval == 0:
             # Same batch as train
-            eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size)
+            if eval_iter is None:
+                eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size)
             evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.eval_samples)
 
             # Full episodes
-            eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size)
+            if eval_iter_full is None:
+                eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size)
             evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples)
 
 

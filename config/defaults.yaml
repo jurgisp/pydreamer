@@ -23,7 +23,7 @@ defaults:
   device: "cuda:0"
 
   # Eval
-  eval_batches: 50
+  eval_batches: 20
   eval_samples: 100
   full_eval_batches: 1
   full_eval_samples: 100
