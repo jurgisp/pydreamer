@@ -128,7 +128,6 @@ def run(conf):
     metrics = defaultdict(list)
 
     state = None
-    eval_iter, eval_iter_full = None, None
 
     for batch in data.iterate(conf.batch_length, conf.batch_size):
 
@@ -209,13 +208,11 @@ def run(conf):
 
         if steps % conf.eval_interval == 0:
             # Same batch as train
-            if eval_iter is None:
-                eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size)
+            eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
             evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.eval_samples, conf.keep_state)
 
             # Full episodes
-            if eval_iter_full is None:
-                eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size)
+            eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size, skip_first=False)
             evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
 
 

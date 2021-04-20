@@ -20,24 +20,24 @@ class OfflineDataSequential:
     def _should_reload_files(self):
         return time.time() - self._last_reload > self.reload_interval
 
-    def iterate(self, batch_length, batch_size):
+    def iterate(self, batch_length, batch_size, skip_first=True):
         # Parallel iteration over (batch_size) iterators
         # Iterates forever
 
-        iters = [self._iter_single(batch_length) for _ in range(batch_size)]
+        iters = [self._iter_single(batch_length, skip_first) for _ in range(batch_size)]
         for batches in zip(*iters):
             batch = {}
             for key in batches[0]:
                 batch[key] = np.stack([b[key] for b in batches]).swapaxes(0, 1)
             yield batch
 
-    def _iter_single(self, batch_length):
+    def _iter_single(self, batch_length, skip_first):
         # Iterates "single thread" forever
         # TODO: join files so we don't miss the last step indicating done
 
         is_first = True
         for file in self._iter_shuffled_files():
-            for batch in self._iter_file(file, batch_length, skip_random=is_first):
+            for batch in self._iter_file(file, batch_length, skip_random=is_first and skip_first):
                 yield batch
             is_first = False
 
@@ -93,7 +93,7 @@ class OfflineDataRandom:
                 all_data.append(data)
         return all_data
 
-    def iterate(self, batch_length, batch_size):
+    def iterate(self, batch_length, batch_size, skip_first=True):
         while True:
             yield self._sample_batch(batch_length, batch_size)
 

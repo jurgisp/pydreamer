@@ -23,7 +23,7 @@ defaults:
   device: "cuda:0"
 
   # Eval
-  eval_batches: 20
+  eval_batches: 20  # For unbiased eval needs to be enough to cover full episodes
   eval_samples: 100
   full_eval_batches: 1
   full_eval_samples: 100
