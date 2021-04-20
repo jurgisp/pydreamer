@@ -211,18 +211,26 @@ def run(conf):
             # Same batch as train
             if eval_iter is None:
                 eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size)
-            evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.eval_samples)
+            evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.eval_samples, conf.keep_state)
 
             # Full episodes
             if eval_iter_full is None:
                 eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size)
-            evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples)
+            evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
 
 
-def evaluate(prefix: str, steps: int, model: WorldModel, data_iterator: Iterator, preprocess: MinigridPreprocess, eval_batches=1, eval_samples=1):
+def evaluate(prefix: str,
+             steps: int, 
+             model: WorldModel, 
+             data_iterator: Iterator, 
+             preprocess: MinigridPreprocess,
+             eval_batches: int,
+             eval_samples: int,
+             keep_state: bool):
 
     start_time = time.time()
     metrics_eval = defaultdict(list)
+    state = None
 
     for i_batch in range(eval_batches):
 
@@ -239,14 +247,17 @@ def evaluate(prefix: str, steps: int, model: WorldModel, data_iterator: Iterator
         map_rec_sum = None
         loss_tensors = {}
 
-        state_eval = model.init_state(image.size(1))  # TODO: what if keeping state?
+        if state is None or not keep_state:
+            state = model.init_state(image.size(1))
+        state_out = None
 
         # Sample loss several times and do log E[p(map|state)] = log avg[exp(loss)]
         for _ in range(eval_samples):
             with torch.no_grad():
-                output = model(image, action, reset, map, state_eval)
+                output = model(image, action, reset, map, state)
+                state_out = output[-1]
                 loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
-                image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state_eval)
+                image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state)
 
             logprobs_map.append(map_rec.log_prob(map.argmax(axis=-3)).sum(dim=[-1, -2]))          # Keep (N,B) dim
             logprobs_img.append(image_pred.log_prob(image.argmax(axis=-3)).sum(dim=[-1, -2]))
@@ -263,6 +274,8 @@ def evaluate(prefix: str, steps: int, model: WorldModel, data_iterator: Iterator
                 image_rec_sum += image_rec.probs
                 map_rec_sum += map_rec.probs
             # TODO: loss_tensors should be aggregated too
+
+        state = state_out  # If multiple samples, just take the state from the last, doesn't matter
 
         logprobs_map = torch.stack(logprobs_map)  # (S,N,B)
         logprobs_img = torch.stack(logprobs_img)
