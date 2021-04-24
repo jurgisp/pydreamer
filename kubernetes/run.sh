@@ -18,7 +18,7 @@ metadata:
   name: pydreamer-${EXPERIMENT//_/}-$TIMESTAMP
   namespace: default
 spec:
-  backoffLimit: 3
+  backoffLimit: 5
   template:
     spec:
       volumes:
