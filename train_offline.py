@@ -112,10 +112,10 @@ def run(conf):
     print(f'Model: {param_count(model)} parameters')
     for submodel in [model._encoder, model._decoder_image, model._core, map_model, mem_model]:
         print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
-    print(model)
+    # print(model)
     mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')  # type: ignore
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4, eps=1e-5)  # type: ignore
+    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4, eps=1e-5/np.sqrt(1-0.999))  # type: ignore
 
     resume_step = tools.mlflow_load_checkpoint(model, optimizer)
     if resume_step:
