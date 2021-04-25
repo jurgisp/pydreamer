@@ -210,7 +210,7 @@ def run(conf):
 
         # Evaluate
 
-        if steps % conf.eval_interval == 0:
+        if conf.eval_interval and steps % conf.eval_interval == 0:
             # Same batch as train
             eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
             evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.eval_samples, conf.keep_state)
