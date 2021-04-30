@@ -73,6 +73,11 @@ def save_npz(data, filename):
         with filename.open('wb') as f2:
             f2.write(f1.read())
 
+def load_npz(filename):
+    with Path(filename).open('rb') as f:
+        fdata = np.load(f)
+        data = {key: fdata[key] for key in fdata}
+    return data
 
 def param_count(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
