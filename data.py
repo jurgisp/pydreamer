@@ -110,7 +110,7 @@ class OfflineDataRandom:
 
         # TODO: this sampling undersamples episode starts and ends
         n = data['image'].shape[0]
-        i = np.random.randint(n - batch_length)
+        i = np.random.randint(n - batch_length + 1)
         j = i + batch_length
         batch = {key: data[key][i:j] for key in data}
         return batch
