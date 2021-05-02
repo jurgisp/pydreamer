@@ -1,5 +1,5 @@
-torch==1.7.1
-torchvision==0.8.2
+torch==1.8.1
+torchvision==0.9.1
 gym
 gym-minigrid
 
@@ -9,3 +9,5 @@ google.cloud.storage
 
 # Dashboards
 bokeh
+tensorboard
+torch-tb-profiler

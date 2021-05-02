@@ -8,10 +8,11 @@ import time
 import torch
 import torch.nn as nn
 import torch.distributions as D
+from torch.profiler import ProfilerActivity
 import mlflow
 
 import tools
-from tools import mlflow_start_or_resume, param_count
+from tools import mlflow_start_or_resume, param_count, NoProfiler
 from data import OfflineDataSequential, OfflineDataRandom
 from preprocessing import MinigridPreprocess
 from models import *
@@ -38,6 +39,14 @@ def run_generator(conf):
     # Check again
     assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
 
+def get_profiler(conf):
+    if conf.enable_profiler:
+        return torch.profiler.profile(
+            schedule=torch.profiler.schedule(wait=10, warmup=10, active=2, repeat=5),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler('./log'),
+        )
+    else:
+        return NoProfiler()
 
 def run(conf):
     assert not(conf.keep_state and not conf.data_seq), "Should train sequentially if keeping state"
@@ -129,101 +138,103 @@ def run(conf):
 
     state = None
 
-    for batch in data.iterate(conf.batch_length, conf.batch_size):
+    with get_profiler(conf) as profiler:
+        for batch in data.iterate(conf.batch_length, conf.batch_size):
+            profiler.step()
 
-        image, action, reset, map = preprocess(batch)
-        if state is None or not conf.keep_state:
-            state = model.init_state(image.size(1))
+            image, action, reset, map = preprocess(batch)
+            if state is None or not conf.keep_state:
+                state = model.init_state(image.size(1))
 
-        # Predict
+            # Predict
 
-        state_in = state
-        output = model(image, action, reset, map, state)
-        state = output[-1]
+            state_in = state
+            output = model(image, action, reset, map, state)
+            state = output[-1]
 
-        # Loss
+            # Loss
 
-        loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
+            loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
 
-        # Grad step
+            # Grad step
 
-        optimizer.zero_grad()
-        loss.backward()
+            optimizer.zero_grad()
+            loss.backward()
 
-        if conf.grad_clip:
-            grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
-            metrics['grad_norm'].append(grad_norm.item())
-            var_norm = torch.norm(torch.stack([torch.norm(p.detach()) for p in model.parameters() if p.requires_grad]))
-            metrics['var_norm'].append(var_norm.item())
+            if conf.grad_clip:
+                grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
+                metrics['grad_norm'].append(grad_norm.item())
+                var_norm = torch.norm(torch.stack([torch.norm(p.detach()) for p in model.parameters() if p.requires_grad]))
+                metrics['var_norm'].append(var_norm.item())
 
-        optimizer.step()
+            optimizer.step()
 
-        # Metrics
+            # Metrics
 
-        steps += 1
-        metrics['loss'].append(loss.item())
-        for k, v in loss_metrics.items():
-            metrics[k].append(v.item())
+            steps += 1
+            metrics['loss'].append(loss.item())
+            for k, v in loss_metrics.items():
+                metrics[k].append(v.item())
 
-        # Log metrics
+            # Log metrics
 
-        if steps % conf.log_interval == 0:
-            metrics = {k: np.mean(v) for k, v in metrics.items()}
-            metrics['_step'] = steps
-            metrics['_loss'] = metrics['loss']
+            if steps % conf.log_interval == 0:
+                metrics = {k: np.mean(v) for k, v in metrics.items()}
+                metrics['_step'] = steps
+                metrics['_loss'] = metrics['loss']
 
-            t = time.time()
-            fps = (steps - last_steps) / (t - last_time)
-            metrics['fps'] = fps
-            last_time, last_steps = t, steps
+                t = time.time()
+                fps = (steps - last_steps) / (t - last_time)
+                metrics['fps'] = fps
+                last_time, last_steps = t, steps
 
-            print(f"T:{t-start_time:05.0f}  "
-                  f"[{steps:06}]"
-                  f"  loss_model: {metrics['loss_model']:.3f}"
-                  f"  loss_model_kl: {metrics['loss_model_kl']:.3f}"
-                  f"  loss_model_image: {metrics['loss_model_image']:.3f}"
-                  f"  loss_model_mem: {metrics.get('loss_model_mem',0):.3f}"
-                  f"  loss_map: {metrics['loss_map']:.3f}"
-                  f"  fps: {metrics['fps']:.3f}"
-                  )
-            mlflow.log_metrics(metrics, step=steps)
-            metrics = defaultdict(list)
+                print(f"T:{t-start_time:05.0f}  "
+                      f"[{steps:06}]"
+                      f"  loss_model: {metrics['loss_model']:.3f}"
+                      f"  loss_model_kl: {metrics['loss_model_kl']:.3f}"
+                      f"  loss_model_image: {metrics['loss_model_image']:.3f}"
+                      f"  loss_model_mem: {metrics.get('loss_model_mem',0):.3f}"
+                      f"  loss_map: {metrics['loss_map']:.3f}"
+                      f"  fps: {metrics['fps']:.3f}"
+                      )
+                mlflow.log_metrics(metrics, step=steps)
+                metrics = defaultdict(list)
 
-        # Log artifacts
+            # Log artifacts
 
-        if steps % conf.log_interval == 0:
-            with torch.no_grad():
-                image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state_in)
-            log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec)
+            if steps % conf.log_interval == 0:
+                with torch.no_grad():
+                    image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state_in)
+                log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec)
 
-        # Save model
+            # Save model
 
-        if steps % conf.save_interval == 0:
-            tools.mlflow_save_checkpoint(model, optimizer, steps)
-            print(f'Saved model checkpoint')
+            if steps % conf.save_interval == 0:
+                tools.mlflow_save_checkpoint(model, optimizer, steps)
+                print(f'Saved model checkpoint')
 
-        # Stop
+            # Stop
 
-        if steps >= conf.n_steps:
-            print('Stopping')
-            break
+            if steps >= conf.n_steps:
+                print('Stopping')
+                break
 
-        # Evaluate
+            # Evaluate
 
-        if conf.eval_interval and steps % conf.eval_interval == 0:
-            # Same batch as train
-            eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
-            evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.eval_samples, conf.keep_state)
+            if conf.eval_interval and steps % conf.eval_interval == 0:
+                # Same batch as train
+                eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
+                evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.eval_samples, conf.keep_state)
 
-            # Full episodes
-            eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size, skip_first=False)
-            evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
+                # Full episodes
+                eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size, skip_first=False)
+                evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
 
 
 def evaluate(prefix: str,
-             steps: int, 
-             model: WorldModel, 
-             data_iterator: Iterator, 
+             steps: int,
+             model: WorldModel,
+             data_iterator: Iterator,
              preprocess: MinigridPreprocess,
              eval_batches: int,
              eval_samples: int,

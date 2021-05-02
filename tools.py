@@ -104,3 +104,14 @@ class Timer:
 
     def debug_print(self, dt):
         print(f'{self.name:<10}: {int(dt*1000):>5} ms')
+
+
+class NoProfiler:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        pass
+
+    def step(self):
+        pass

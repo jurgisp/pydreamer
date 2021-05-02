@@ -58,5 +58,9 @@ spec:
               memory: 4000Mi
               cpu: 3000m
               nvidia.com/gpu: 1
+          securityContext:
+            capabilities:
+              add:
+              - SYS_PTRACE
       restartPolicy: Never
 EOF
