@@ -9,6 +9,7 @@ class OfflineDataSequential:
 
     def __init__(self, input_dir, reload_interval=300):
         self.input_dir = pathlib.Path(input_dir)
+        assert self.input_dir.exists(), f'Data directory not found: {self.input_dir}'
         self.reload_interval = reload_interval
         self._reload_files()
 
@@ -80,6 +81,7 @@ class OfflineDataRandom:
 
     def __init__(self, input_dir):
         input_dir = pathlib.Path(input_dir)
+        assert input_dir.exists(), f'Data directory not found: {input_dir}'
         self._files = list(sorted(input_dir.glob('*.npz')))
         print(f'Offline data: {len(self._files)} episodes in {str(input_dir)}, loading...')
         self._data = self._load_data()
