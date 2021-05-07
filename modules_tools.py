@@ -61,7 +61,8 @@ def init_weights_tf2(m):
     # Match TF2 initializations
     if type(m) in {nn.Conv2d, nn.ConvTranspose2d, nn.Linear}:
         nn.init.xavier_uniform_(m.weight.data)
-        nn.init.zeros_(m.bias.data)
+        if m.bias is not None:
+            nn.init.zeros_(m.bias.data)
     if type(m) == nn.GRUCell:
         nn.init.xavier_uniform_(m.weight_ih.data)
         nn.init.orthogonal_(m.weight_hh.data)
