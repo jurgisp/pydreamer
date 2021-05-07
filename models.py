@@ -40,20 +40,20 @@ class WorldModel(nn.Module):
         mem_sample, mem_state = mem_out[0], mem_out[-1]
 
         glob_state = mem_sample
-        prior, post, states = self._core(embed, action, reset, in_state, glob_state)
-        states_flat = flatten(states)
+        prior, post, features, out_state = self._core(embed, action, reset, in_state, glob_state)
+        features_flat = flatten(features)
 
-        image_rec = unflatten(self._decoder_image(states_flat), n)
-        map_out = self._map_model(map, states.detach())
+        image_rec = unflatten(self._decoder_image(features_flat), n)
+        map_out = self._map_model(map, features.detach())
 
         return (
             prior,                       # tensor(N, B, 2*S)
             post,                        # tensor(N, B, 2*S)
             image_rec,                   # tensor(N, B, C, H, W)
             map_out,                     # tuple, map.forward() output
-            states,                      # tensor(N, B, D+S+G)
+            features,                    # tensor(N, B, D+S+G)
             mem_out,                     # Any
-            (states[-1].detach(), mem_state),     # out_state_full: Any
+            (out_state, mem_state),     # out_state_full: Any
         )
 
     def predict(self,
@@ -74,19 +74,19 @@ class WorldModel(nn.Module):
         mem_sample, mem_state = mem_out[0], mem_out[-1]
 
         glob_state = mem_sample
-        prior, post, states = self._core(embed, action, reset, in_state, glob_state)
-        states_flat = flatten(states)
+        prior, post, features, out_state = self._core(embed, action, reset, in_state, glob_state)
+        features_flat = flatten(features)
 
-        image_rec = unflatten(self._decoder_image(states_flat), n)
-        map_out = self._map_model(map, states.detach())
+        image_rec = unflatten(self._decoder_image(features_flat), n)
+        map_out = self._map_model(map, features.detach())
 
         #
 
         # Make states with z sampled from prior instead of posterior
-        h, z_post, g = split(states, [self._deter_dim, self._stoch_dim, self._global_dim])
+        h, z_post, g = split(features, [self._deter_dim, self._stoch_dim, self._global_dim])
         z_prior = diag_normal(prior).sample()
-        states_prior = cat3(h, z_prior, g)
-        image_pred = unflatten(self._decoder_image(flatten(states_prior)), n)  # (N,B,C,H,W)
+        features_prior = cat3(h, z_prior, g)
+        image_pred = unflatten(self._decoder_image(flatten(features_prior)), n)  # (N,B,C,H,W)
 
         image_pred_distr = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,H,W) => (N,B,H,W,C)
         image_rec_distr = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2))

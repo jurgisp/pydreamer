@@ -19,26 +19,33 @@ class RSSMCore(nn.Module):
                 embed,       # tensor(N, B, E)
                 action,      # tensor(N, B, A)
                 reset,       # tensor(N, B)
-                in_state,    # tensor(   B, D+S+G)
+                in_state: Tuple[Tensor, Tensor],    # tensor(   B, D+S+G)
                 glob_state,  # tensor(   B, G)
                 ):
 
         n = embed.size(0)
         priors = []
         posts = []
-        states = []
+        states_h = []
+        states_z = []
         state = in_state
 
+        reset_mask = ~reset.unsqueeze(2)
+
         for i in range(n):
-            prior, post, state = self._cell(embed[i], action[i], reset[i], state, glob_state)
+            prior, post, state = self._cell(embed[i], action[i], reset_mask[i], state, glob_state)
             priors.append(prior)
             posts.append(post)
-            states.append(state)
+            states_h.append(state[0])
+            states_z.append(state[1])
+
+        features = cat(torch.stack(states_h), torch.stack(states_z))  # TODO: cat3(.., glob_state)
 
         return (
             torch.stack(priors),         # tensor(N, B, 2*S)
             torch.stack(posts),          # tensor(N, B, 2*S)
-            torch.stack(states),         # tensor(N, B, D+S+G)
+            features,                    # tensor(N, B, D+S+G)
+            (state[0].detach(), state[1].detach()),
         )
 
     def init_state(self, batch_size):
@@ -71,18 +78,22 @@ class RSSMCell(nn.Module):
 
     def init_state(self, batch_size):
         device = next(self._gru.parameters()).device
-        return torch.zeros((batch_size, self._deter_dim + self._stoch_dim + self._global_dim), device=device)
+        return (
+            torch.zeros((batch_size, self._deter_dim), device=device),
+            torch.zeros((batch_size, self._stoch_dim), device=device),
+        )
 
     def forward(self,
                 embed,     # tensor(B, E)
                 action,    # tensor(B, A)
-                reset,     # tensor(B)
-                in_state: Tuple[Tensor, Tensor, Tensor],  # tensor(B, D+S+G)
+                reset_mask,     # tensor(B)
+                in_state: Tuple[Tensor, Tensor],  # tensor(B, D+S+G)
                 glob_state,   # tensor(B, G)
                 ):
 
-        in_state = in_state * ~reset.unsqueeze(1)  # TODO perf: don't do here what you can do outside loop
-        in_h, in_z, _ = split(in_state, [self._deter_dim, self._stoch_dim, self._global_dim])
+        in_h, in_z = in_state
+        in_h = in_h * reset_mask
+        in_z = in_z * reset_mask
 
         za = F.elu(self._z_mlp(in_z) + self._a_mlp(action))    # (B, H)
 
@@ -98,5 +109,5 @@ class RSSMCell(nn.Module):
         return (
             prior,                        # tensor(B, 2*S)
             post,                         # tensor(B, 2*S)
-            cat3(h, sample, glob_state),  # tensor(B, D+S+G)
+            (h, sample),                  # tensor(B, D+S+G)
         )
