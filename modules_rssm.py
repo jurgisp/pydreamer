@@ -29,21 +29,25 @@ class RSSMCore(nn.Module):
         states_h = []
         states_z = []
         state = in_state
-
         reset_mask = ~reset.unsqueeze(2)
 
         for i in range(n):
-            prior, post, state = self._cell(embed[i], action[i], reset_mask[i], state, glob_state)
-            priors.append(prior)
+            post, state = self._cell(embed[i], action[i], reset_mask[i], state, glob_state)
             posts.append(post)
             states_h.append(state[0])
             states_z.append(state[1])
 
-        features = cat(torch.stack(states_h), torch.stack(states_z))  # TODO: cat3(.., glob_state)
+        posts = torch.stack(posts)
+        states_h = torch.stack(states_h)
+        states_z = torch.stack(states_z)
+
+        priors = self._cell.batch_prior(states_h)
+
+        features = cat(states_h, states_z)  # TODO: cat3(.., glob_state)
 
         return (
-            torch.stack(priors),         # tensor(N, B, 2*S)
-            torch.stack(posts),          # tensor(N, B, 2*S)
+            priors,                      # tensor(N, B, 2*S)
+            posts,                       # tensor(N, B, 2*S)
             features,                    # tensor(N, B, D+S+G)
             (state[0].detach(), state[1].detach()),
         )
@@ -99,15 +103,19 @@ class RSSMCell(nn.Module):
 
         h = self._gru(za, in_h)                                             # (B, D)
 
-        prior_in = F.elu(self._prior_mlp_h(h))
-        prior = to_mean_std(self._prior_mlp(prior_in), self._min_std)     # (B, 2*S)  # TODO perf: move prior outside?
-
         post_in = F.elu(self._post_mlp_h(h) + self._post_mlp_e(embed))
         post = to_mean_std(self._post_mlp(post_in), self._min_std)        # (B, 2*S)
         sample = diag_normal(post).rsample()                              # (B, S)   # TODO perf: rsample without D.?
 
         return (
-            prior,                        # tensor(B, 2*S)
             post,                         # tensor(B, 2*S)
             (h, sample),                  # tensor(B, D+S+G)
         )
+
+    def batch_prior(self,
+                    states_h,     # tensor(N, B, D)
+                    ):
+
+        prior_in = F.elu(self._prior_mlp_h(states_h))
+        prior = to_mean_std(self._prior_mlp(prior_in), self._min_std)     # (N, B, 2*S)
+        return prior    # tensor(B, 2*S)
