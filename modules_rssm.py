@@ -14,6 +14,7 @@ class RSSMCore(nn.Module):
     def __init__(self, embed_dim=256, action_dim=7, deter_dim=200, stoch_dim=30, hidden_dim=200, global_dim=30):
         super().__init__()
         self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim)
+        self._cell = torch.jit.script(self._cell)
 
     def forward(self,
                 embed,       # tensor(N, B, E)
@@ -55,8 +56,12 @@ class RSSMCore(nn.Module):
             (state[0].detach(), state[1].detach()),
         )
 
-    def init_state(self, batch_size):
-        return self._cell.init_state(batch_size)
+    def init_state(self, batch_size: int) -> Tuple[Tensor, Tensor]:
+        device = next(self._cell._gru.parameters()).device
+        return (
+            torch.zeros((batch_size, self._cell._deter_dim), device=device),
+            torch.zeros((batch_size, self._cell._stoch_dim), device=device),
+        )
 
 
 class RSSMCell(nn.Module):
@@ -82,13 +87,7 @@ class RSSMCell(nn.Module):
         self._post_mlp_e = nn.Linear(embed_dim, hidden_dim, bias=False)
         self._post_mlp = nn.Linear(hidden_dim, 2 * stoch_dim)
 
-    def init_state(self, batch_size):
-        device = next(self._gru.parameters()).device
-        return (
-            torch.zeros((batch_size, self._deter_dim), device=device),
-            torch.zeros((batch_size, self._stoch_dim), device=device),
-        )
-
+    @torch.jit.export
     def forward(self,
                 embed: Tensor,                    # tensor(B, E)
                 action: Tensor,                   # tensor(B, A)
@@ -96,7 +95,7 @@ class RSSMCell(nn.Module):
                 in_state: Tuple[Tensor, Tensor],  # tensor(B, D+S+G)
                 glob_state: Tensor,               # tensor(B, G)
                 noise: Tensor,                    # tensor(B, S)
-                ):
+                ) -> Tuple[Tensor, Tuple[Tensor, Tensor]]:
 
         in_h, in_z = in_state
         in_h = in_h * reset_mask
@@ -115,9 +114,10 @@ class RSSMCell(nn.Module):
             (h, sample),                  # tensor(B, D+S+G)
         )
 
+    @torch.jit.export
     def batch_prior(self,
-                    states_h,     # tensor(N, B, D)
-                    ):
+                    states_h: Tensor,     # tensor(N, B, D)
+                    ) -> Tensor:
 
         prior_in = F.elu(self._prior_mlp_h(states_h))
         prior = self._prior_mlp(prior_in)               # (N, B, 2*S)
