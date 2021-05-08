@@ -24,15 +24,8 @@ def cat3(x1, x2, x3):
     return torch.cat((x1, x2, x3), dim=-1)
 
 
-def split(mean_std, sizes=None):
-    # (..., S+S) => (..., S), (..., S)
-    if sizes == None:
-        sizes = mean_std.size(-1) // 2
-    return mean_std.split(sizes, dim=-1)
-
-
 def diag_normal(mean_std):
-    mean, std = split(mean_std)
+    mean, std = mean_std.chunk(2, -1)
     return D.independent.Independent(D.normal.Normal(mean, std), 1)
 
 
@@ -46,7 +39,7 @@ def to_mean_std(x, min_std):
     # }[self._std_act]()
     # std = std + self._min_std
 
-    mean, std = split(x)
+    mean, std = x.chunk(2, -1)
     std = F.softplus(std) + min_std
     # std = 2 * torch.sigmoid(std / 2) + min_std
     return cat(mean, std)
@@ -54,7 +47,7 @@ def to_mean_std(x, min_std):
 
 def zero_prior_like(mean_std):
     # Returns prior with 0 mean and unit variance
-    mean, std = split(mean_std)
+    mean, std = mean_std.chunk(2, -1)
     prior = cat(torch.zeros_like(mean), torch.ones_like(std))
     return prior
 

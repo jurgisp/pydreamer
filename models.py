@@ -83,7 +83,7 @@ class WorldModel(nn.Module):
         #
 
         # Make states with z sampled from prior instead of posterior
-        h, z_post, g = split(features, [self._deter_dim, self._stoch_dim, self._global_dim])
+        h, z_post, g = features.split([self._deter_dim, self._stoch_dim, self._global_dim], -1)
         z_prior = diag_normal(prior).sample()
         features_prior = cat3(h, z_prior, g)
         image_pred = unflatten(self._decoder_image(flatten(features_prior)), n)  # (N,B,C,H,W)
