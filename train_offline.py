@@ -20,6 +20,8 @@ from modules_io import *
 from modules_mem import *
 from modules_tools import *
 
+torch.distributions.Distribution.set_default_validate_args(False)
+
 
 def run_generator(conf):
     # Start train
@@ -39,6 +41,7 @@ def run_generator(conf):
     # Check again
     assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
 
+
 def get_profiler(conf):
     if conf.enable_profiler:
         return torch.profiler.profile(
@@ -47,6 +50,7 @@ def get_profiler(conf):
         )
     else:
         return NoProfiler()
+
 
 def run(conf):
     assert not(conf.keep_state and not conf.data_seq), "Should train sequentially if keeping state"
