@@ -21,6 +21,7 @@ from modules_mem import *
 from modules_tools import *
 
 torch.distributions.Distribution.set_default_validate_args(False)
+torch.backends.cudnn.benchmark = True
 
 
 def run_generator(conf):
