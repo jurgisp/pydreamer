@@ -19,8 +19,10 @@ def cat(x1, x2):
     # (..., A), (..., B) => (..., A+B)
     return torch.cat((x1, x2), dim=-1)
 
+
 def cat3(x1, x2, x3):
     return torch.cat((x1, x2, x3), dim=-1)
+
 
 def split(mean_std, sizes=None):
     # (..., S+S) => (..., S), (..., S)
@@ -45,8 +47,8 @@ def to_mean_std(x, min_std):
     # std = std + self._min_std
 
     mean, std = split(x)
-    # std = F.softplus(std) + min_std
-    std = 2 * torch.sigmoid(std / 2) + min_std
+    std = F.softplus(std) + min_std
+    # std = 2 * torch.sigmoid(std / 2) + min_std
     return cat(mean, std)
 
 
