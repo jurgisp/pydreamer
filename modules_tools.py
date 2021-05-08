@@ -24,7 +24,7 @@ def cat3(x1, x2, x3):
     return torch.cat((x1, x2, x3), dim=-1)
 
 
-def diag_normal(x, min_std=0.1):
+def diag_normal(x, min_std=0.1, max_std=2.0):
     # DreamerV2:
     # std = {
     #     'softplus': lambda: tf.nn.softplus(std),
@@ -34,7 +34,7 @@ def diag_normal(x, min_std=0.1):
 
     mean, std = x.chunk(2, -1)
     # std = F.softplus(std) + min_std
-    std = 2 * torch.sigmoid(std / 2) + min_std     # x=torch.zeros() => unit variance
+    std = max_std * torch.sigmoid(std) + min_std
     return D.independent.Independent(D.normal.Normal(mean, std), 1)
 
 
