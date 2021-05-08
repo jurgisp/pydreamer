@@ -167,9 +167,10 @@ def run(conf):
 
             if conf.grad_clip:
                 grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
-                metrics['grad_norm'].append(grad_norm.item())
-                var_norm = torch.norm(torch.stack([torch.norm(p.detach()) for p in model.parameters() if p.requires_grad]))
-                metrics['var_norm'].append(var_norm.item())
+                # var_norm = torch.norm(torch.stack([torch.norm(p.detach()) for p in model.parameters() if p.requires_grad]))
+                # metrics['var_norm'].append(var_norm.item())
+            else:
+                grad_norm = None
 
             optimizer.step()
 
@@ -179,6 +180,8 @@ def run(conf):
             metrics['loss'].append(loss.item())
             for k, v in loss_metrics.items():
                 metrics[k].append(v.item())
+            if grad_norm is not None:
+                metrics['grad_norm'].append(grad_norm.item())
 
             # Log metrics
 
