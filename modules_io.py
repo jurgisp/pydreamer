@@ -132,8 +132,6 @@ class CondVAEHead(nn.Module):
                                        nn.ELU(),
                                        nn.Linear(hidden_dim, 2 * latent_dim))
 
-        self._min_std = 0.1
-
     def forward(self,
                 obs,       # tensor(N, B, C, H, W)
                 state,     # tensor(N, B, D+S+G)
@@ -144,8 +142,8 @@ class CondVAEHead(nn.Module):
         embed = self._encoder(flatten(obs))
         state = flatten(state)
 
-        prior = to_mean_std(self._prior_mlp(state), self._min_std)              # (N*B, 2*Z)
-        post = to_mean_std(self._post_mlp(cat(state, embed)), self._min_std)    # (N*B, 2*Z)
+        prior = self._prior_mlp(state)              # (N*B, 2*Z)
+        post = self._post_mlp(cat(state, embed))    # (N*B, 2*Z)
         sample = diag_normal(post).rsample()                                    # (N*B, Z)
         obs_rec = self._decoder(cat(state, sample))
 

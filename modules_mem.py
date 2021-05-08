@@ -27,9 +27,9 @@ class NoMemory(nn.Module):
 
 class GlobalStateMem(nn.Module):
 
-    def __init__(self, embed_dim=256, action_dim=7, mem_dim=200, stoch_dim=30, hidden_dim=200, min_std=0.1, loss_type='last_kl'):
+    def __init__(self, embed_dim=256, action_dim=7, mem_dim=200, stoch_dim=30, hidden_dim=200, loss_type='last_kl'):
         super().__init__()
-        self._cell = GlobalStateCell(embed_dim, action_dim, mem_dim, stoch_dim, hidden_dim, min_std)
+        self._cell = GlobalStateCell(embed_dim, action_dim, mem_dim, stoch_dim, hidden_dim)
         self.global_dim = stoch_dim
         self.loss_type = loss_type
 
@@ -76,7 +76,7 @@ class GlobalStateMem(nn.Module):
 
         if self.loss_type == 'last_kl':
             post = posts[-1]  # (B, 2S)
-            prior = zero_prior_like(post)
+            prior = torch.zeros_like(post)
             loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
             # Divide by N, because loss_kl is for the whole sequence, and returned loss is assumed per-step
             loss_kl = loss_kl.mean() / posts.shape[0]  # (B) => ()
@@ -88,10 +88,9 @@ class GlobalStateMem(nn.Module):
 
 class GlobalStateCell(nn.Module):
 
-    def __init__(self, embed_dim=256, action_dim=7, mem_dim=200, stoch_dim=30, hidden_dim=200, min_std=0.1):
+    def __init__(self, embed_dim=256, action_dim=7, mem_dim=200, stoch_dim=30, hidden_dim=200):
         super().__init__()
         self._mem_dim = mem_dim
-        self._min_std = min_std
 
         self._ea_mlp = nn.Sequential(nn.Linear(embed_dim + action_dim, hidden_dim),
                                      nn.ELU())
@@ -105,7 +104,7 @@ class GlobalStateCell(nn.Module):
     def init_state(self, batch_size):
         device = next(self._gru.parameters()).device
         state = torch.zeros((batch_size, self._mem_dim), device=device)
-        post = to_mean_std(self._post_mlp(state), self._min_std)
+        post = self._post_mlp(state)
         return (state.detach(), post.detach())
 
     def forward(self,
@@ -119,7 +118,7 @@ class GlobalStateCell(nn.Module):
 
         ea = self._ea_mlp(cat(embed, action))                                # (B, H)
         state = self._gru(ea, in_state)                                     # (B, M)
-        post = to_mean_std(self._post_mlp(state), self._min_std)            # (B, 2*S)
+        post = self._post_mlp(state)                                    # (B, 2*S)
 
         return (
             state,           # tensor(B, M)

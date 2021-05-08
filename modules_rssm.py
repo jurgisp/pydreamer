@@ -11,9 +11,9 @@ from modules_tools import *
 
 class RSSMCore(nn.Module):
 
-    def __init__(self, embed_dim=256, action_dim=7, deter_dim=200, stoch_dim=30, hidden_dim=200, global_dim=30, min_std=0.1):
+    def __init__(self, embed_dim=256, action_dim=7, deter_dim=200, stoch_dim=30, hidden_dim=200, global_dim=30):
         super().__init__()
-        self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, min_std)
+        self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim)
 
     def forward(self,
                 embed,       # tensor(N, B, E)
@@ -58,12 +58,11 @@ class RSSMCore(nn.Module):
 
 class RSSMCell(nn.Module):
 
-    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, min_std):
+    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim):
         super().__init__()
         self._stoch_dim = stoch_dim
         self._deter_dim = deter_dim
         self._global_dim = global_dim
-        self._min_std = min_std
 
         self._z_mlp = nn.Linear(stoch_dim, hidden_dim)
         self._a_mlp = nn.Linear(action_dim, hidden_dim, bias=False)  # No bias, because outputs are added
@@ -104,7 +103,7 @@ class RSSMCell(nn.Module):
         h = self._gru(za, in_h)                                             # (B, D)
 
         post_in = F.elu(self._post_mlp_h(h) + self._post_mlp_e(embed))
-        post = to_mean_std(self._post_mlp(post_in), self._min_std)        # (B, 2*S)
+        post = self._post_mlp(post_in)                                    # (B, 2*S)
         sample = diag_normal(post).rsample()                              # (B, S)   # TODO perf: rsample without D.?
 
         return (
@@ -117,5 +116,5 @@ class RSSMCell(nn.Module):
                     ):
 
         prior_in = F.elu(self._prior_mlp_h(states_h))
-        prior = to_mean_std(self._prior_mlp(prior_in), self._min_std)     # (N, B, 2*S)
+        prior = self._prior_mlp(prior_in)               # (N, B, 2*S)
         return prior    # tensor(B, 2*S)

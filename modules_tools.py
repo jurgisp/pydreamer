@@ -24,32 +24,18 @@ def cat3(x1, x2, x3):
     return torch.cat((x1, x2, x3), dim=-1)
 
 
-def diag_normal(mean_std):
-    mean, std = mean_std.chunk(2, -1)
-    return D.independent.Independent(D.normal.Normal(mean, std), 1)
-
-
-def to_mean_std(x, min_std):
+def diag_normal(x, min_std=0.1):
     # DreamerV2:
     # std = {
     #     'softplus': lambda: tf.nn.softplus(std),
-    #     'abs': lambda: tf.math.abs(std + 1),
-    #     'sigmoid': lambda: tf.nn.sigmoid(std),
     #     'sigmoid2': lambda: 2 * tf.nn.sigmoid(std / 2),
     # }[self._std_act]()
     # std = std + self._min_std
 
     mean, std = x.chunk(2, -1)
-    std = F.softplus(std) + min_std
-    # std = 2 * torch.sigmoid(std / 2) + min_std
-    return cat(mean, std)
-
-
-def zero_prior_like(mean_std):
-    # Returns prior with 0 mean and unit variance
-    mean, std = mean_std.chunk(2, -1)
-    prior = cat(torch.zeros_like(mean), torch.ones_like(std))
-    return prior
+    # std = F.softplus(std) + min_std
+    std = 2 * torch.sigmoid(std / 2) + min_std     # x=torch.zeros() => unit variance
+    return D.independent.Independent(D.normal.Normal(mean, std), 1)
 
 
 def init_weights_tf2(m):
