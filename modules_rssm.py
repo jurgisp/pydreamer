@@ -23,16 +23,19 @@ class RSSMCore(nn.Module):
                 glob_state,  # tensor(   B, G)
                 ):
 
-        n = embed.size(0)
+        n, b = embed.shape[:2]
         priors = []
         posts = []
         states_h = []
         states_z = []
         state = in_state
+
         reset_mask = ~reset.unsqueeze(2)
+        noise = torch.normal(torch.zeros((n, b, self._cell._stoch_dim), device=embed.device),
+                             torch.ones((n, b, self._cell._stoch_dim), device=embed.device))
 
         for i in range(n):
-            post, state = self._cell(embed[i], action[i], reset_mask[i], state, glob_state)
+            post, state = self._cell.forward(embed[i], action[i], reset_mask[i], state, glob_state, noise[i])
             posts.append(post)
             states_h.append(state[0])
             states_z.append(state[1])
@@ -87,11 +90,12 @@ class RSSMCell(nn.Module):
         )
 
     def forward(self,
-                embed,     # tensor(B, E)
-                action,    # tensor(B, A)
-                reset_mask,     # tensor(B)
+                embed: Tensor,                    # tensor(B, E)
+                action: Tensor,                   # tensor(B, A)
+                reset_mask: Tensor,               # tensor(B)
                 in_state: Tuple[Tensor, Tensor],  # tensor(B, D+S+G)
-                glob_state,   # tensor(B, G)
+                glob_state: Tensor,               # tensor(B, G)
+                noise: Tensor,                    # tensor(B, S)
                 ):
 
         in_h, in_z = in_state
@@ -104,7 +108,7 @@ class RSSMCell(nn.Module):
 
         post_in = F.elu(self._post_mlp_h(h) + self._post_mlp_e(embed))
         post = self._post_mlp(post_in)                                    # (B, 2*S)
-        sample = diag_normal(post).rsample()                              # (B, S)   # TODO perf: rsample without D.?
+        sample = rsample(post, noise)                                     # (B, S)
 
         return (
             post,                         # tensor(B, 2*S)

@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as D
+from torch import Tensor
 
 
 def flatten(x):
@@ -24,7 +25,7 @@ def cat3(x1, x2, x3):
     return torch.cat((x1, x2, x3), dim=-1)
 
 
-def diag_normal(x, min_std=0.1, max_std=2.0):
+def diag_normal(x: Tensor, min_std=0.1, max_std=2.0):
     # DreamerV2:
     # std = {
     #     'softplus': lambda: tf.nn.softplus(std),
@@ -36,6 +37,12 @@ def diag_normal(x, min_std=0.1, max_std=2.0):
     # std = F.softplus(std) + min_std
     std = max_std * torch.sigmoid(std) + min_std
     return D.independent.Independent(D.normal.Normal(mean, std), 1)
+
+
+def rsample(x: Tensor, noise: Tensor, min_std=0.1, max_std=2.0):
+    mean, std = x.chunk(2, -1)
+    std = max_std * torch.sigmoid(std) + min_std
+    return mean + noise * std
 
 
 def init_weights_tf2(m):
