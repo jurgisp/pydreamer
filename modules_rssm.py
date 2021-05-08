@@ -24,18 +24,21 @@ class RSSMCore(nn.Module):
                 ):
 
         n, b = embed.shape[:2]
+
+        embeds = embed.unbind(0)
+        actions = action.unbind(0)
+        reset_masks = (~reset.unsqueeze(2)).unbind(0)
+        noises = torch.normal(torch.zeros((n, b, self._cell._stoch_dim), device=embed.device),
+                              torch.ones((n, b, self._cell._stoch_dim), device=embed.device)).unbind(0)
+
         priors = []
         posts = []
         states_h = []
         states_z = []
         state = in_state
 
-        reset_mask = ~reset.unsqueeze(2)
-        noise = torch.normal(torch.zeros((n, b, self._cell._stoch_dim), device=embed.device),
-                             torch.ones((n, b, self._cell._stoch_dim), device=embed.device))
-
         for i in range(n):
-            post, state = self._cell.forward(embed[i], action[i], reset_mask[i], state, glob_state, noise[i])
+            post, state = self._cell.forward(embeds[i], actions[i], reset_masks[i], state, glob_state, noises[i])
             posts.append(post)
             states_h.append(state[0])
             states_z.append(state[1])
