@@ -1,6 +1,9 @@
-#data/
+__pycache__/
+.vscode/
+# data/
 data_bak/
 log/
 mlruns/
-*.ipynb
-.env
+_*.*
+
+.*
