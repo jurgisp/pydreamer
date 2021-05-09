@@ -132,16 +132,27 @@ def run(conf):
 
     # MODEL
 
-    model = WorldModel(
-        encoder=encoder,
-        decoder=decoder,
-        map_model=map_model,
-        mem_model=mem_model,
-        deter_dim=conf.deter_dim,
-        stoch_dim=conf.stoch_dim,
-        hidden_dim=conf.hidden_dim,
-        kl_weight=conf.kl_weight
-    )
+    if conf.model == 'world':
+        model = WorldModel(
+            encoder=encoder,
+            decoder=decoder,
+            map_model=map_model,
+            mem_model=mem_model,
+            deter_dim=conf.deter_dim,
+            stoch_dim=conf.stoch_dim,
+            hidden_dim=conf.hidden_dim,
+            kl_weight=conf.kl_weight
+        )
+    elif conf.model == 'map_rnn':
+        model = MapPredictModel(
+            encoder=encoder,
+            decoder=decoder,
+            map_model=map_model,
+            state_dim=state_dim,
+        )
+    else:
+        assert False, conf.model
+
     model.to(device)
 
     print(f'Model: {param_count(model)} parameters')
@@ -221,9 +232,9 @@ def run(conf):
 
                 print(f"T:{t-start_time:05.0f}  "
                       f"[{steps:06}]"
-                      f"  loss_model: {metrics['loss_model']:.3f}"
-                      f"  loss_model_kl: {metrics['loss_model_kl']:.3f}"
-                      f"  loss_model_image: {metrics['loss_model_image']:.3f}"
+                      f"  loss_model: {metrics.get('loss_model', 0):.3f}"
+                      f"  loss_model_kl: {metrics.get('loss_model_kl', 0):.3f}"
+                      f"  loss_model_image: {metrics.get('loss_model_image', 0):.3f}"
                       f"  loss_model_mem: {metrics.get('loss_model_mem',0):.3f}"
                       f"  loss_map: {metrics['loss_map']:.3f}"
                       f"  fps: {metrics['fps']:.3f}"
@@ -264,7 +275,7 @@ def run(conf):
 
 def evaluate(prefix: str,
              steps: int,
-             model: WorldModel,
+             model,
              data_iterator: Iterator,
              preprocess: MinigridPreprocess,
              eval_batches: int,

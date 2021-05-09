@@ -128,3 +128,95 @@ class WorldModel(nn.Module):
                        loss_map=loss_map.detach(),
                        **metrics_map)
         return loss_model + loss_map, metrics, log_tensors
+
+
+
+class MapPredictModel(nn.Module):
+
+    def __init__(self, encoder, decoder, map_model, state_dim=200, action_dim=7, map_weight=1.0):
+        super().__init__()
+        self._encoder = encoder
+        self._decoder_image = decoder
+        self._map_model = map_model
+        self._state_dim = state_dim
+        self._map_weight = map_weight
+        self._e_mlp = nn.Linear(encoder.out_dim, state_dim)
+        self._a_mlp = nn.Linear(action_dim, state_dim, bias=False) 
+        self._core = nn.GRU(input_size=state_dim,
+                            hidden_size=state_dim,
+                            num_layers=1)
+        for m in self.modules():
+            init_weights_tf2(m)
+
+    def forward(self,
+                image: Tensor,     # tensor(N, B, C, H, W)
+                action: Tensor,    # tensor(N, B, A)
+                reset: Tensor,     # tensor(N, B)
+                map: Tensor,       # tensor(N, B, C, MH, MW)
+                in_state: Tensor,  # Any
+                ):
+
+        n = image.size(0)
+        embed = self._encoder(flatten(image))
+        ea = F.elu(self._e_mlp(embed) + self._a_mlp(flatten(action)))
+
+        features, out_state = self._core(unflatten(ea, n), in_state)  # TODO: should apply reset
+        features_flat = flatten(features)
+
+        image_rec = unflatten(self._decoder_image(features_flat), n)
+        map_out = self._map_model(map, features)  # NOT detached
+
+        return (
+            image_rec,                   # tensor(N, B, C, H, W)
+            map_out,                     # tuple, map.forward() output
+            features,                    # tensor(N, B, D+S+G)
+            out_state.detach(),         # out_state_full: Any
+        )
+
+    def init_state(self, batch_size):
+        device = next(self._core.parameters()).device
+        return torch.zeros((1, batch_size, self._state_dim), device=device)
+
+
+    def predict(self,
+                image,     # tensor(N, B, C, H, W)
+                action,    # tensor(N, B, A)
+                reset,     # tensor(N, B)
+                map,       # tensor(N, B, C, MH, MW)
+                in_state,  # Any
+                ):
+
+        image_rec, map_out, _, _ = self.forward(image, action, reset, map, in_state)
+
+        image_pred_distr = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2))  # (N,B,C,H,W) => (N,B,H,W,C)
+        image_rec_distr = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2))
+        map_rec_distr = self._map_model.predict_obs(*map_out)
+
+        return (
+            image_pred_distr,    # categorical(N,B,H,W,C)
+            image_rec_distr,     # categorical(N,B,H,W,C)
+            map_rec_distr,       # categorical(N,B,HM,WM,C)
+        )
+
+
+    def loss(self,
+             image_rec, map_out, features, out_state,     # forward() output
+             image,                                      # tensor(N, B, C, H, W)
+             map,                                        # tensor(N, B, MH, MW)
+             ):
+        loss_image = self._decoder_image.loss(image_rec, image)
+        loss_image = loss_image.mean()
+        loss_model = loss_image
+
+        loss_map, metrics_map = self._map_model.loss(*map_out, map)
+        metrics_map = {k.replace('loss_', 'loss_map_'): v for k, v in metrics_map.items()}  # loss_kl => loss_map_kl
+
+        loss = loss_model + self._map_weight * loss_map
+
+        log_tensors = {}
+        metrics = dict(loss_model_image=loss_image.detach(),
+                       loss_model=loss_model.detach(),
+                       loss_map=loss_map.detach(),
+                       **metrics_map)
+
+        return loss, metrics, log_tensors

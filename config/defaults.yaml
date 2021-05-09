@@ -36,6 +36,7 @@ defaults:
   full_eval_size: 100
 
   # Model
+  model: world
   embed_dim: 256
   deter_dim: 200
   stoch_dim: 30
