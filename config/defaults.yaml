@@ -13,6 +13,7 @@ defaults:
   # Env
   channels: 4
   image_key: image
+  image_size: 7
   map_key: map_centered
   map_size: 19
 

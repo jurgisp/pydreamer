@@ -19,6 +19,7 @@ class MinigridPreprocess:
         self.img_channels = categorical
         self._image_key = image_key
         self._map_key = map_key
+        self._first = True
 
     def __call__(self, batch):
         # Input:
@@ -31,12 +32,14 @@ class MinigridPreprocess:
         #   reset:  torch.tensor(N, B)
         #   map:    torch.tensor(N, B, 7, 7)
 
+        if self._first:
+            print('Data batch: ', {k: v.shape for k, v in batch.items()})
+            self._first = False
+
         batch['image'] = batch[self._image_key]  # Use something else (e.g. map_masked) as image
         batch['map'] = batch[self._map_key]
 
-        image = batch['image']
-        assert image.shape[-1] == 7, f'Unexpected image shape {image.shape}'
-        image = to_onehot(image, self._categorical).to(device=self._device)
+        image = to_onehot(batch['image'], self._categorical).to(device=self._device)
 
         action = torch.from_numpy(batch['action']).to(dtype=torch.float, device=self._device)
 
