@@ -8,7 +8,7 @@ from modules_rssm import *
 
 class WorldModel(nn.Module):
 
-    def __init__(self, encoder, decoder, map_model, mem_model, deter_dim=200, stoch_dim=30, hidden_dim=200):
+    def __init__(self, encoder, decoder, map_model, mem_model, deter_dim=200, stoch_dim=30, hidden_dim=200, kl_weight=1.0):
         super().__init__()
         self._encoder = encoder
         self._decoder_image = decoder
@@ -17,6 +17,7 @@ class WorldModel(nn.Module):
         self._deter_dim = deter_dim
         self._stoch_dim = stoch_dim
         self._global_dim = mem_model.global_dim
+        self._kl_weight = kl_weight
         self._core = RSSMCore(embed_dim=encoder.out_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
@@ -114,19 +115,16 @@ class WorldModel(nn.Module):
         assert loss_kl.shape == loss_image.shape
         loss_kl = loss_kl.mean()        # (N, B) => ()
         loss_image = loss_image.mean()
-        loss = loss_kl + loss_image
+        loss_mem = self._mem_model.loss(*mem_out)
+        loss_model = self._kl_weight * loss_kl + loss_image + loss_mem
 
         loss_map, metrics_map = self._map_model.loss(*map_out, map)
         metrics_map = {k.replace('loss_', 'loss_map_'): v for k, v in metrics_map.items()}  # loss_kl => loss_map_kl
-        loss += loss_map
-
-        loss_mem = self._mem_model.loss(*mem_out)
-        loss += loss_mem
 
         metrics = dict(loss_model_kl=loss_kl.detach(),
                        loss_model_image=loss_image.detach(),
                        loss_model_mem=loss_mem.detach(),
-                       loss_model=loss_kl.detach() + loss_image.detach() + loss_mem.detach(),  # model loss, without detached heads
+                       loss_model=loss_model.detach(),
                        loss_map=loss_map.detach(),
                        **metrics_map)
-        return loss, metrics, log_tensors
+        return loss_model + loss_map, metrics, log_tensors

@@ -21,7 +21,7 @@ from modules_mem import *
 from modules_tools import *
 
 torch.distributions.Distribution.set_default_validate_args(False)
-torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.benchmark = True  # type: ignore
 
 
 def run_generator(conf):
@@ -120,6 +120,7 @@ def run(conf):
         deter_dim=conf.deter_dim,
         stoch_dim=conf.stoch_dim,
         hidden_dim=conf.hidden_dim,
+        kl_weight=conf.kl_weight
     )
     model.to(device)
 
