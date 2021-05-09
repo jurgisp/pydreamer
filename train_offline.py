@@ -103,18 +103,26 @@ def run(conf):
         mem_model = NoMemory()
 
     model = WorldModel(
-        encoder=ConvEncoder(in_channels=conf.channels,
-                            out_dim=conf.embed_dim,
-                            stride=1,
-                            kernels=(1, 3, 3, 3)),
-        decoder=(ConvDecoderCat(in_dim=state_dim,
-                                out_channels=conf.channels,
-                                stride=1,
-                                kernels=(3, 3, 3, 1))
-                 if conf.image_decoder == 'cnn' else
-                 DenseDecoder(in_dim=state_dim,
-                              out_shape=(conf.channels, 7, 7))
-                 ),
+        encoder=(
+            ConvEncoder(in_channels=conf.channels,
+                        out_dim=conf.embed_dim,
+                        stride=1,
+                        kernels=(1, 3, 3, 3))
+            if conf.image_encoder == 'cnn' else
+            DenseEncoder(in_dim=7 * 7 * conf.channels,
+                         out_dim=conf.embed_dim,
+                         hidden_layers=conf.image_encoder_layers)
+        ),
+        decoder=(
+            ConvDecoderCat(in_dim=state_dim,
+                           out_channels=conf.channels,
+                           stride=1,
+                           kernels=(3, 3, 3, 1))
+            if conf.image_decoder == 'cnn' else
+            DenseDecoder(in_dim=state_dim,
+                         out_shape=(conf.channels, 7, 7),
+                         hidden_layers=conf.image_decoder_layers)
+        ),
         map_model=map_model,
         mem_model=mem_model,
         deter_dim=conf.deter_dim,
