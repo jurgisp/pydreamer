@@ -73,6 +73,32 @@ def run(conf):
 
     state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim
 
+    # Encoder
+
+    if conf.image_encoder == 'cnn':
+        encoder = ConvEncoder(in_channels=conf.channels,
+                              out_dim=conf.embed_dim,
+                              stride=1,
+                              kernels=(1, 3, 3, 3))
+    else:
+        encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * conf.channels,
+                               out_dim=conf.embed_dim,
+                               hidden_layers=conf.image_encoder_layers)
+
+    # Decoder
+
+    if conf.image_decoder == 'cnn':
+        decoder = ConvDecoderCat(in_dim=state_dim,
+                                 out_channels=conf.channels,
+                                 stride=1,
+                                 kernels=(3, 3, 3, 1))
+    else:
+        decoder = DenseDecoder(in_dim=state_dim,
+                               out_shape=(conf.channels, conf.image_size, conf.image_size),
+                               hidden_layers=conf.image_decoder_layers)
+
+    # Map decoder
+
     if conf.map_model == 'vae':
         map_model = CondVAEHead(
             encoder=DenseEncoder(in_dim=conf.map_size * conf.map_size * conf.channels,
@@ -93,6 +119,8 @@ def run(conf):
     else:
         map_model = NoHead(out_shape=(conf.channels, conf.map_size, conf.map_size))
 
+    # Memory model
+
     if conf.mem_model == 'global_state':
         mem_model = GlobalStateMem(embed_dim=conf.embed_dim,
                                    mem_dim=conf.deter_dim,
@@ -102,27 +130,11 @@ def run(conf):
     else:
         mem_model = NoMemory()
 
+    # MODEL
+
     model = WorldModel(
-        encoder=(
-            ConvEncoder(in_channels=conf.channels,
-                        out_dim=conf.embed_dim,
-                        stride=1,
-                        kernels=(1, 3, 3, 3))
-            if conf.image_encoder == 'cnn' else
-            DenseEncoder(in_dim=7 * 7 * conf.channels,
-                         out_dim=conf.embed_dim,
-                         hidden_layers=conf.image_encoder_layers)
-        ),
-        decoder=(
-            ConvDecoderCat(in_dim=state_dim,
-                           out_channels=conf.channels,
-                           stride=1,
-                           kernels=(3, 3, 3, 1))
-            if conf.image_decoder == 'cnn' else
-            DenseDecoder(in_dim=state_dim,
-                         out_shape=(conf.channels, 7, 7),
-                         hidden_layers=conf.image_decoder_layers)
-        ),
+        encoder=encoder,
+        decoder=decoder,
         map_model=map_model,
         mem_model=mem_model,
         deter_dim=conf.deter_dim,
@@ -137,6 +149,8 @@ def run(conf):
         print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
     # print(model)
     mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')  # type: ignore
+
+    # Training
 
     optimizer = torch.optim.Adam(model.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
 
