@@ -14,6 +14,6 @@ ENV PYTHONUNBUFFERED 1
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 RUN pip3 uninstall gym-minigrid -y
-RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@530e8f18380ebb1996076ef8350ff90ae6b165bb#egg=gym-minigrid
+RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@9be91ea2ee5b09adf676dc40c9420fd19819ce7f#egg=gym-minigrid
 
 COPY . .

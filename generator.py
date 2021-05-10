@@ -5,6 +5,7 @@ import time
 import pathlib
 import gym
 from envs import MiniGrid
+import mlflow
 
 import tools
 
@@ -13,12 +14,16 @@ def main(output_dir,
          env_name,
          conf,
          policy='minigrid_wander',
-         delete_every=100,
+         delete_every=100,  # if conf.delete_old is set
          max_steps=500
          ):
 
-    output_dir = pathlib.Path(output_dir).expanduser()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if conf.save_to_mlflow:
+        run = mlflow.start_run(run_name=f'{env_name}-s{conf.seed}')
+        print(f'Mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
+    else:
+        output_dir = pathlib.Path(output_dir).expanduser()
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     env = MiniGrid(env_name, max_steps=max_steps, seed=conf.seed)
     env = CollectWrapper(env)
@@ -46,8 +51,12 @@ def main(output_dir,
 
         # Save to npz
 
-        fname = output_dir / f's{conf.seed}-ep{episodes:06}-{epsteps:04}.npz'
-        tools.save_npz(data, fname)
+        fname = f's{conf.seed}-ep{episodes:06}-{epsteps:04}.npz'
+        if conf.save_to_mlflow:
+            tools.mlflow_log_npz(data, fname, 'episodes')
+        else:
+            fname = output_dir / fname
+            tools.save_npz(data, fname)
 
         # Log
 
@@ -64,6 +73,7 @@ def main(output_dir,
         # Delete old
 
         if conf.delete_old and episodes % delete_every == 0:
+            assert not conf.save_to_mlflow
             for i_new in range(episodes - delete_every + 1, episodes + 1):
                 i_old = i_new - conf.delete_old
                 if i_old < 0:
@@ -92,6 +102,8 @@ class MinigridWanderPolicy:
         left = MiniGrid.GRID_VALUES[obs['image'][2, 6]]
         right = MiniGrid.GRID_VALUES[obs['image'][4, 6]]
 
+        empty = [1, 8]  # Empty or goal
+
         # Door on left => turn with 50%
         if left[0] == 4 and np.random.rand() < 0.50:
             return 0
@@ -101,11 +113,11 @@ class MinigridWanderPolicy:
             return 1
 
         # Empty left  => turn with 10%
-        if left[0] == 1 and np.random.rand() < 0.10:
+        if left[0] in empty and np.random.rand() < 0.10:
             return 0
 
         # Empty right => turn with 10%
-        if right[0] == 1 and np.random.rand() < 0.10:
+        if right[0] in empty and np.random.rand() < 0.10:
             return 1
 
         # Closed door => open
@@ -113,7 +125,7 @@ class MinigridWanderPolicy:
             return 5
 
         # Empty or open door => forward
-        if front[0] == 1 or (front[0] == 4 and front[2] == 0):
+        if front[0] in empty or (front[0] == 4 and front[2] == 0):
             return 2
 
         # If forward blocked...
@@ -182,6 +194,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--delete_old', type=int, default=0)
     parser.add_argument('--sleep', type=int, default=0)
+    parser.add_argument('--save_to_mlflow', action='store_true')
     args = parser.parse_args()
 
     output_dir = args.output_dir or f"data/{args.env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}"

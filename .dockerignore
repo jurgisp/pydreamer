@@ -1,6 +1,6 @@
 __pycache__/
 .vscode/
-# data/
+data/
 data_bak/
 log/
 mlruns/
