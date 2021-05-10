@@ -14,12 +14,13 @@ def main(output_dir,
          conf,
          policy='minigrid_wander',
          delete_every=100,
+         max_steps=500
          ):
 
     output_dir = pathlib.Path(output_dir).expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    env = MiniGrid(env_name, max_steps=500, seed=conf.seed)
+    env = MiniGrid(env_name, max_steps=max_steps, seed=conf.seed)
     env = CollectWrapper(env)
 
     if policy == 'random':
@@ -56,7 +57,7 @@ def main(output_dir,
 
         print(f"[{steps:08}/{conf.num_steps:08}] "
               f"Episode data: {data['image'].shape} written to {fname}"
-              f",  explored%: {(data['map_vis'][-1] < 1000).mean():.3f}"
+              f",  explored%: {(data['map_vis'][-1] < max_steps).mean():.1%}"
               f",  fps: {fps:.0f}"
               )
 
