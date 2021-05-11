@@ -1,8 +1,10 @@
+from typing import Union
 import warnings
 from mlflow.tracking.client import MlflowClient
 import yaml
 import tempfile
 from pathlib import Path
+from pathy import Pathy
 import io
 import time
 import numpy as np
@@ -73,9 +75,13 @@ def save_npz(data, filename):
         with filename.open('wb') as f2:
             f2.write(f1.read())
 
-def load_npz(filename):
-    with Path(filename).open('rb') as f:
-        fdata = np.load(f)
+def load_npz(path: Union[Path, Pathy]):
+    with io.BytesIO() as f1:
+        with path.open('rb') as f:
+            # For remote file it's faster to copy to memory buffer first
+            f1.write(f.read())  
+        f1.seek(0)
+        fdata = np.load(f1)
         data = {key: fdata[key] for key in fdata}
     return data
 

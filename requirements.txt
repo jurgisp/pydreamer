@@ -6,6 +6,7 @@ gym-minigrid
 # Logging
 mlflow
 google.cloud.storage
+pathy
 
 # Dashboards
 bokeh

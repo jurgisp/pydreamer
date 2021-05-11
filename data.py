@@ -1,25 +1,32 @@
-import pathlib
 import numpy as np
 import random
 import time
+from pathlib import Path
+from pathy import Pathy
+
+from tools import *
 
 
 class OfflineDataSequential:
     """Offline data which processes episodes sequentially"""
 
-    def __init__(self, input_dir, reload_interval=300):
-        self.input_dir = pathlib.Path(input_dir)
-        assert self.input_dir.exists(), f'Data directory not found: {self.input_dir}'
+    def __init__(self, input_dir: str, reload_interval=0):
+        if input_dir.startswith('gs:/') or input_dir.startswith('s3:/'):
+            self.input_dir = Pathy(input_dir)
+        else:
+            self.input_dir = Path(input_dir)
         self.reload_interval = reload_interval
         self._reload_files()
+        assert len(self._files) > 0, 'No data found'
 
     def _reload_files(self):
+        print(f'Loading data from {str(self.input_dir)}...')
         self._files = list(sorted(self.input_dir.glob('*.npz')))
         self._last_reload = time.time()
-        print(f'Found data: {len(self._files)} episodes in {str(self.input_dir)}')
+        print(f'Found data: {len(self._files)} episodes')
 
     def _should_reload_files(self):
-        return time.time() - self._last_reload > self.reload_interval
+        return self.reload_interval and (time.time() - self._last_reload > self.reload_interval)
 
     def iterate(self, batch_length, batch_size, skip_first=True):
         # Parallel iteration over (batch_size) iterators
@@ -44,9 +51,8 @@ class OfflineDataSequential:
 
     def _iter_file(self, file, batch_length, skip_random=False):
         try:
-            with file.open('rb') as f:
-                fdata = np.load(f)
-                data = {key: fdata[key] for key in fdata}
+            with Timer('load_episode'):
+                data = load_npz(file)
         except Exception as e:
             print('Error reading file - skipping')
             print(e)
@@ -80,19 +86,17 @@ class OfflineDataRandom:
     """Offline data with random sampling from middle of episodes"""
 
     def __init__(self, input_dir):
-        input_dir = pathlib.Path(input_dir)
-        assert input_dir.exists(), f'Data directory not found: {input_dir}'
+        input_dir = Path(input_dir)
         self._files = list(sorted(input_dir.glob('*.npz')))
         print(f'Offline data: {len(self._files)} episodes in {str(input_dir)}, loading...')
         self._data = self._load_data()
+        assert len(self._data) > 0, 'No data found'
 
     def _load_data(self):
         all_data = []
         for path in self._files:
-            with path.open('rb') as f:
-                fdata = np.load(f)
-                data = {key: fdata[key] for key in fdata}
-                all_data.append(data)
+            data = load_npz(path)
+            all_data.append(data)
         return all_data
 
     def iterate(self, batch_length, batch_size, skip_first=True):
