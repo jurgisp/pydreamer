@@ -51,8 +51,7 @@ class OfflineDataSequential:
 
     def _iter_file(self, file, batch_length, skip_random=False):
         try:
-            with Timer('load_episode'):
-                data = load_npz(file)
+            data = load_npz(file)
         except Exception as e:
             print('Error reading file - skipping')
             print(e)

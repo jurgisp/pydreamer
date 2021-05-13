@@ -25,6 +25,10 @@ spec:
         - name: google-cloud-key
           secret:
             secretName: mlflow-worker-key
+        - name: gke-shared-disk
+          persistentVolumeClaim:
+            claimName: gke-shared-disk-pvc
+            readOnly: true
       containers:
         - name: dreamer
           imagePullPolicy: Always
@@ -39,6 +43,9 @@ spec:
           volumeMounts:
             - name: google-cloud-key
               mountPath: /var/secrets/google
+            - name: gke-shared-disk
+              mountPath: /data
+              readOnly: true
           command:
             - python3
           args:
