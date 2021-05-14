@@ -44,6 +44,12 @@ class WorldModel(nn.Module):
         for m in self.modules():
             init_weights_tf2(m)
 
+    def init_state(self, batch_size: int) -> Tuple[Any, Any, Any]:
+        return (
+            self._core.init_state(batch_size),
+            self._input_rnn.init_state(batch_size),
+            self._mem_model.init_state(batch_size))
+
     def forward(self,
                 image: Tensor,     # tensor(N, B, C, H, W)
                 action: Tensor,    # tensor(N, B, A)
@@ -56,8 +62,9 @@ class WorldModel(nn.Module):
         n = image.size(0)
         embed = unflatten(self._encoder(flatten(image)), n)
 
-        embed_rnn, out_rnn_state = self._input_rnn.forward(embed, action, in_rnn_state)  # TODO: should apply reset
-        embed = embed_rnn
+        out_rnn_state = None
+        # embed_rnn, out_rnn_state = self._input_rnn.forward(embed, action, in_rnn_state)  # TODO: should apply reset
+        # embed = embed_rnn
 
         mem_out = self._mem_model(embed, action, reset, in_mem_state)
         mem_sample, mem_state = mem_out[0], mem_out[-1]
@@ -93,8 +100,8 @@ class WorldModel(nn.Module):
         n = image.size(0)
         embed = unflatten(self._encoder(flatten(image)), n)
 
-        embed_rnn, out_rnn_state = self._input_rnn.forward(embed, action, in_rnn_state)  # TODO: should apply reset
-        embed = embed_rnn
+        # embed_rnn, out_rnn_state = self._input_rnn.forward(embed, action, in_rnn_state)  # TODO: should apply reset
+        # embed = embed_rnn
 
         mem_out = self._mem_model(embed[:-1], action[:-1], reset[:-1], in_mem_state)  # Diff from forward(): hide last observation
         mem_sample, mem_state = mem_out[0], mem_out[-1]
@@ -123,12 +130,6 @@ class WorldModel(nn.Module):
             image_rec_distr,     # categorical(N,B,H,W,C)
             map_rec_distr,       # categorical(N,B,HM,WM,C)
         )
-
-    def init_state(self, batch_size: int) -> Tuple[Any, Any, Any]:
-        return (
-            self._core.init_state(batch_size),
-            self._input_rnn.init_state(batch_size),
-            self._mem_model.init_state(batch_size))
 
     def loss(self,
              prior, post, image_rec, map_out, states, mem_out, out_state_full,     # forward() output
