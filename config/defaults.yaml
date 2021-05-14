@@ -41,12 +41,13 @@ defaults:
   deter_dim: 200
   stoch_dim: 30
   hidden_dim: 200
-  image_encoder: cnn
-  image_encoder_layers: 2
+  image_encoder: dense
+  image_encoder_layers: 3
   image_decoder: dense
-  image_decoder_layers: 2
+  image_decoder_layers: 3
   map_stoch_dim: 30
   map_model: direct
+  map_grad: False
   mem_model: none
   mem_loss_type:
   global_dim: 0

@@ -8,7 +8,14 @@ from modules_rssm import *
 
 class WorldModel(nn.Module):
 
-    def __init__(self, encoder, decoder, map_model, mem_model, deter_dim=200, stoch_dim=30, hidden_dim=200, kl_weight=1.0):
+    def __init__(self, encoder, decoder, map_model, mem_model,
+                 deter_dim=200,
+                 stoch_dim=30,
+                 hidden_dim=200,
+                 kl_weight=1.0,
+                 map_grad=False,
+                 map_weight=0.1,  # Only matters if map_grad
+                 ):
         super().__init__()
         self._encoder = encoder
         self._decoder_image = decoder
@@ -18,6 +25,8 @@ class WorldModel(nn.Module):
         self._stoch_dim = stoch_dim
         self._global_dim = mem_model.global_dim
         self._kl_weight = kl_weight
+        self._map_grad = map_grad
+        self._map_weight = map_weight
         self._core = RSSMCore(embed_dim=encoder.out_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
@@ -45,7 +54,7 @@ class WorldModel(nn.Module):
         features_flat = flatten(features)
 
         image_rec = unflatten(self._decoder_image(features_flat), n)
-        map_out = self._map_model(map, features.detach())
+        map_out = self._map_model(map, features if self._map_grad else features.detach())
 
         return (
             prior,                       # tensor(N, B, 2*S)
@@ -127,8 +136,7 @@ class WorldModel(nn.Module):
                        loss_model=loss_model.detach(),
                        loss_map=loss_map.detach(),
                        **metrics_map)
-        return loss_model + loss_map, metrics, log_tensors
-
+        return loss_model + self._map_weight * loss_map, metrics, log_tensors
 
 
 class MapPredictModel(nn.Module):
@@ -141,7 +149,7 @@ class MapPredictModel(nn.Module):
         self._state_dim = state_dim
         self._map_weight = map_weight
         self._e_mlp = nn.Linear(encoder.out_dim, state_dim)
-        self._a_mlp = nn.Linear(action_dim, state_dim, bias=False) 
+        self._a_mlp = nn.Linear(action_dim, state_dim, bias=False)
         self._core = nn.GRU(input_size=state_dim,
                             hidden_size=state_dim,
                             num_layers=1)
@@ -177,7 +185,6 @@ class MapPredictModel(nn.Module):
         device = next(self._core.parameters()).device
         return torch.zeros((1, batch_size, self._state_dim), device=device)
 
-
     def predict(self,
                 image,     # tensor(N, B, C, H, W)
                 action,    # tensor(N, B, A)
@@ -197,7 +204,6 @@ class MapPredictModel(nn.Module):
             image_rec_distr,     # categorical(N,B,H,W,C)
             map_rec_distr,       # categorical(N,B,HM,WM,C)
         )
-
 
     def loss(self,
              image_rec, map_out, features, out_state,     # forward() output

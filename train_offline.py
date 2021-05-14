@@ -112,7 +112,8 @@ def run(conf):
             deter_dim=conf.deter_dim,
             stoch_dim=conf.stoch_dim,
             hidden_dim=conf.hidden_dim,
-            kl_weight=conf.kl_weight
+            kl_weight=conf.kl_weight,
+            map_grad=conf.map_grad,
         )
     elif conf.model == 'map_rnn':
         model = MapPredictModel(
