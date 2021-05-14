@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.distributions as D
 
 from modules_tools import *
 from modules_rssm import *
+from modules_rnn import *
 
 
 class WorldModel(nn.Module):
@@ -46,6 +48,7 @@ class WorldModel(nn.Module):
         in_state, in_mem_state = in_state_full
         n = image.size(0)
         embed = unflatten(self._encoder(flatten(image)), n)
+
         mem_out = self._mem_model(embed, action, reset, in_mem_state)
         mem_sample, mem_state = mem_out[0], mem_out[-1]
 
@@ -74,12 +77,12 @@ class WorldModel(nn.Module):
                 in_state_full,  # Any
                 ):
 
-        # Version of forward() for prediction
+        # forward() modified for prediction
 
         in_state, in_mem_state = in_state_full
         n = image.size(0)
         embed = unflatten(self._encoder(flatten(image)), n)
-        # mem_out = self._mem_model(embed, action, reset, in_mem_state)
+        
         mem_out = self._mem_model(embed[:-1], action[:-1], reset[:-1], in_mem_state)  # Diff from forward(): hide last observation
         mem_sample, mem_state = mem_out[0], mem_out[-1]
 
@@ -90,7 +93,7 @@ class WorldModel(nn.Module):
         image_rec = unflatten(self._decoder_image(features_flat), n)
         map_out = self._map_model(map, features.detach())
 
-        #
+        # Prediction part
 
         # Make states with z sampled from prior instead of posterior
         h, z_post, g = features.split([self._deter_dim, self._stoch_dim, self._global_dim], -1)
@@ -148,11 +151,7 @@ class MapPredictModel(nn.Module):
         self._map_model = map_model
         self._state_dim = state_dim
         self._map_weight = map_weight
-        self._e_mlp = nn.Linear(encoder.out_dim, state_dim)
-        self._a_mlp = nn.Linear(action_dim, state_dim, bias=False)
-        self._core = nn.GRU(input_size=state_dim,
-                            hidden_size=state_dim,
-                            num_layers=1)
+        self._core = GRU2Inputs(encoder.out_dim, action_dim, state_dim, state_dim)
         for m in self.modules():
             init_weights_tf2(m)
 
@@ -165,13 +164,11 @@ class MapPredictModel(nn.Module):
                 ):
 
         n = image.size(0)
-        embed = self._encoder(flatten(image))
-        ea = F.elu(self._e_mlp(embed) + self._a_mlp(flatten(action)))
+        embed = unflatten(self._encoder(flatten(image)), n)
 
-        features, out_state = self._core(unflatten(ea, n), in_state)  # TODO: should apply reset
-        features_flat = flatten(features)
+        features, out_state = self._core.forward(embed, action, in_state)  # TODO: should apply reset
 
-        image_rec = unflatten(self._decoder_image(features_flat), n)
+        image_rec = unflatten(self._decoder_image(flatten(features)), n)
         map_out = self._map_model(map, features)  # NOT detached
 
         return (
