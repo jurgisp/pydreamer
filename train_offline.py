@@ -128,7 +128,7 @@ def run(conf):
     model.to(device)
 
     print(f'Model: {param_count(model)} parameters')
-    for submodel in [model._encoder, model._decoder_image, model._core, map_model, mem_model]:
+    for submodel in [model._encoder, model._decoder_image, model._core, model._input_rnn, map_model, mem_model]:
         print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
     # print(model)
     mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')  # type: ignore
@@ -160,7 +160,7 @@ def run(conf):
             # Predict
 
             state_in = state
-            output = model(image, action, reset, map, state)
+            output = model.forward(image, action, reset, map, state)
             state = output[-1]
 
             # Loss

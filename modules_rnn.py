@@ -1,4 +1,6 @@
+from typing import Tuple
 import torch
+from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -12,7 +14,12 @@ class GRU2Inputs(nn.Module):
         self._act = input_activation
         self._gru = nn.GRU(input_size=input_dim, hidden_size=state_dim, num_layers=num_layers)
 
-    def forward(self, input1_seq, input2_seq, in_state):
+    def init_state(self, batch_size):
+        device = next(self._gru.parameters()).device
+        return torch.zeros((self._gru.num_layers, batch_size, self._gru.hidden_size), device=device)
+
+    def forward(self, input1_seq, input2_seq, in_state) -> Tuple[Tensor, Tensor]:
         inp = self._act(self._in_mlp1(input1_seq) + self._in_mlp2(input2_seq))
         output, out_state = self._gru(inp, in_state)
-        return output, out_state
+        # NOTE: Different from nn.GRU: detach output state
+        return output, out_state.detach()  

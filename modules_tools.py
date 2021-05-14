@@ -6,12 +6,12 @@ import torch.distributions as D
 from torch import Tensor
 
 
-def flatten(x):
+def flatten(x: Tensor) -> Tensor:
     # (N, B, ...) => (N*B, ...)
     return torch.reshape(x, (-1,) + x.shape[2:])
 
 
-def unflatten(x, n):
+def unflatten(x: Tensor, n: int) -> Tensor:
     # (N*B, ...) => (N, B, ...)
     return torch.reshape(x, (n, -1) + x.shape[1:])
 

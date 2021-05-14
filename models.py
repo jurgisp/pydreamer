@@ -1,3 +1,5 @@
+from typing import Any, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,6 +13,7 @@ from modules_rnn import *
 class WorldModel(nn.Module):
 
     def __init__(self, encoder, decoder, map_model, mem_model,
+                 action_dim=7,
                  deter_dim=200,
                  stoch_dim=30,
                  hidden_dim=200,
@@ -34,20 +37,27 @@ class WorldModel(nn.Module):
                               stoch_dim=stoch_dim,
                               hidden_dim=hidden_dim,
                               global_dim=self._global_dim)
+        self._input_rnn = GRU2Inputs(encoder.out_dim,
+                                     action_dim, 
+                                     encoder.out_dim, 
+                                     encoder.out_dim)
         for m in self.modules():
             init_weights_tf2(m)
 
     def forward(self,
-                image,     # tensor(N, B, C, H, W)
-                action,    # tensor(N, B, A)
-                reset,     # tensor(N, B)
-                map,       # tensor(N, B, C, MH, MW)
-                in_state_full,  # Any
+                image: Tensor,     # tensor(N, B, C, H, W)
+                action: Tensor,    # tensor(N, B, A)
+                reset: Tensor,     # tensor(N, B)
+                map: Tensor,       # tensor(N, B, C, MH, MW)
+                in_state_full: Tuple[Any, Any, Any],
                 ):
 
-        in_state, in_mem_state = in_state_full
+        in_state, in_rnn_state, in_mem_state = in_state_full
         n = image.size(0)
         embed = unflatten(self._encoder(flatten(image)), n)
+
+        embed_rnn, out_rnn_state = self._input_rnn.forward(embed, action, in_rnn_state)  # TODO: should apply reset
+        embed = embed_rnn
 
         mem_out = self._mem_model(embed, action, reset, in_mem_state)
         mem_sample, mem_state = mem_out[0], mem_out[-1]
@@ -66,23 +76,26 @@ class WorldModel(nn.Module):
             map_out,                     # tuple, map.forward() output
             features,                    # tensor(N, B, D+S+G)
             mem_out,                     # Any
-            (out_state, mem_state),     # out_state_full: Any
+            (out_state, out_rnn_state, mem_state),     # out_state_full: Any
         )
 
     def predict(self,
-                image,     # tensor(N, B, C, H, W)
-                action,    # tensor(N, B, A)
-                reset,     # tensor(N, B)
-                map,       # tensor(N, B, C, MH, MW)
-                in_state_full,  # Any
+                image: Tensor,     # tensor(N, B, C, H, W)
+                action: Tensor,    # tensor(N, B, A)
+                reset: Tensor,     # tensor(N, B)
+                map: Tensor,       # tensor(N, B, C, MH, MW)
+                in_state_full: Tuple[Any, Any, Any],
                 ):
 
         # forward() modified for prediction
 
-        in_state, in_mem_state = in_state_full
+        in_state, in_rnn_state, in_mem_state = in_state_full
         n = image.size(0)
         embed = unflatten(self._encoder(flatten(image)), n)
-        
+
+        embed_rnn, out_rnn_state = self._input_rnn.forward(embed, action, in_rnn_state)  # TODO: should apply reset
+        embed = embed_rnn
+
         mem_out = self._mem_model(embed[:-1], action[:-1], reset[:-1], in_mem_state)  # Diff from forward(): hide last observation
         mem_sample, mem_state = mem_out[0], mem_out[-1]
 
@@ -111,9 +124,10 @@ class WorldModel(nn.Module):
             map_rec_distr,       # categorical(N,B,HM,WM,C)
         )
 
-    def init_state(self, batch_size):
+    def init_state(self, batch_size: int) -> Tuple[Any, Any, Any]:
         return (
             self._core.init_state(batch_size),
+            self._input_rnn.init_state(batch_size),
             self._mem_model.init_state(batch_size))
 
     def loss(self,
@@ -160,7 +174,7 @@ class MapPredictModel(nn.Module):
                 action: Tensor,    # tensor(N, B, A)
                 reset: Tensor,     # tensor(N, B)
                 map: Tensor,       # tensor(N, B, C, MH, MW)
-                in_state: Tensor,  # Any
+                in_state: Tensor,
                 ):
 
         n = image.size(0)
@@ -175,19 +189,18 @@ class MapPredictModel(nn.Module):
             image_rec,                   # tensor(N, B, C, H, W)
             map_out,                     # tuple, map.forward() output
             features,                    # tensor(N, B, D+S+G)
-            out_state.detach(),         # out_state_full: Any
+            out_state,
         )
 
     def init_state(self, batch_size):
-        device = next(self._core.parameters()).device
-        return torch.zeros((1, batch_size, self._state_dim), device=device)
+        return self._core.init_state(batch_size)
 
     def predict(self,
-                image,     # tensor(N, B, C, H, W)
-                action,    # tensor(N, B, A)
-                reset,     # tensor(N, B)
-                map,       # tensor(N, B, C, MH, MW)
-                in_state,  # Any
+                image: Tensor,     # tensor(N, B, C, H, W)
+                action: Tensor,    # tensor(N, B, A)
+                reset: Tensor,     # tensor(N, B)
+                map: Tensor,       # tensor(N, B, C, MH, MW)
+                in_state: Tensor,
                 ):
 
         image_rec, map_out, _, _ = self.forward(image, action, reset, map, in_state)
