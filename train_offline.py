@@ -24,35 +24,6 @@ torch.distributions.Distribution.set_default_validate_args(False)
 torch.backends.cudnn.benchmark = True  # type: ignore
 
 
-def run_generator(conf):
-    # Start train
-    cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 1 --output_dir {conf.input_dir} --delete_old {conf.generator_buffer}'
-    print(f'Starting data generator:\n{cmd}')
-    p1 = subprocess.Popen(cmd.split(' '), stdout=subprocess.DEVNULL)
-    # Start eval
-    cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 2 --output_dir {conf.eval_dir} --delete_old {conf.generator_buffer} --sleep 20'
-    print(f'Starting data generator:\n{cmd}')
-    p2 = subprocess.Popen(cmd.split(' '), stdout=subprocess.DEVNULL)
-    # Check
-    time.sleep(5)
-    assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
-    # Wait
-    print(f'Waiting for {conf.generator_wait} sec for initial data')
-    time.sleep(conf.generator_wait)
-    # Check again
-    assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
-
-
-def get_profiler(conf):
-    if conf.enable_profiler:
-        return torch.profiler.profile(
-            schedule=torch.profiler.schedule(wait=10, warmup=10, active=2, repeat=5),
-            on_trace_ready=torch.profiler.tensorboard_trace_handler('./log'),
-        )
-    else:
-        return NoProfiler()
-
-
 def run(conf):
     assert not(conf.keep_state and not conf.data_seq), "Should train sequentially if keeping state"
 
@@ -363,6 +334,35 @@ def log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec, to
     data['map_rec_p'] = map_rec.probs.cpu().numpy()
     data = {k: v.swapaxes(0, 1)[:top] for k, v in data.items()}  # (N,B,...) => (B,N,...)
     tools.mlflow_log_npz(data, f'{steps:07}.npz', subdir)
+
+
+def run_generator(conf):
+    # Start train
+    cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 1 --output_dir {conf.input_dir} --delete_old {conf.generator_buffer}'
+    print(f'Starting data generator:\n{cmd}')
+    p1 = subprocess.Popen(cmd.split(' '), stdout=subprocess.DEVNULL)
+    # Start eval
+    cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 2 --output_dir {conf.eval_dir} --delete_old {conf.generator_buffer} --sleep 20'
+    print(f'Starting data generator:\n{cmd}')
+    p2 = subprocess.Popen(cmd.split(' '), stdout=subprocess.DEVNULL)
+    # Check
+    time.sleep(5)
+    assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
+    # Wait
+    print(f'Waiting for {conf.generator_wait} sec for initial data')
+    time.sleep(conf.generator_wait)
+    # Check again
+    assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
+
+
+def get_profiler(conf):
+    if conf.enable_profiler:
+        return torch.profiler.profile(
+            schedule=torch.profiler.schedule(wait=10, warmup=10, active=2, repeat=5),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler('./log'),
+        )
+    else:
+        return NoProfiler()
 
 
 if __name__ == '__main__':
