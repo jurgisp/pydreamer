@@ -159,12 +159,12 @@ def run(conf):
 
             image, action, reset, map = preprocess(batch)
             if state is None or not conf.keep_state:
-                state = model.init_state(image.size(1))
+                state = model.init_state(image.size(1) * conf.iwae_samples)
 
             # Predict
 
             state_in = state
-            output = model.forward(image, action, reset, map, state)  # type: ignore
+            output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)  # type: ignore
             state = output[-1]
 
             # Loss
@@ -219,12 +219,13 @@ def run(conf):
 
             # Log artifacts
 
+            # TODO
             # if steps % conf.log_interval == 0:
-            if steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200.0:  # DEBUG high loss
-                print(f"{steps}: {loss_metrics['loss_model_image_max'].item():.3f}, {loss_metrics['loss_model_kl_max'].item():.3f}") 
-                with torch.no_grad():
-                    image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state_in)  # type: ignore
-                log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec)
+            # if steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200.0:  # DEBUG high loss
+            #     print(f"{steps}: {loss_metrics['loss_model_image_max'].item():.3f}, {loss_metrics['loss_model_kl_max'].item():.3f}") 
+            #     with torch.no_grad():
+            #         image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state_in)  # type: ignore
+            #     log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec)
 
             # Save model
 
@@ -252,7 +253,7 @@ def run(conf):
 
 def evaluate(prefix: str,
              steps: int,
-             model,
+             model: WorldModel,
              data_iterator: Iterator,
              preprocess: MinigridPreprocess,
              eval_batches: int,
@@ -285,7 +286,7 @@ def evaluate(prefix: str,
         # Sample loss several times and do log E[p(map|state)] = log avg[exp(loss)]
         for _ in range(eval_samples):
             with torch.no_grad():
-                output = model(image, action, reset, map, state)
+                output = model.forward(image, action, reset, map, state)
                 state_out = output[-1]
                 loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
                 image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state)

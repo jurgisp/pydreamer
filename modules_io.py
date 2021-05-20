@@ -100,15 +100,13 @@ class DenseDecoder(nn.Module):
         self._min_prob = min_prob
 
     def forward(self, x):
+        assert len(x.shape) == 2
         return self._model(x)
 
     def loss(self,
-             output,  # (N,B C,H,W)
-             target   # float(N,B,C,H,W) or int(N,B,H,W)
+             output,  # (NB,C,H,W)
+             target   # float(NB,C,H,W) or int(NB,H,W)
              ):
-        n = output.size(0)
-        output = flatten(output)  # (N,B,C,H,W) => (NB,C,H,W)
-        target = flatten(target)  # (N,B,...) => (NB,...)
         if output.shape == target.shape:
             target = target.argmax(dim=-3)  # float(NB,C,H,W) => int(NB,H,W)
 
@@ -118,8 +116,7 @@ class DenseDecoder(nn.Module):
             prob = F.softmax(output, 1)
             prob = (1.0 - self._min_prob) * prob + self._min_prob * (1.0 / prob.size(1))  # mix with uniform prob
             loss = F.nll_loss(prob.log(), target, reduction='none')
-
-        loss = unflatten(loss, n)
+        
         return loss.sum(dim=[-1, -2])
 
 
@@ -192,21 +189,17 @@ class DirectHead(nn.Module):
         self._decoder = decoder
 
     def forward(self,
-                obs,       # tensor(N, B, C, H, W)
-                state,     # tensor(N, B, D+S+G)
+                # obs,       # tensor(B, C, H, W)
+                state,     # tensor(B, D+S+G)
                 ):
-        n = obs.size(0)
-        obs_pred = self._decoder(flatten(state))
-        return (
-            unflatten(obs_pred, n),       # tensor(N, B, C, H, W)
-        )
+        assert len(state.shape) == 2
+        return self._decoder(state)  # TODO: make VAE head -compatible
 
     def loss(self,
              obs_pred,          # forward() output
              obs_target,        # tensor(N, B, C, H, W)
              ):
-        loss = self._decoder.loss(obs_pred, obs_target).mean()
-        return loss, {}
+        return self._decoder.loss(obs_pred, obs_target)  # TODO: make VAE head -compatible
 
     def predict_obs(self,
                     obs_pred,                 # forward() output

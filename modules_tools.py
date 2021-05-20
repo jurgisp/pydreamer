@@ -1,3 +1,4 @@
+from typing import Tuple
 import numpy as np
 import torch
 import torch.nn as nn
@@ -10,10 +11,17 @@ def flatten(x: Tensor) -> Tensor:
     # (N, B, ...) => (N*B, ...)
     return torch.reshape(x, (-1,) + x.shape[2:])
 
+def flatten3(x: Tensor) -> Tensor:
+    # (N, B, ...) => (N*B, ...)
+    return torch.reshape(x, (-1,) + x.shape[3:])
 
 def unflatten(x: Tensor, n: int) -> Tensor:
     # (N*B, ...) => (N, B, ...)
     return torch.reshape(x, (n, -1) + x.shape[1:])
+
+def unflatten3(x: Tensor, nb: Tuple) -> Tensor:
+    # (NBI, ...) => (N,B,I, ...)
+    return torch.reshape(x, nb + (-1,) + x.shape[1:])
 
 
 def cat(x1, x2):
