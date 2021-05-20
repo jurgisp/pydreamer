@@ -38,8 +38,8 @@ class WorldModel(nn.Module):
                               hidden_dim=hidden_dim,
                               global_dim=self._global_dim)
         self._input_rnn = GRU2Inputs(encoder.out_dim,
-                                     action_dim, 
-                                     encoder.out_dim, 
+                                     action_dim,
+                                     encoder.out_dim,
                                      encoder.out_dim)
         for m in self.modules():
             init_weights_tf2(m)
@@ -136,9 +136,14 @@ class WorldModel(nn.Module):
              image,                                      # tensor(N, B, C, H, W)
              map,                                        # tensor(N, B, MH, MW)
              ):
+        metrics, log_tensors = {}, {}
+
         loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
         loss_image = self._decoder_image.loss(image_rec, image)
-        log_tensors = dict(loss_kl=loss_kl.detach())
+
+        log_tensors.update(loss_kl=loss_kl.detach(), loss_image=loss_image.detach())
+        metrics.update(loss_model_kl_max=loss_kl.detach().max(), loss_model_image_max=loss_image.detach().max())
+
         assert loss_kl.shape == loss_image.shape
         loss_kl = loss_kl.mean()        # (N, B) => ()
         loss_image = loss_image.mean()
@@ -150,7 +155,7 @@ class WorldModel(nn.Module):
 
         loss = loss_model + self._map_weight * loss_map
 
-        metrics = dict(loss_model_kl=loss_kl.detach(),
+        metrics.update(loss_model_kl=loss_kl.detach(),
                        loss_model_image=loss_image.detach(),
                        loss_model_mem=loss_mem.detach(),
                        loss_model=loss_model.detach(),
