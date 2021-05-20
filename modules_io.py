@@ -82,7 +82,7 @@ class DenseEncoder(nn.Module):
 
 class DenseDecoder(nn.Module):
 
-    def __init__(self, in_dim, out_shape=(33, 7, 7), activation=nn.ELU, hidden_dim=400, hidden_layers=2):
+    def __init__(self, in_dim, out_shape=(33, 7, 7), activation=nn.ELU, hidden_dim=400, hidden_layers=2, min_prob=0):
         super().__init__()
         self.in_dim = in_dim
         layers = []
@@ -97,6 +97,7 @@ class DenseDecoder(nn.Module):
             nn.Linear(hidden_dim, np.prod(out_shape)),
             nn.Unflatten(-1, out_shape)]
         self._model = nn.Sequential(*layers)
+        self._min_prob = min_prob
 
     def forward(self, x):
         return self._model(x)
@@ -110,7 +111,14 @@ class DenseDecoder(nn.Module):
         target = flatten(target)  # (N,B,...) => (NB,...)
         if output.shape == target.shape:
             target = target.argmax(dim=-3)  # float(NB,C,H,W) => int(NB,H,W)
-        loss = F.cross_entropy(output, target, reduction='none')  # target: (NB,H,W)
+
+        if self._min_prob == 0:
+            loss = F.nll_loss(F.log_softmax(output, 1), target, reduction='none')  # = F.cross_entropy()
+        else:
+            prob = F.softmax(output, 1)
+            prob = (1.0 - self._min_prob) * prob + self._min_prob * (1.0 / prob.size(1))  # mix with uniform prob
+            loss = F.nll_loss(prob.log(), target, reduction='none')
+
         loss = unflatten(loss, n)
         return loss.sum(dim=[-1, -2])
 

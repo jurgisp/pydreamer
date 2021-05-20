@@ -66,7 +66,8 @@ def run(conf):
     else:
         decoder = DenseDecoder(in_dim=state_dim,
                                out_shape=(conf.channels, conf.image_size, conf.image_size),
-                               hidden_layers=conf.image_decoder_layers)
+                               hidden_layers=conf.image_decoder_layers,
+                               min_prob=conf.decoder_min_prob)
 
     # Map decoder
 
@@ -77,7 +78,8 @@ def run(conf):
                                  hidden_layers=3),
             decoder=DenseDecoder(in_dim=state_dim + conf.map_stoch_dim,
                                  out_shape=(conf.channels, conf.map_size, conf.map_size),
-                                 hidden_layers=4),
+                                 hidden_layers=4,
+                                 min_prob=conf.decoder_min_prob),
             state_dim=state_dim,
             latent_dim=conf.map_stoch_dim
         )
@@ -85,7 +87,8 @@ def run(conf):
         map_model = DirectHead(
             decoder=DenseDecoder(in_dim=state_dim,
                                  out_shape=(conf.channels, conf.map_size, conf.map_size),
-                                 hidden_layers=4),
+                                 hidden_layers=4,
+                                 min_prob=conf.decoder_min_prob),
         )
     else:
         map_model = NoHead(out_shape=(conf.channels, conf.map_size, conf.map_size))
