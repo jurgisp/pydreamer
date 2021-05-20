@@ -103,7 +103,7 @@ class WorldModel(nn.Module):
         # forward() modified for prediction
 
         in_state, in_rnn_state, in_mem_state = in_state_full
-        n = image.size(0)
+        n, b = image.shape[:2]
         embed = unflatten(self._encoder(flatten(image)), n)  # (N,B,E)
 
         out_rnn_state = None
@@ -115,10 +115,10 @@ class WorldModel(nn.Module):
         # mem_sample, mem_state = mem_out[0], mem_out[-1]
 
         prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, mem_sample, I=I)
-        features_flat = flatten(features)
+        features_flat = flatten3(features)
 
-        image_rec = unflatten(self._decoder_image(features_flat), n)
-        map_out = self._map_model.forward(features_flat.detach())
+        image_rec = unflatten3(self._decoder_image.forward(features_flat), (n, b))
+        map_out = unflatten3(self._map_model.forward(features_flat if self._map_grad else features_flat.detach()), (n, b))
 
         # Prediction part
 
@@ -126,11 +126,17 @@ class WorldModel(nn.Module):
         h, post_samples, g = features.split([self._deter_dim, self._stoch_dim, self._global_dim], -1)
         prior_samples = diag_normal(prior).sample()
         features_prior = cat3(h, prior_samples, g)
-        image_pred = unflatten(self._decoder_image(flatten(features_prior)), n)  # (N,B,C,H,W)
+        image_pred = unflatten3(self._decoder_image(flatten3(features_prior)), (n, b))
+
+        # TODO
+        assert I == 1, "Not implemented"
+        image_pred = image_pred.squeeze(2)
+        image_rec = image_rec.squeeze(2)
+        map_out = map_out.squeeze(2)
 
         image_pred_distr = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,H,W) => (N,B,H,W,C)
         image_rec_distr = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2))
-        map_rec_distr = self._map_model.predict_obs(*map_out)
+        map_rec_distr = self._map_model.predict_obs(map_out)
 
         return (
             image_pred_distr,    # categorical(N,B,H,W,C)
