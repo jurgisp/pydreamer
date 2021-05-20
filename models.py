@@ -62,17 +62,17 @@ class WorldModel(nn.Module):
 
         in_state, in_rnn_state, in_mem_state = in_state_full
         n = image.size(0)
-        embed = unflatten(self._encoder(flatten(image)), n)
+        embed = unflatten(self._encoder(flatten(image)), n)  # (N,B,E)
 
         out_rnn_state = None
         # embed_rnn, out_rnn_state = self._input_rnn.forward(embed, action, in_rnn_state)  # TODO: should apply reset
         # embed = embed_rnn
 
-        mem_out = self._mem_model(embed, action, reset, in_mem_state)
-        mem_sample, mem_state = mem_out[0], mem_out[-1]
+        mem_out, mem_sample, mem_state = (None,), None, None
+        # mem_out = self._mem_model(embed, action, reset, in_mem_state)
+        # mem_sample, mem_state = mem_out[0], mem_out[-1]
 
-        glob_state = mem_sample
-        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, glob_state)
+        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, mem_sample)
         features_flat = flatten(features)
 
         image_rec = unflatten(self._decoder_image(features_flat), n)
@@ -103,14 +103,15 @@ class WorldModel(nn.Module):
         n = image.size(0)
         embed = unflatten(self._encoder(flatten(image)), n)
 
+        out_rnn_state = None
         # embed_rnn, out_rnn_state = self._input_rnn.forward(embed, action, in_rnn_state)  # TODO: should apply reset
         # embed = embed_rnn
 
-        mem_out = self._mem_model(embed[:-1], action[:-1], reset[:-1], in_mem_state)  # Diff from forward(): hide last observation
-        mem_sample, mem_state = mem_out[0], mem_out[-1]
+        mem_out, mem_sample, mem_state = (None,), None, None
+        # mem_out = self._mem_model(embed[:-1], action[:-1], reset[:-1], in_mem_state)  # Diff from forward(): hide last observation
+        # mem_sample, mem_state = mem_out[0], mem_out[-1]
 
-        glob_state = mem_sample
-        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, glob_state)
+        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, mem_sample)
         features_flat = flatten(features)
 
         image_rec = unflatten(self._decoder_image(features_flat), n)

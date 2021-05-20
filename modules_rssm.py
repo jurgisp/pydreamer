@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Any
 import numpy as np
 import torch
 import torch.nn as nn
@@ -20,7 +20,7 @@ class RSSMCore(nn.Module):
                 action: Tensor,      # tensor(N, B, A)
                 reset: Tensor,       # tensor(N, B)
                 in_state: Tuple[Tensor, Tensor],    # tensor(   B, D+S+G)
-                glob_state: Tensor,  # tensor(   B, G)
+                glob_state: Any,  # tensor(   B, G)
                 ):
 
         n, b = embed.shape[:2]
