@@ -187,7 +187,6 @@ def run(conf):
             # Metrics
 
             steps += 1
-            metrics['loss'].append(loss.item())
             for k, v in loss_metrics.items():
                 metrics[k].append(v.item())
             if grad_norm is not None:

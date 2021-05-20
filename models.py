@@ -148,13 +148,16 @@ class WorldModel(nn.Module):
         loss_map, metrics_map = self._map_model.loss(*map_out, map)
         metrics_map = {k.replace('loss_', 'loss_map_'): v for k, v in metrics_map.items()}  # loss_kl => loss_map_kl
 
+        loss = loss_model + self._map_weight * loss_map
+
         metrics = dict(loss_model_kl=loss_kl.detach(),
                        loss_model_image=loss_image.detach(),
                        loss_model_mem=loss_mem.detach(),
                        loss_model=loss_model.detach(),
                        loss_map=loss_map.detach(),
+                       loss=loss.detach(),
                        **metrics_map)
-        return loss_model + self._map_weight * loss_map, metrics, log_tensors
+        return loss, metrics, log_tensors
 
 
 class MapPredictModel(nn.Module):
