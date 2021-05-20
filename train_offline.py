@@ -194,6 +194,8 @@ def run(conf):
 
             # Log metrics
 
+            print(f"{steps}: {loss_metrics['loss_model_image_max'].item():.3f}, {loss_metrics['loss_model_kl_max'].item():.3f}")  # DEBUG
+
             if steps % conf.log_interval == 0:
                 metrics = {k: np.mean(v) for k, v in metrics.items()}
                 metrics['_step'] = steps
