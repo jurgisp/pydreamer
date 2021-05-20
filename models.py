@@ -20,6 +20,7 @@ class WorldModel(nn.Module):
                  kl_weight=1.0,
                  map_grad=False,
                  map_weight=0.1,  # Only matters if map_grad
+                 iwae_samples=0,      # arxiv.org/abs/1509.00519
                  ):
         super().__init__()
         self._encoder = encoder
@@ -32,6 +33,7 @@ class WorldModel(nn.Module):
         self._kl_weight = kl_weight
         self._map_grad = map_grad
         self._map_weight = map_weight
+        self._iwae_samples = iwae_samples
         self._core = RSSMCore(embed_dim=encoder.out_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
@@ -139,7 +141,15 @@ class WorldModel(nn.Module):
              ):
         metrics, log_tensors = {}, {}
 
-        loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
+        if not self._iwae_samples:
+            # Usual VAE KL loss
+            loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
+        else:
+            # Sampled KL loss
+            prior_d = diag_normal(prior)
+            post_d = diag_normal(post)
+            loss_kl = post_d.log_prob(post_samples) - prior_d.log_prob(post_samples)
+
         loss_image = self._decoder_image.loss(image_rec, image)
 
         log_tensors.update(loss_kl=loss_kl.detach(), loss_image=loss_image.detach())

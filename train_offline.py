@@ -117,6 +117,7 @@ def run(conf):
             hidden_dim=conf.hidden_dim,
             kl_weight=conf.kl_weight,
             map_grad=conf.map_grad,
+            iwae_samples=conf.iwae_samples
         )
     elif conf.model == 'map_rnn':
         model = MapPredictModel(
