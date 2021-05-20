@@ -70,7 +70,7 @@ class WorldModel(nn.Module):
         mem_sample, mem_state = mem_out[0], mem_out[-1]
 
         glob_state = mem_sample
-        prior, post, features, out_state = self._core(embed, action, reset, in_state, glob_state)
+        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, glob_state)
         features_flat = flatten(features)
 
         image_rec = unflatten(self._decoder_image(features_flat), n)
@@ -79,6 +79,7 @@ class WorldModel(nn.Module):
         return (
             prior,                       # tensor(N, B, 2*S)
             post,                        # tensor(N, B, 2*S)
+            post_samples,                # tensor(N, B, S)
             image_rec,                   # tensor(N, B, C, H, W)
             map_out,                     # tuple, map.forward() output
             features,                    # tensor(N, B, D+S+G)
@@ -107,7 +108,7 @@ class WorldModel(nn.Module):
         mem_sample, mem_state = mem_out[0], mem_out[-1]
 
         glob_state = mem_sample
-        prior, post, features, out_state = self._core(embed, action, reset, in_state, glob_state)
+        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, glob_state)
         features_flat = flatten(features)
 
         image_rec = unflatten(self._decoder_image(features_flat), n)
@@ -116,9 +117,9 @@ class WorldModel(nn.Module):
         # Prediction part
 
         # Make states with z sampled from prior instead of posterior
-        h, z_post, g = features.split([self._deter_dim, self._stoch_dim, self._global_dim], -1)
-        z_prior = diag_normal(prior).sample()
-        features_prior = cat3(h, z_prior, g)
+        h, post_samples, g = features.split([self._deter_dim, self._stoch_dim, self._global_dim], -1)
+        prior_samples = diag_normal(prior).sample()
+        features_prior = cat3(h, prior_samples, g)
         image_pred = unflatten(self._decoder_image(flatten(features_prior)), n)  # (N,B,C,H,W)
 
         image_pred_distr = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,H,W) => (N,B,H,W,C)
@@ -132,7 +133,7 @@ class WorldModel(nn.Module):
         )
 
     def loss(self,
-             prior, post, image_rec, map_out, states, mem_out, out_state_full,     # forward() output
+             prior, post, post_samples, image_rec, map_out, states, mem_out, out_state_full,     # forward() output
              image,                                      # tensor(N, B, C, H, W)
              map,                                        # tensor(N, B, MH, MW)
              ):

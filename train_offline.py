@@ -163,7 +163,7 @@ def run(conf):
             # Predict
 
             state_in = state
-            output = model.forward(image, action, reset, map, state)
+            output = model.forward(image, action, reset, map, state)  # type: ignore
             state = output[-1]
 
             # Loss
@@ -222,7 +222,7 @@ def run(conf):
 
             if steps % conf.log_interval == 0:
                 with torch.no_grad():
-                    image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state_in)
+                    image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state_in)  # type: ignore
                 log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec)
 
             # Save model

@@ -16,11 +16,11 @@ class RSSMCore(nn.Module):
         self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim)
 
     def forward(self,
-                embed,       # tensor(N, B, E)
-                action,      # tensor(N, B, A)
-                reset,       # tensor(N, B)
+                embed: Tensor,       # tensor(N, B, E)
+                action: Tensor,      # tensor(N, B, A)
+                reset: Tensor,       # tensor(N, B)
                 in_state: Tuple[Tensor, Tensor],    # tensor(   B, D+S+G)
-                glob_state,  # tensor(   B, G)
+                glob_state: Tensor,  # tensor(   B, G)
                 ):
 
         n, b = embed.shape[:2]
@@ -34,28 +34,29 @@ class RSSMCore(nn.Module):
         priors = []
         posts = []
         states_h = []
-        states_z = []
-        state = in_state
+        samples = []
+        (h, z) = in_state
 
         for i in range(n):
-            post, state = self._cell.forward(embeds[i], actions[i], reset_masks[i], state, glob_state, noises[i])
+            post, (h, z) = self._cell.forward(embeds[i], actions[i], reset_masks[i], (h, z), glob_state, noises[i])
             posts.append(post)
-            states_h.append(state[0])
-            states_z.append(state[1])
+            states_h.append(h)
+            samples.append(z)
 
         posts = torch.stack(posts)
         states_h = torch.stack(states_h)
-        states_z = torch.stack(states_z)
+        samples = torch.stack(samples)
 
         priors = self._cell.batch_prior(states_h)
 
-        features = cat(states_h, states_z)  # TODO: cat3(.., glob_state)
+        features = cat(states_h, samples)  # TODO: cat3(.., glob_state)
 
         return (
             priors,                      # tensor(N, B, 2*S)
             posts,                       # tensor(N, B, 2*S)
+            samples,                     # tensor(N, B, S)
             features,                    # tensor(N, B, D+S+G)
-            (state[0].detach(), state[1].detach()),
+            (h.detach(), z.detach()),
         )
 
     def init_state(self, batch_size):
@@ -99,7 +100,10 @@ class RSSMCell(nn.Module):
                 in_state: Tuple[Tensor, Tensor],  # tensor(B, D+S+G)
                 glob_state: Tensor,               # tensor(B, G)
                 noise: Tensor,                    # tensor(B, S)
-                ):
+                ) -> Tuple[
+                    Tensor,
+                    Tuple[Tensor, Tensor]
+                ]:
 
         in_h, in_z = in_state
         in_h = in_h * reset_mask
@@ -119,8 +123,8 @@ class RSSMCell(nn.Module):
         )
 
     def batch_prior(self,
-                    states_h,     # tensor(N, B, D)
-                    ):
+                    states_h: Tensor,     # tensor(N, B, D)
+                    ) -> Tensor:
 
         prior_in = F.elu(self._prior_mlp_h(states_h))
         prior = self._prior_mlp(prior_in)               # (N, B, 2*S)
