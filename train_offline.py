@@ -195,8 +195,6 @@ def run(conf):
 
             # Log metrics
 
-            print(f"{steps}: {loss_metrics['loss_model_image_max'].item():.3f}, {loss_metrics['loss_model_kl_max'].item():.3f}")  # DEBUG
-
             if steps % conf.log_interval == 0:
                 metrics = {k: np.mean(v) for k, v in metrics.items()}
                 metrics['_step'] = steps
@@ -221,7 +219,9 @@ def run(conf):
 
             # Log artifacts
 
-            if steps % conf.log_interval == 0:
+            # if steps % conf.log_interval == 0:
+            if steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200.0:  # DEBUG high loss
+                print(f"{steps}: {loss_metrics['loss_model_image_max'].item():.3f}, {loss_metrics['loss_model_kl_max'].item():.3f}") 
                 with torch.no_grad():
                     image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state_in)  # type: ignore
                 log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec)
