@@ -38,13 +38,13 @@ defaults:
   # Model
   model: world
   embed_dim: 256
-  deter_dim: 200
+  deter_dim: 512
   stoch_dim: 30
   hidden_dim: 200
   image_encoder: dense
   image_encoder_layers: 3
   image_decoder: dense
-  image_decoder_layers: 3
+  image_decoder_layers: 2
   map_stoch_dim: 30
   map_model: direct
   map_grad: False
