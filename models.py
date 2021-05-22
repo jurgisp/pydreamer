@@ -154,10 +154,10 @@ class WorldModel(nn.Module):
 
         # Map
 
-        map_rec = map_out  # TODO
+        map_rec = map_out
         output = flatten3(map_rec)  # (N,B,I,...) => (NBI,...)
         target = flatten3(map.unsqueeze(2).expand(map_rec.shape))
-        loss_map = self._map_model.loss(output, target)  # TODO
+        loss_map = self._map_model.loss(output, target)
         # metrics_map = {k.replace('loss_', 'loss_map_'): v for k, v in metrics_map.items()}  # loss_kl => loss_map_kl
         loss_map = unflatten3(loss_map, (N, B))
 

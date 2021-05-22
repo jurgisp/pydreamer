@@ -269,7 +269,7 @@ def evaluate(prefix: str,
         image, action, reset, map = preprocess(batch)
 
         if i_batch == 0:
-            print(f'Evaluation ({prefix}): batches={eval_batches} size={tuple(image.shape[0:2])} samples={eval_samples}')
+            print(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
 
         if state is None or not keep_state:
             state = model.init_state(image.size(1) * eval_samples)
