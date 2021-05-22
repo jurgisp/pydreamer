@@ -225,6 +225,7 @@ def run(conf):
                       )
                 mlflow.log_metrics(metrics, step=steps)
                 metrics = defaultdict(list)
+                metrics_max = defaultdict(list)
 
             # Save model
 

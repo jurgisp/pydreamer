@@ -99,7 +99,6 @@ class WorldModel(nn.Module):
                 in_state_full: Tuple[Any, Any, Any],
                 I: int = 1
                 ):
-        # TODO: when evaluating with global state, hide last observation in forward()
         (
             prior,
             post,
@@ -112,6 +111,7 @@ class WorldModel(nn.Module):
         ) = self.forward(image, action, reset, map, in_state_full, I=I)
 
         # Make states with z sampled from prior instead of posterior
+        # TODO: when evaluating with global state, this should predict extra step into the future, unseen by forward()
         n, b = image.shape[:2]
         h, post_samples, g = features.split([self._deter_dim, self._stoch_dim, self._global_dim], -1)
         prior_samples = diag_normal(prior).sample()
