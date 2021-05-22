@@ -105,7 +105,7 @@ def run(conf):
     # MODEL
 
     if conf.model == 'world':
-        model = WorldModel(
+        model: WorldModel = WorldModel(
             encoder=encoder,
             decoder=decoder,
             map_model=map_model,
@@ -123,7 +123,7 @@ def run(conf):
             decoder=decoder,
             map_model=map_model,
             state_dim=state_dim,
-        )
+        )  # type: ignore
     else:
         assert False, conf.model
 
@@ -148,6 +148,7 @@ def run(conf):
     last_time = start_time
     last_steps = steps
     metrics = defaultdict(list)
+    metrics_max = defaultdict(list)
 
     state = None
 
@@ -190,11 +191,13 @@ def run(conf):
                 metrics[k].append(v.item())
             if grad_norm is not None:
                 metrics['grad_norm'].append(grad_norm.item())
+                metrics_max['grad_norm_max'].append(grad_norm.item())
 
             # Log metrics
 
             if steps % conf.log_interval == 0:
                 metrics = {k: np.mean(v) for k, v in metrics.items()}
+                metrics.update({k: np.max(v) for k, v in metrics_max.items()})
                 metrics['_step'] = steps
                 metrics['_loss'] = metrics['loss']
 
