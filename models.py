@@ -99,30 +99,20 @@ class WorldModel(nn.Module):
                 in_state_full: Tuple[Any, Any, Any],
                 I: int = 1
                 ):
-
-        # forward() modified for prediction
-
-        in_state, in_rnn_state, in_mem_state = in_state_full
-        n, b = image.shape[:2]
-        embed = unflatten(self._encoder(flatten(image)), n)  # (N,B,E)
-
-        out_rnn_state = None
-        # embed_rnn, out_rnn_state = self._input_rnn.forward(embed, action, in_rnn_state)  # TODO: should apply reset
-        # embed = embed_rnn
-
-        mem_out, mem_sample, mem_state = (None,), None, None
-        # mem_out = self._mem_model(embed[:-1], action[:-1], reset[:-1], in_mem_state)  # Diff from forward(): hide last observation
-        # mem_sample, mem_state = mem_out[0], mem_out[-1]
-
-        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, mem_sample, I=I)
-        features_flat = flatten3(features)
-
-        image_rec = unflatten3(self._decoder_image.forward(features_flat), (n, b))
-        map_out = unflatten3(self._map_model.forward(features_flat if self._map_grad else features_flat.detach()), (n, b))
-
-        # Prediction part
+        # TODO: when evaluating with global state, hide last observation in forward()
+        (
+            prior,
+            post,
+            post_samples,
+            image_rec,
+            map_out,
+            features,
+            mem_out,
+            (out_state, out_rnn_state, mem_state),
+        ) = self.forward(image, action, reset, map, in_state_full, I=I)
 
         # Make states with z sampled from prior instead of posterior
+        n, b = image.shape[:2]
         h, post_samples, g = features.split([self._deter_dim, self._stoch_dim, self._global_dim], -1)
         prior_samples = diag_normal(prior).sample()
         features_prior = cat3(h, prior_samples, g)
@@ -200,7 +190,7 @@ class WorldModel(nn.Module):
                        loss_model=loss_model.detach(),
                        loss_map=loss_map.detach(),
                        loss=loss.detach(),
-                    #    **metrics_map
+                       #    **metrics_map
                        )
         return loss, metrics, log_tensors
 
@@ -282,7 +272,7 @@ class MapPredictModel(nn.Module):
         metrics = dict(loss_model_image=loss_image.detach(),
                        loss_model=loss_model.detach(),
                        loss_map=loss_map.detach(),
-                    #    **metrics_map
+                       #    **metrics_map
                        )
 
         return loss, metrics, log_tensors
