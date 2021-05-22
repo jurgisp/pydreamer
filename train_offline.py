@@ -1,3 +1,4 @@
+from typing import Optional
 import argparse
 import pathlib
 import subprocess
@@ -162,7 +163,6 @@ def run(conf):
 
             # Predict
 
-            state_in = state
             output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)  # type: ignore
             state = output[-1]
 
@@ -243,7 +243,7 @@ def run(conf):
             if conf.eval_interval and steps % conf.eval_interval == 0:
                 # Same batch as train
                 eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
-                evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.eval_samples, conf.keep_state)
+                evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.iwae_samples, conf.keep_state)
 
                 # Full episodes
                 eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size, skip_first=False)
@@ -271,56 +271,28 @@ def evaluate(prefix: str,
         if i_batch == 0:
             print(f'Evaluation ({prefix}): batches={eval_batches} size={tuple(image.shape[0:2])} samples={eval_samples}')
 
-        logprobs_map = []
-        logprobs_img = []
-        image_pred_sum = None
-        image_rec_sum = None
-        map_rec_sum = None
-        loss_tensors = {}
-
         if state is None or not keep_state:
-            state = model.init_state(image.size(1))
-        state_out = None
+            state = model.init_state(image.size(1) * eval_samples)
 
-        # Sample loss several times and do log E[p(map|state)] = log avg[exp(loss)]
-        for _ in range(eval_samples):
-            with torch.no_grad():
-                output = model.forward(image, action, reset, map, state)
-                state_out = output[-1]
-                loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
-                image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state)
+        with torch.no_grad():
+            output = model.forward(image, action, reset, map, state, I=eval_samples)
+            state = output[-1]
+            loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
 
-            logprobs_map.append(map_rec.log_prob(map.argmax(axis=-3)).sum(dim=[-1, -2]))          # Keep (N,B) dim
-            logprobs_img.append(image_pred.log_prob(image.argmax(axis=-3)).sum(dim=[-1, -2]))
+            image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state, I=eval_samples)
+            logprob_map = map_rec.log_prob(map.argmax(axis=-3)).sum(dim=[-1, -2])   # (N,B,H,W,C) => (N,B)
+            logprob_img = image_pred.log_prob(image.argmax(axis=-3)).sum(dim=[-1, -2])
 
-            for k, v in loss_metrics.items():
-                metrics_eval[k].append(v.item())
-
-            if image_pred_sum is None:
-                image_pred_sum = image_pred.probs
-                image_rec_sum = image_rec.probs
-                map_rec_sum = map_rec.probs
-            else:
-                image_pred_sum += image_pred.probs
-                image_rec_sum += image_rec.probs
-                map_rec_sum += map_rec.probs
-            # TODO: loss_tensors should be aggregated too
-
-        state = state_out  # If multiple samples, just take the state from the last, doesn't matter
-
-        logprobs_map = torch.stack(logprobs_map)  # (S,N,B)
-        logprobs_img = torch.stack(logprobs_img)
-        logprob_map = torch.logsumexp(logprobs_map, dim=0) - np.log(eval_samples)  # log avg[exp(loss)] = log sum[exp(loss)] - log(S)
-        logprob_img = torch.logsumexp(logprobs_img, dim=0) - np.log(eval_samples)  # log avg[exp(loss)] = log sum[exp(loss)] - log(S)
-        image_pred = D.Categorical(probs=image_pred_sum / eval_samples)  # Average image predictions over samples
-        image_rec = D.Categorical(probs=image_rec_sum / eval_samples)
-        map_rec = D.Categorical(probs=map_rec_sum / eval_samples)
+        for k, v in loss_metrics.items():
+            metrics_eval[k].append(v.item())
 
         metrics_eval['logprob_map'].append(-logprob_map.mean().item())
         metrics_eval['logprob_image'].append(-logprob_img.mean().item())
         metrics_eval['logprob_map_last'].append(-logprob_map[-1].mean().item())
         metrics_eval['logprob_image_last'].append(-logprob_img[-1].mean().item())
-        if i_batch == 0:  # Log just one batch
+
+        # Log just one batch
+        if i_batch == 0:
             log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir=f'd2_wm_predict_{prefix}')
 
     metrics_eval = {f'{prefix}/{k}': np.mean(v) for k, v in metrics_eval.items()}
@@ -329,7 +301,14 @@ def evaluate(prefix: str,
     print(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec')
 
 
-def log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec, top=-1, subdir='d2_wm_predict'):
+def log_batch_npz(steps,
+                  batch,
+                  loss_tensors,
+                  image_pred: Optional[D.Categorical],
+                  image_rec: Optional[D.Categorical],
+                  map_rec: Optional[D.Categorical],
+                  top=-1, 
+                  subdir='d2_wm_predict'):
     data = batch.copy()
     data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
     if image_pred is not None:

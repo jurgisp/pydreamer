@@ -204,8 +204,7 @@ class DirectHead(nn.Module):
     def predict_obs(self,
                     obs_pred,                 # forward() output
                     ):
-        obs_pred_distr = D.Categorical(logits=obs_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,MH,MW) => (N,B,MH,MW,C)
-        return obs_pred_distr       # categorical(N,B,HM,WM,C)
+        return imgrec_to_distr(obs_pred)
 
 
 class NoHead(nn.Module):

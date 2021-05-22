@@ -128,14 +128,8 @@ class WorldModel(nn.Module):
         features_prior = cat3(h, prior_samples, g)
         image_pred = unflatten3(self._decoder_image(flatten3(features_prior)), (n, b))
 
-        # TODO
-        assert I == 1, "Not implemented"
-        image_pred = image_pred.squeeze(2)
-        image_rec = image_rec.squeeze(2)
-        map_out = map_out.squeeze(2)
-
-        image_pred_distr = D.Categorical(logits=image_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,H,W) => (N,B,H,W,C)
-        image_rec_distr = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2))
+        image_pred_distr = imgrec_to_distr(image_pred)
+        image_rec_distr = imgrec_to_distr(image_rec)
         map_rec_distr = self._map_model.predict_obs(map_out)
 
         return (
