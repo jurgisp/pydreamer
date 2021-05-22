@@ -67,7 +67,7 @@ def run(conf):
         decoder = DenseDecoder(in_dim=state_dim,
                                out_shape=(conf.channels, conf.image_size, conf.image_size),
                                hidden_layers=conf.image_decoder_layers,
-                               min_prob=conf.decoder_min_prob)
+                               min_prob=conf.image_decoder_min_prob)
 
     # Map decoder
 
@@ -78,8 +78,7 @@ def run(conf):
                                  hidden_layers=3),
             decoder=DenseDecoder(in_dim=state_dim + conf.map_stoch_dim,
                                  out_shape=(conf.channels, conf.map_size, conf.map_size),
-                                 hidden_layers=4,
-                                 min_prob=conf.decoder_min_prob),
+                                 hidden_layers=4),
             state_dim=state_dim,
             latent_dim=conf.map_stoch_dim
         )
@@ -87,8 +86,7 @@ def run(conf):
         map_model = DirectHead(
             decoder=DenseDecoder(in_dim=state_dim,
                                  out_shape=(conf.channels, conf.map_size, conf.map_size),
-                                 hidden_layers=4,
-                                 min_prob=conf.decoder_min_prob),
+                                 hidden_layers=4),
         )
     else:
         map_model = NoHead(out_shape=(conf.channels, conf.map_size, conf.map_size))
@@ -308,6 +306,7 @@ def evaluate(prefix: str,
             # TODO: loss_tensors should be aggregated too
 
         state = state_out  # If multiple samples, just take the state from the last, doesn't matter
+
 
         logprobs_map = torch.stack(logprobs_map)  # (S,N,B)
         logprobs_img = torch.stack(logprobs_img)

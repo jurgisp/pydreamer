@@ -55,7 +55,7 @@ defaults:
 
   # Optimizer
   grad_clip: 100
-  decoder_min_prob: 0
+  image_decoder_min_prob: 0
 
   # Generator
   generator_run: False
