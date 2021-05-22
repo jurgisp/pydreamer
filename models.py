@@ -81,12 +81,12 @@ class WorldModel(nn.Module):
         map_out = unflatten3(self._map_model.forward(features_flat if self._map_grad else features_flat.detach()), (n, b))
 
         return (
-            prior,                       # tensor(N, B, 2*S)
-            post,                        # tensor(N, B, 2*S)
-            post_samples,                # tensor(N, B, S)
-            image_rec,                   # tensor(N, B, C, H, W)
-            map_out,                     # tuple, map.forward() output
-            features,                    # tensor(N, B, D+S+G)
+            prior,                       # (N,B,I,2S)
+            post,                        # (N,B,I,2S)
+            post_samples,                # (N,B,I,S)
+            image_rec,                   # (N,B,I,C,H,W)
+            map_out,                     # (N,B,I,C,M,M)
+            features,                    # (N,B,I,D+S+G)
             mem_out,                     # Any
             (out_state, out_rnn_state, mem_state),     # out_state_full: Any
         )

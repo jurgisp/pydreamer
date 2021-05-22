@@ -174,14 +174,9 @@ def run(conf):
 
             optimizer.zero_grad()
             loss.backward()
-
-            if conf.grad_clip:
-                grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
-                # var_norm = torch.norm(torch.stack([torch.norm(p.detach()) for p in model.parameters() if p.requires_grad]))
-                # metrics['var_norm'].append(var_norm.item())
-            else:
-                grad_norm = None
-
+            grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
+            # var_norm = torch.norm(torch.stack([torch.norm(p.detach()) for p in model.parameters() if p.requires_grad]))
+            # metrics['var_norm'].append(var_norm.item())
             optimizer.step()
 
             # Metrics
@@ -192,6 +187,19 @@ def run(conf):
             if grad_norm is not None:
                 metrics['grad_norm'].append(grad_norm.item())
                 metrics_max['grad_norm_max'].append(grad_norm.item())
+
+            # Log sample
+
+            # if steps % conf.log_interval == 0:
+            if (steps == 1) or (steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200.0):  # DEBUG high loss
+                print(f"[{steps}] Saving batch sample:"
+                      f"  loss_model_image_max: {loss_metrics['loss_model_image_max'].item():.1f}"
+                      f"  loss_model_kl_max: {loss_metrics['loss_model_kl_max'].item():.1f}")
+                with torch.no_grad():
+                    image_rec, map_rec = output[3], output[4]
+                    image_rec_distr = imgrec_to_distr(image_rec)
+                    map_rec_distr = imgrec_to_distr(map_rec)
+                log_batch_npz(steps, batch, loss_tensors, None, image_rec_distr, map_rec_distr)
 
             # Log metrics
 
@@ -217,16 +225,6 @@ def run(conf):
                       )
                 mlflow.log_metrics(metrics, step=steps)
                 metrics = defaultdict(list)
-
-            # Log artifacts
-
-            # TODO
-            # if steps % conf.log_interval == 0:
-            # if steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200.0:  # DEBUG high loss
-            #     print(f"{steps}: {loss_metrics['loss_model_image_max'].item():.3f}, {loss_metrics['loss_model_kl_max'].item():.3f}") 
-            #     with torch.no_grad():
-            #         image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state_in)  # type: ignore
-            #     log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec)
 
             # Save model
 
@@ -310,7 +308,6 @@ def evaluate(prefix: str,
 
         state = state_out  # If multiple samples, just take the state from the last, doesn't matter
 
-
         logprobs_map = torch.stack(logprobs_map)  # (S,N,B)
         logprobs_img = torch.stack(logprobs_img)
         logprob_map = torch.logsumexp(logprobs_map, dim=0) - np.log(eval_samples)  # log avg[exp(loss)] = log sum[exp(loss)] - log(S)
@@ -335,12 +332,15 @@ def evaluate(prefix: str,
 def log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec, top=-1, subdir='d2_wm_predict'):
     data = batch.copy()
     data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
-    data['image_pred'] = image_pred.sample().cpu().numpy()
-    data['image_rec'] = image_rec.sample().cpu().numpy()
-    data['map_rec'] = map_rec.sample().cpu().numpy()
-    data['image_pred_p'] = image_pred.probs.cpu().numpy()
-    data['image_rec_p'] = image_rec.probs.cpu().numpy()
-    data['map_rec_p'] = map_rec.probs.cpu().numpy()
+    if image_pred is not None:
+        data['image_pred'] = image_pred.sample().cpu().numpy()
+        data['image_pred_p'] = image_pred.probs.cpu().numpy()
+    if image_rec is not None:
+        data['image_rec'] = image_rec.sample().cpu().numpy()
+        data['image_rec_p'] = image_rec.probs.cpu().numpy()
+    if map_rec is not None:
+        data['map_rec'] = map_rec.sample().cpu().numpy()
+        data['map_rec_p'] = map_rec.probs.cpu().numpy()
     data = {k: v.swapaxes(0, 1)[:top] for k, v in data.items()}  # (N,B,...) => (B,N,...)
     tools.mlflow_log_npz(data, f'{steps:07}.npz', subdir)
 

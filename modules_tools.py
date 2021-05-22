@@ -11,13 +11,16 @@ def flatten(x: Tensor) -> Tensor:
     # (N, B, ...) => (N*B, ...)
     return torch.reshape(x, (-1,) + x.shape[2:])
 
+
 def flatten3(x: Tensor) -> Tensor:
     # (N, B, ...) => (N*B, ...)
     return torch.reshape(x, (-1,) + x.shape[3:])
 
+
 def unflatten(x: Tensor, n: int) -> Tensor:
     # (N*B, ...) => (N, B, ...)
     return torch.reshape(x, (n, -1) + x.shape[1:])
+
 
 def unflatten3(x: Tensor, nb: Tuple) -> Tensor:
     # (NBI, ...) => (N,B,I, ...)
@@ -64,3 +67,16 @@ def init_weights_tf2(m):
         nn.init.orthogonal_(m.weight_hh.data)
         nn.init.zeros_(m.bias_ih.data)
         nn.init.zeros_(m.bias_hh.data)
+
+
+def imgrec_to_distr(x: Tensor) -> D.Categorical:  # (N,B,I,C,H,W) -> (N,B,H,W,C)
+    assert len(x.shape) == 6
+    x = x.permute(2, 0, 1, 4, 5, 3) # (N,B,I,C,H,W) => (I,N,B,H,W,C)
+    I = x.size(0)
+    # TODO: do without brute-force sum
+    probs = []
+    for i in range(I):
+        p = D.Categorical(logits=x[i]).probs  # (N,B,H,W,C)
+        probs.append(p)
+    agg_prob = torch.stack(probs).mean(dim=0)  # Average I samples
+    return D.Categorical(probs=agg_prob)
