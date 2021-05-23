@@ -35,22 +35,22 @@ class WorldModel(nn.Module):
         self._map_grad = map_grad
         self._map_weight = map_weight
         self._iwae_samples = iwae_samples
-        self._core = RSSMCore(embed_dim=encoder.out_dim,
+        self._core = RSSMCore(embed_dim=encoder.out_dim * 3,  # TODO: 3 = 1 + input_rnn_directions
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
                               hidden_dim=hidden_dim,
                               global_dim=self._global_dim)
-        self._input_rnn = GRU2Inputs(encoder.out_dim,
-                                     action_dim,
-                                     encoder.out_dim,
-                                     encoder.out_dim)
+        self._input_rnn = GRU2Inputs(input1_dim=encoder.out_dim,
+                                     input2_dim=action_dim,
+                                     mlp_dim=encoder.out_dim,
+                                     state_dim=encoder.out_dim,
+                                     bidirectional=True)
         for m in self.modules():
             init_weights_tf2(m)
 
-    def init_state(self, batch_size: int) -> Tuple[Any, Any, Any]:
+    def init_state(self, batch_size: int) -> Tuple[Any, Any]:
         return (
             self._core.init_state(batch_size),
-            self._input_rnn.init_state(batch_size),
             self._mem_model.init_state(batch_size))
 
     def forward(self,
@@ -58,17 +58,17 @@ class WorldModel(nn.Module):
                 action: Tensor,    # tensor(N, B, A)
                 reset: Tensor,     # tensor(N, B)
                 map: Tensor,       # tensor(N, B, C, MH, MW)
-                in_state_full: Tuple[Any, Any, Any],
+                in_state_full: Tuple[Any, Any],
                 I: int = 1
                 ):
 
-        in_state, in_rnn_state, in_mem_state = in_state_full
+        in_state, in_mem_state = in_state_full
         n, b = image.shape[:2]
         embed = unflatten(self._encoder(flatten(image)), n)  # (N,B,E)
 
-        out_rnn_state = None
-        # embed_rnn, out_rnn_state = self._input_rnn.forward(embed, action, in_rnn_state)  # TODO: should apply reset
-        # embed = embed_rnn
+        # TODO: should apply reset
+        embed_rnn, _ = self._input_rnn.forward(embed, action)  # (N,B,2E)
+        embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E)
 
         mem_out, mem_sample, mem_state = (None,), None, None
         # mem_out = self._mem_model(embed, action, reset, in_mem_state)
@@ -88,7 +88,7 @@ class WorldModel(nn.Module):
             map_out,                     # (N,B,I,C,M,M)
             features,                    # (N,B,I,D+S+G)
             mem_out,                     # Any
-            (out_state, out_rnn_state, mem_state),     # out_state_full: Any
+            (out_state, mem_state),     # out_state_full: Any
         )
 
     def predict(self,
@@ -96,7 +96,7 @@ class WorldModel(nn.Module):
                 action: Tensor,    # tensor(N, B, A)
                 reset: Tensor,     # tensor(N, B)
                 map: Tensor,       # tensor(N, B, C, MH, MW)
-                in_state_full: Tuple[Any, Any, Any],
+                in_state_full: Tuple[Any, Any],
                 I: int = 1
                 ):
         (
@@ -107,7 +107,7 @@ class WorldModel(nn.Module):
             map_out,
             features,
             mem_out,
-            (out_state, out_rnn_state, mem_state),
+            (out_state, mem_state),
         ) = self.forward(image, action, reset, map, in_state_full, I=I)
 
         # Make states with z sampled from prior instead of posterior
