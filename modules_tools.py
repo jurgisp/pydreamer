@@ -77,3 +77,7 @@ def imgrec_to_distr(x: Tensor) -> D.Categorical:  # (N,B,I,C,H,W) -> (N,B,H,W,C)
     # Aggregate prob=avg(prob_i)
     logits_agg = torch.logsumexp(logits, dim=0)  # (I,N,B,H,W,C) => (N,B,H,W,C)
     return D.Categorical(logits=logits_agg)
+
+
+def logavgexp(x: Tensor, dim: int) -> Tensor:
+    return x.logsumexp(dim=dim) - np.log(x.size(dim))

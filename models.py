@@ -133,8 +133,6 @@ class WorldModel(nn.Module):
              image,                                      # tensor(N, B, C, H, W)
              map,                                        # tensor(N, B, MH, MW)
              ):
-        metrics, log_tensors = {}, {}
-
         # Image
 
         N, B, I = image_rec.shape[:3]
@@ -159,40 +157,50 @@ class WorldModel(nn.Module):
         target = flatten3(map.unsqueeze(2).expand(map_rec.shape))
         loss_map = self._map_model.loss(output, target)
         # metrics_map = {k.replace('loss_', 'loss_map_'): v for k, v in metrics_map.items()}  # loss_kl => loss_map_kl
-        loss_map = unflatten3(loss_map, (N, B))
+        loss_map = unflatten3(loss_map, (N, B))    # (N,B,I)
 
         # IWAE averaging
 
-        with torch.no_grad():
-            weights = F.softmax(- (loss_image + loss_kl), dim=-1)
+        # loss = log (p1 + p2)/2
+        #      = log (exp(l1) + exp(l2)) / 2
+        #      = log (exp(l1) + exp(l2)) - log 2
+        # d loss = ( exp(l1) d l1 + exp(l2) d l2 ) / (exp(l1)+exp(l2))
+        # d loss / d w = exp(l1)/(exp(l1)+exp(l2)) dl1/dw + ...
+
+        with torch.no_grad():  # This stop gradient is important for correctness
+            weights = F.softmax(- (loss_image + loss_kl), dim=-1)    # TODO: should we apply kl_weight here?
             weights_map = F.softmax(-loss_map, dim=-1)
-        loss_image = (weights * loss_image).sum(dim=-1)  # (N,B,I) => (N,B)
-        loss_kl = (weights * loss_kl).sum(dim=-1)
-        loss_map = (weights_map * loss_map).sum(dim=-1)
+        dloss_image = (weights * loss_image).sum(dim=-1)  # (N,B,I) => (N,B)
+        dloss_kl = (weights * loss_kl).sum(dim=-1)
+        dloss_map = (weights_map * loss_map).sum(dim=-1)
 
-        # Add up
+        dloss = (dloss_image.mean()
+                 + self._kl_weight * dloss_kl.mean()
+                 + self._map_weight * dloss_map.mean())
 
-        log_tensors.update(loss_kl=loss_kl.detach(), loss_image=loss_image.detach())
-        metrics.update(loss_model_kl_max=loss_kl.detach().max(), loss_model_image_max=loss_image.detach().max())
+        # Metrics
 
-        assert loss_kl.shape == loss_image.shape
-        loss_kl = loss_kl.mean()        # (N, B) => ()
-        loss_image = loss_image.mean()
-        loss_mem = self._mem_model.loss(*mem_out)
-        loss_model = self._kl_weight * loss_kl + loss_image + loss_mem
+        with torch.no_grad():
+            loss_model = logavgexp(loss_kl + loss_image, dim=-1)  # not the same as (loss_kl+loss_image)
+            loss_image = logavgexp(loss_image, dim=-1)
+            loss_kl = logavgexp(loss_kl, dim=-1)
+            loss_map = logavgexp(loss_map, dim=-1)
 
-        loss_map = loss_map.mean()
-        loss = loss_model + self._map_weight * loss_map
+            log_tensors = dict(loss_kl=loss_kl,
+                               loss_image=loss_image)
 
-        metrics.update(loss_model_kl=loss_kl.detach(),
-                       loss_model_image=loss_image.detach(),
-                       loss_model_mem=loss_mem.detach(),
-                       loss_model=loss_model.detach(),
-                       loss_map=loss_map.detach(),
-                       loss=loss.detach(),
-                       #    **metrics_map
-                       )
-        return loss, metrics, log_tensors
+            metrics = dict(loss=dloss.detach(),
+                           loss_model=loss_model.mean(),
+                           loss_model_image=loss_image.mean(),
+                           loss_model_image_max=loss_image.max(),
+                           loss_model_kl=loss_kl.mean(),
+                           loss_model_kl_max=loss_kl.max(),
+                           loss_model_mem=torch.tensor(0.0),
+                           loss_map=loss_map.mean(),
+                           #    **metrics_map
+                           )
+
+        return dloss, metrics, log_tensors
 
 
 class MapPredictModel(nn.Module):
