@@ -116,7 +116,8 @@ def run(conf):
             hidden_dim=conf.hidden_dim,
             kl_weight=conf.kl_weight,
             map_grad=conf.map_grad,
-            iwae_samples=conf.iwae_samples
+            iwae_samples=conf.iwae_samples,
+            embed_rnn=conf.embed_rnn != 'none'
         )
     elif conf.model == 'map_rnn':
         model = MapPredictModel(
@@ -132,7 +133,8 @@ def run(conf):
 
     print(f'Model: {param_count(model)} parameters')
     for submodel in [model._encoder, model._decoder_image, model._core, model._input_rnn, map_model, mem_model]:
-        print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
+        if submodel is not None:
+            print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
     # print(model)
     mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')  # type: ignore
 

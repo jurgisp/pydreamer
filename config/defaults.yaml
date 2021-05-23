@@ -38,6 +38,7 @@ defaults:
   # Model
   model: world
   embed_dim: 256
+  embed_rnn: none
   deter_dim: 512
   stoch_dim: 30
   hidden_dim: 200

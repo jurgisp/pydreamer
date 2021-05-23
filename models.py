@@ -22,6 +22,7 @@ class WorldModel(nn.Module):
                  map_grad=False,
                  map_weight=0.1,  # Only matters if map_grad
                  iwae_samples=0,      # arxiv.org/abs/1509.00519
+                 embed_rnn=False
                  ):
         super().__init__()
         self._encoder = encoder
@@ -35,16 +36,20 @@ class WorldModel(nn.Module):
         self._map_grad = map_grad
         self._map_weight = map_weight
         self._iwae_samples = iwae_samples
-        self._core = RSSMCore(embed_dim=encoder.out_dim * 3,  # TODO: 3 = 1 + input_rnn_directions
+        self._embed_rnn = embed_rnn
+        self._core = RSSMCore(embed_dim=encoder.out_dim * (3 if embed_rnn else 1),
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
                               hidden_dim=hidden_dim,
                               global_dim=self._global_dim)
-        self._input_rnn = GRU2Inputs(input1_dim=encoder.out_dim,
-                                     input2_dim=action_dim,
-                                     mlp_dim=encoder.out_dim,
-                                     state_dim=encoder.out_dim,
-                                     bidirectional=True)
+        if self._embed_rnn:
+            self._input_rnn = GRU2Inputs(input1_dim=encoder.out_dim,
+                                        input2_dim=action_dim,
+                                        mlp_dim=encoder.out_dim,
+                                        state_dim=encoder.out_dim,
+                                        bidirectional=True)
+        else:
+            self._input_rnn = None
         for m in self.modules():
             init_weights_tf2(m)
 
@@ -66,9 +71,10 @@ class WorldModel(nn.Module):
         n, b = image.shape[:2]
         embed = unflatten(self._encoder(flatten(image)), n)  # (N,B,E)
 
-        # TODO: should apply reset
-        embed_rnn, _ = self._input_rnn.forward(embed, action)  # (N,B,2E)
-        embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E)
+        if self._embed_rnn:
+            # TODO: should apply reset
+            embed_rnn, _ = self._input_rnn.forward(embed, action)  # (N,B,2E)
+            embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E)
 
         mem_out, mem_sample, mem_state = (None,), None, None
         # mem_out = self._mem_model(embed, action, reset, in_mem_state)
