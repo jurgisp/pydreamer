@@ -168,7 +168,7 @@ class WorldModel(nn.Module):
         # d loss / d w = exp(l1)/(exp(l1)+exp(l2)) dl1/dw + ...
 
         with torch.no_grad():  # This stop gradient is important for correctness
-            weights = F.softmax(- (loss_image + loss_kl), dim=-1)    # TODO: should we apply kl_weight here?
+            weights = F.softmax(-(loss_image + loss_kl), dim=-1)    # TODO: should we apply kl_weight here?
             weights_map = F.softmax(-loss_map, dim=-1)
         dloss_image = (weights * loss_image).sum(dim=-1)  # (N,B,I) => (N,B)
         dloss_kl = (weights * loss_kl).sum(dim=-1)
@@ -181,10 +181,10 @@ class WorldModel(nn.Module):
         # Metrics
 
         with torch.no_grad():
-            loss_model = logavgexp(loss_kl + loss_image, dim=-1)  # not the same as (loss_kl+loss_image)
-            loss_image = logavgexp(loss_image, dim=-1)
-            loss_kl = logavgexp(loss_kl, dim=-1)
-            loss_map = logavgexp(loss_map, dim=-1)
+            loss_model = -logavgexp(-(loss_kl + loss_image), dim=-1)  # not the same as (loss_kl+loss_image)
+            loss_image = -logavgexp(-loss_image, dim=-1)
+            loss_kl = -logavgexp(-loss_kl, dim=-1)
+            loss_map = -logavgexp(-loss_map, dim=-1)
 
             log_tensors = dict(loss_kl=loss_kl,
                                loss_image=loss_image)
