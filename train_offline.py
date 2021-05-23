@@ -192,9 +192,9 @@ def run(conf):
 
             if steps % conf.log_interval == 1:
             # if (steps == 1) or (steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200):  # DEBUG high loss
-                print(f"[{steps}] Saving batch sample:"
-                      f"  loss_model_image_max: {loss_metrics['loss_model_image_max'].item():.1f}"
-                      f"  loss_model_kl_max: {loss_metrics['loss_model_kl_max'].item():.1f}")
+                # print(f"[{steps}] Saving batch sample:"
+                #       f"  loss_model_image_max: {loss_metrics['loss_model_image_max'].item():.1f}"
+                #       f"  loss_model_kl_max: {loss_metrics['loss_model_kl_max'].item():.1f}")
                 with torch.no_grad():
                     image_rec, map_rec = output[3], output[4]
                     image_rec_distr = imgrec_to_distr(image_rec)
@@ -242,7 +242,7 @@ def run(conf):
 
             # Evaluate
 
-            if conf.eval_interval and steps % conf.eval_interval == 1:
+            if conf.eval_interval and steps % conf.eval_interval == 0:
                 # Same batch as train
                 eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
                 evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.iwae_samples, conf.keep_state)
