@@ -190,8 +190,8 @@ def run(conf):
 
             # Log sample
 
-            # if steps % conf.log_interval == 0:
-            if (steps == 1) or (steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200.0):  # DEBUG high loss
+            if steps % conf.log_interval == 1:
+            # if (steps == 1) or (steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200):  # DEBUG high loss
                 print(f"[{steps}] Saving batch sample:"
                       f"  loss_model_image_max: {loss_metrics['loss_model_image_max'].item():.1f}"
                       f"  loss_model_kl_max: {loss_metrics['loss_model_kl_max'].item():.1f}")
@@ -199,7 +199,8 @@ def run(conf):
                     image_rec, map_rec = output[3], output[4]
                     image_rec_distr = imgrec_to_distr(image_rec)
                     map_rec_distr = imgrec_to_distr(map_rec)
-                log_batch_npz(steps, batch, loss_tensors, None, image_rec_distr, map_rec_distr)
+                log_batch_npz(steps, batch, loss_tensors, None, image_rec_distr, map_rec_distr,
+                              file_suffix=f"_{loss_metrics['loss_model_image_max'].item():.0f}")
 
             # Log metrics
 
@@ -308,8 +309,9 @@ def log_batch_npz(steps,
                   image_pred: Optional[D.Categorical],
                   image_rec: Optional[D.Categorical],
                   map_rec: Optional[D.Categorical],
-                  top=-1, 
-                  subdir='d2_wm_predict'):
+                  top=-1,
+                  subdir='d2_wm_predict',
+                  file_suffix=''):
     data = batch.copy()
     data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
     if image_pred is not None:
@@ -322,7 +324,7 @@ def log_batch_npz(steps,
         data['map_rec'] = map_rec.sample().cpu().numpy()
         data['map_rec_p'] = map_rec.probs.cpu().numpy()
     data = {k: v.swapaxes(0, 1)[:top] for k, v in data.items()}  # (N,B,...) => (B,N,...)
-    tools.mlflow_log_npz(data, f'{steps:07}.npz', subdir)
+    tools.mlflow_log_npz(data, f'{steps:07}{file_suffix}.npz', subdir)
 
 
 def run_generator(conf):
