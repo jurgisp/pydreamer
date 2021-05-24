@@ -288,10 +288,10 @@ def evaluate(prefix: str,
         for k, v in loss_metrics.items():
             metrics_eval[k].append(v.item())
 
-        metrics_eval['logprob_map'].append(-logprob_map.mean().item())
-        metrics_eval['logprob_image'].append(-logprob_img.mean().item())
-        metrics_eval['logprob_map_last'].append(-logprob_map[-1].mean().item())
-        metrics_eval['logprob_image_last'].append(-logprob_img[-1].mean().item())
+        metrics_eval['logprob_map'].append(logprob_map.mean().item())
+        metrics_eval['logprob_image'].append(logprob_img.mean().item())
+        metrics_eval['logprob_map_last'].append(logprob_map[-1].mean().item())
+        metrics_eval['logprob_image_last'].append(logprob_img[-1].mean().item())
 
         # Log just one batch
         if i_batch == 0:
