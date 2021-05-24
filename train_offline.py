@@ -282,10 +282,8 @@ def evaluate(prefix: str,
             output = model.forward(image, action, reset, map, state, I=eval_samples)
             state = output[-1]
             loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
-
-            image_pred, image_rec, map_rec = model.predict(image, action, reset, map, state, I=eval_samples)
-            logprob_map = map_rec.log_prob(map.argmax(axis=-3)).sum(dim=[-1, -2])   # (N,B,H,W,C) => (N,B)
-            logprob_img = image_pred.log_prob(image.argmax(axis=-3)).sum(dim=[-1, -2])
+            image_pred, image_rec, map_rec, logprob_img, logprob_map = \
+                model.predict(image, action, reset, map, state, I=eval_samples)
 
         for k, v in loss_metrics.items():
             metrics_eval[k].append(v.item())

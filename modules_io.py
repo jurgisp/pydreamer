@@ -117,7 +117,7 @@ class DenseDecoder(nn.Module):
             prob = (1.0 - self._min_prob) * prob + self._min_prob * (1.0 / prob.size(1))  # mix with uniform prob
             loss = F.nll_loss(prob.log(), target, reduction='none')
         
-        return loss.sum(dim=[-1, -2])
+        return loss.sum(dim=[-1, -2])  # (NB,H,W) => (NB)
 
 
 class CondVAEHead(nn.Module):
@@ -184,7 +184,7 @@ class CondVAEHead(nn.Module):
 
 class DirectHead(nn.Module):
 
-    def __init__(self, decoder):
+    def __init__(self, decoder: DenseDecoder):
         super().__init__()
         self._decoder = decoder
 

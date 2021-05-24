@@ -116,6 +116,8 @@ class WorldModel(nn.Module):
             (out_state, mem_state),
         ) = self.forward(image, action, reset, map, in_state_full, I=I)
 
+        # Predict
+
         # Make states with z sampled from prior instead of posterior
         # TODO: when evaluating with global state, this should predict extra step into the future, unseen by forward()
         n, b = image.shape[:2]
@@ -126,12 +128,25 @@ class WorldModel(nn.Module):
 
         image_pred_distr = imgrec_to_distr(image_pred)
         image_rec_distr = imgrec_to_distr(image_rec)
-        map_rec_distr = self._map_model.predict_obs(map_out)
+        map_rec = map_out
+        map_rec_distr = self._map_model.predict_obs(map_rec)
+
+        # Logprob loss
+
+        logprob_img = self._decoder_image.loss(flatten3(image_pred), flatten3(image.unsqueeze(2).expand(image_pred.shape)))
+        logprob_img = unflatten3(logprob_img, (n, b))
+        logprob_img = -logavgexp(-logprob_img, dim=-1)
+
+        logprob_map = self._map_model.loss(flatten3(map_rec), flatten3(map.unsqueeze(2).expand(map_rec.shape)))
+        logprob_map = unflatten3(logprob_map, (n, b))
+        logprob_map = -logavgexp(-logprob_map, dim=-1)
 
         return (
             image_pred_distr,    # categorical(N,B,H,W,C)
             image_rec_distr,     # categorical(N,B,H,W,C)
             map_rec_distr,       # categorical(N,B,HM,WM,C)
+            logprob_img,
+            logprob_map,
         )
 
     def loss(self,
@@ -172,6 +187,21 @@ class WorldModel(nn.Module):
         #      = log (exp(l1) + exp(l2)) - log 2
         # d loss = ( exp(l1) d l1 + exp(l2) d l2 ) / (exp(l1)+exp(l2))
         # d loss / d w = exp(l1)/(exp(l1)+exp(l2)) dl1/dw + ...
+
+        # How is loss calculated, vs logprob, why are they different?
+        #
+        # loss  = logavgexp_i ( log p_{i}
+        #       = logavgexp_i ( sum_x ( log p_{ix}
+        #       = logavgexp_i ( sum_x ( delta_{c=O(x)} ( log p_{ixc}
+        #       = logavgexp_i ( sum_x ( delta_{c=O(x)} ( log softmax_c(y_{ixc})
+        #       = logavgexp_i ( sum_x ( delta_{c=O(x)} ( y_{ixc} - logsumexp_c(y_{ixc})
+        #
+        # logprob (old incorrect way) 
+        #         = sum_x ( log p_{x}
+        #         = sum_x ( delta_{c=O(x)} ( log p_{xc}
+        #         = sum_x ( delta_{c=O(x)} ( logavgexp_i ( log p_{ixc}
+        #         = sum_x ( delta_{c=O(x)} ( logavgexp_i ( y_{ixc} - logsumexp_c(y_{ixc})
+        #
 
         with torch.no_grad():  # This stop gradient is important for correctness
             weights = F.softmax(-(loss_image + loss_kl), dim=-1)    # TODO: should we apply kl_weight here?
