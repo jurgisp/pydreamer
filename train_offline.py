@@ -283,7 +283,7 @@ def evaluate(prefix: str,
             state = output[-1]
             loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
             image_pred, image_rec, map_rec, logprob_img, logprob_map = \
-                model.predict(image, action, reset, map, state, I=eval_samples)
+                model.predict(*output, image, map)
 
         for k, v in loss_metrics.items():
             metrics_eval[k].append(v.item())

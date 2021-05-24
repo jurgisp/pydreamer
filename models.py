@@ -44,10 +44,10 @@ class WorldModel(nn.Module):
                               global_dim=self._global_dim)
         if self._embed_rnn:
             self._input_rnn = GRU2Inputs(input1_dim=encoder.out_dim,
-                                        input2_dim=action_dim,
-                                        mlp_dim=encoder.out_dim,
-                                        state_dim=encoder.out_dim,
-                                        bidirectional=True)
+                                         input2_dim=action_dim,
+                                         mlp_dim=encoder.out_dim,
+                                         state_dim=encoder.out_dim,
+                                         bidirectional=True)
         else:
             self._input_rnn = None
         for m in self.modules():
@@ -98,30 +98,15 @@ class WorldModel(nn.Module):
         )
 
     def predict(self,
-                image: Tensor,     # tensor(N, B, C, H, W)
-                action: Tensor,    # tensor(N, B, A)
-                reset: Tensor,     # tensor(N, B)
-                map: Tensor,       # tensor(N, B, C, MH, MW)
-                in_state_full: Tuple[Any, Any],
-                I: int = 1
+                prior, post, post_samples, image_rec, map_out, features, mem_out, out_state_full,     # forward() output
+                image,                                      # tensor(N, B, C, H, W)
+                map,                                        # tensor(N, B, MH, MW)
                 ):
-        (
-            prior,
-            post,
-            post_samples,
-            image_rec,
-            map_out,
-            features,
-            mem_out,
-            (out_state, mem_state),
-        ) = self.forward(image, action, reset, map, in_state_full, I=I)
-
-        # Predict
-
         # Make states with z sampled from prior instead of posterior
+
         # TODO: when evaluating with global state, this should predict extra step into the future, unseen by forward()
         n, b = image.shape[:2]
-        h, post_samples, g = features.split([self._deter_dim, self._stoch_dim, self._global_dim], -1)
+        h, _, g = features.split([self._deter_dim, self._stoch_dim, self._global_dim], -1)
         prior_samples = diag_normal(prior).sample()
         features_prior = cat3(h, prior_samples, g)
         image_pred = unflatten3(self._decoder_image(flatten3(features_prior)), (n, b))
@@ -133,6 +118,7 @@ class WorldModel(nn.Module):
 
         # Logprob loss
 
+        # This is *negative*-log-prob, so actually positive, same as loss
         logprob_img = self._decoder_image.loss(flatten3(image_pred), flatten3(image.unsqueeze(2).expand(image_pred.shape)))
         logprob_img = unflatten3(logprob_img, (n, b))
         logprob_img = -logavgexp(-logprob_img, dim=-1)
@@ -196,7 +182,7 @@ class WorldModel(nn.Module):
         #       = logavgexp_i ( sum_x ( delta_{c=O(x)} ( log softmax_c(y_{ixc})
         #       = logavgexp_i ( sum_x ( delta_{c=O(x)} ( y_{ixc} - logsumexp_c(y_{ixc})
         #
-        # logprob (old incorrect way) 
+        # logprob (old incorrect way)
         #         = sum_x ( log p_{x}
         #         = sum_x ( delta_{c=O(x)} ( log p_{xc}
         #         = sum_x ( delta_{c=O(x)} ( logavgexp_i ( log p_{ixc}
