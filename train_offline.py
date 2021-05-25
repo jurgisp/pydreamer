@@ -251,7 +251,7 @@ def run(conf):
 
                 # Full episodes
                 eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size, skip_first=False)
-                evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples, keep_state=False)
+                evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
 
 
 def evaluate(prefix: str,
@@ -266,6 +266,8 @@ def evaluate(prefix: str,
     start_time = time.time()
     metrics_eval = defaultdict(list)
     state = None
+    logprob_map, logprob_img = None, None
+    n_episodes = 0
 
     for i_batch in range(eval_batches):
 
@@ -274,6 +276,13 @@ def evaluate(prefix: str,
 
         if i_batch == 0:
             print(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
+
+        # Log prediction at the end of previous episode (misses last batch)
+        if logprob_map is not None and reset.sum() > 0:
+            assert all(reset[0].cpu().numpy()), 'First step should be reset'
+            metrics_eval['logprob_map_last'].append(logprob_map[-1].mean().item())
+            metrics_eval['logprob_image_last'].append(logprob_img[-1].mean().item())
+            n_episodes += image.shape[1]
 
         if state is None or not keep_state:
             state = model.init_state(image.size(1) * eval_samples)
@@ -290,17 +299,16 @@ def evaluate(prefix: str,
 
         metrics_eval['logprob_map'].append(logprob_map.mean().item())
         metrics_eval['logprob_image'].append(logprob_img.mean().item())
-        metrics_eval['logprob_map_last'].append(logprob_map[-1].mean().item())
-        metrics_eval['logprob_image_last'].append(logprob_img[-1].mean().item())
 
         # Log just one batch
         if i_batch == 0:
             log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir=f'd2_wm_predict_{prefix}')
 
+
     metrics_eval = {f'{prefix}/{k}': np.mean(v) for k, v in metrics_eval.items()}
     mlflow.log_metrics(metrics_eval, step=steps)
 
-    print(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec')
+    print(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_episodes} episodes')
 
 
 def log_batch_npz(steps,
