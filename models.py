@@ -113,8 +113,6 @@ class WorldModel(nn.Module):
         features_prior = self._core.feature_replace_z(features, prior_samples)
         image_pred = unflatten3(self._decoder_image(flatten3(features_prior)), (n, b))
 
-        # TODO: predict extra step into the future, unseen by forward()
-
         # Logprob loss
 
         # This is *negative*-log-prob, so actually positive, same as loss

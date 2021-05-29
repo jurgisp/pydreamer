@@ -193,7 +193,7 @@ def run(conf):
             # Log sample
 
             if steps % conf.log_interval == 1:
-            # if (steps == 1) or (steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200):  # DEBUG high loss
+                # if (steps == 1) or (steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200):  # DEBUG high loss
                 # print(f"[{steps}] Saving batch sample:"
                 #       f"  loss_model_image_max: {loss_metrics['loss_model_image_max'].item():.1f}"
                 #       f"  loss_model_kl_max: {loss_metrics['loss_model_kl_max'].item():.1f}")
@@ -270,44 +270,54 @@ def evaluate(prefix: str,
     n_episodes = 0
 
     for i_batch in range(eval_batches):
-
-        batch = next(data_iterator)
-        image, action, reset, map = preprocess(batch)
-
-        if i_batch == 0:
-            print(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
-
-        # Log prediction at the end of previous episode (misses last batch)
-        if logprob_map is not None and reset.sum() > 0:
-            assert all(reset[0].cpu().numpy()), 'First step should be reset'
-            metrics_eval['logprob_map_last'].append(logprob_map[-1].mean().item())
-            metrics_eval['logprob_image_last'].append(logprob_img[-1].mean().item())
-            n_episodes += image.shape[1]
-
-        if state is None or not keep_state:
-            state = model.init_state(image.size(1) * eval_samples)
-
         with torch.no_grad():
+
+            batch = next(data_iterator)
+            image, action, reset, map = preprocess(batch)
+            if i_batch == 0:
+                print(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
+
+            if state is not None:  # Non-first batch
+
+                # Log _last predictions at the end of previous episode
+
+                if reset.sum() > 0:
+                    assert all(reset[0].cpu().numpy()), 'First step should be reset'
+                    metrics_eval['logprob_map_last'].append(logprob_map[-1].mean().item())
+                    n_episodes += image.shape[1]
+
+                # Forward (prior) & unseen logprob
+
+                if reset.sum() == 0:
+                    output = model.forward(0 * image[:5], action[:5], reset[:5], map[:5], state, I=eval_samples, imagine=True)
+                    image_pred, image_rec, map_rec, logprob_img, logprob_map = \
+                        model.predict(*output, image[:5], map[:5])
+                    metrics_eval['logprob_img_1step'].append(logprob_img[0].mean().item())
+                    metrics_eval['logprob_img_2step'].append(logprob_img[1].mean().item())
+
+            # Forward (posterior) & loss
+
+            if state is None or not keep_state:
+                state = model.init_state(image.size(1) * eval_samples)
             output = model.forward(image, action, reset, map, state, I=eval_samples)
             state = output[-1]
+
             loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
+            for k, v in loss_metrics.items():
+                metrics_eval[k].append(v.item())
+
             image_pred, image_rec, map_rec, logprob_img, logprob_map = \
                 model.predict(*output, image, map)
+            metrics_eval['logprob_map'].append(logprob_map.mean().item())
+            metrics_eval['logprob_img'].append(logprob_img.mean().item())
 
-        for k, v in loss_metrics.items():
-            metrics_eval[k].append(v.item())
+            # Log one batch
 
-        metrics_eval['logprob_map'].append(logprob_map.mean().item())
-        metrics_eval['logprob_image'].append(logprob_img.mean().item())
-
-        # Log just one batch
-        if i_batch == 0:
-            log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir=f'd2_wm_predict_{prefix}')
-
+            if i_batch == 0:
+                log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir=f'd2_wm_predict_{prefix}')
 
     metrics_eval = {f'{prefix}/{k}': np.mean(v) for k, v in metrics_eval.items()}
     mlflow.log_metrics(metrics_eval, step=steps)
-
     print(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_episodes} episodes')
 
 
