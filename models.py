@@ -103,30 +103,33 @@ class WorldModel(nn.Module):
                 image,                                      # tensor(N, B, C, H, W)
                 map,                                        # tensor(N, B, MH, MW)
                 ):
-        # Make states with z sampled from prior instead of posterior
-
-        # TODO: when evaluating with global state, this should predict extra step into the future, unseen by forward()
         n, b = image.shape[:2]
-        h, _, g = features.split([self._deter_dim, self._stoch_dim, self._global_dim], -1)
+        map_rec = map_out
+
+        # Predict images with z sampled from prior instead of posterior
+
+        # When using smoothing posterior, these predictions would have seen the future already
         prior_samples = diag_normal(prior).sample()
-        features_prior = cat3(h, prior_samples, g)
+        features_prior = self._core.feature_replace_z(features, prior_samples)
         image_pred = unflatten3(self._decoder_image(flatten3(features_prior)), (n, b))
 
-        image_pred_distr = imgrec_to_distr(image_pred)
-        image_rec_distr = imgrec_to_distr(image_rec)
-        map_rec = map_out
-        map_rec_distr = self._map_model.predict_obs(map_rec)
+        # TODO: predict extra step into the future, unseen by forward()
 
         # Logprob loss
 
         # This is *negative*-log-prob, so actually positive, same as loss
-        logprob_img = self._decoder_image.loss(flatten3(image_pred), flatten3(image.unsqueeze(2).expand(image_pred.shape)))
-        logprob_img = unflatten3(logprob_img, (n, b))
+        image = image.unsqueeze(2).expand(image_pred.shape)
+        logprob_img = unflatten3(self._decoder_image.loss(flatten3(image_pred), flatten3(image)), (n, b))
         logprob_img = -logavgexp(-logprob_img, dim=-1)
+        map = map.unsqueeze(2).expand(map_rec.shape)
+        logprob_map = unflatten3(self._map_model.loss(flatten3(map_rec), flatten3(map)), (n, b))
+        logprob_map = -logavgexp(-logprob_map, dim=-1)  # Same as loss_map, when not using map VAE
 
-        logprob_map = self._map_model.loss(flatten3(map_rec), flatten3(map.unsqueeze(2).expand(map_rec.shape)))
-        logprob_map = unflatten3(logprob_map, (n, b))
-        logprob_map = -logavgexp(-logprob_map, dim=-1)
+        # Return distributions
+
+        image_pred_distr = imgrec_to_distr(image_pred)
+        image_rec_distr = imgrec_to_distr(image_rec)
+        map_rec_distr = self._map_model.predict_obs(map_rec)
 
         return (
             image_pred_distr,    # categorical(N,B,H,W,C)

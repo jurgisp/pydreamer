@@ -59,7 +59,7 @@ class RSSMCore(nn.Module):
         states_h = torch.stack(states_h)    # (N,BI,D)
         samples = torch.stack(samples)      # (N,BI,S)
         priors = self._cell.batch_prior(states_h)  # (N,BI,2S)
-        features = cat(states_h, samples)   # (N,BI,S)
+        features = self.to_feature(states_h, samples)   # (N,BI,D+S)
 
         posts = posts.reshape(n, b, I, -1)  # (N,BI,X) => (N,B,I,X)
         states_h = states_h.reshape(n, b, I, -1)
@@ -77,6 +77,13 @@ class RSSMCore(nn.Module):
 
     def init_state(self, batch_size):
         return self._cell.init_state(batch_size)
+
+    def to_feature(self, h: Tensor, z: Tensor) -> Tensor:
+        return torch.cat((h, z), -1)
+
+    def feature_replace_z(self, features: Tensor, z: Tensor):
+        h, _ = features.split([self._cell._deter_dim, self._cell._stoch_dim], -1)
+        return self.to_feature(h, z)
 
 
 class RSSMCell(nn.Module):

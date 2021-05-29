@@ -32,10 +32,6 @@ def cat(x1, x2):
     return torch.cat((x1, x2), dim=-1)
 
 
-def cat3(x1, x2, x3):
-    return torch.cat((x1, x2, x3), dim=-1)
-
-
 def diag_normal(x: Tensor, min_std=0.1, max_std=2.0):
     # DreamerV2:
     # std = {
@@ -71,7 +67,7 @@ def init_weights_tf2(m):
 
 def imgrec_to_distr(x: Tensor) -> D.Categorical:  # (N,B,I,C,H,W) -> (N,B,H,W,C)
     assert len(x.shape) == 6
-    logits = x.permute(2, 0, 1, 4, 5, 3) # (N,B,I,C,H,W) => (I,N,B,H,W,C)
+    logits = x.permute(2, 0, 1, 4, 5, 3)  # (N,B,I,C,H,W) => (I,N,B,H,W,C)
     # Normalize probability
     logits = logits - logits.logsumexp(dim=-1, keepdim=True)
     # Aggregate prob=avg(prob_i)
