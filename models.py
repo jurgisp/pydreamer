@@ -64,6 +64,7 @@ class WorldModel(nn.Module):
                 in_state: Any,
                 I: int = 1,
                 imagine=False,     # If True, will imagine sequence, not using observations to form posterior
+                do_image_pred=False,
                 ):
 
         n, b = image.shape[:2]
@@ -84,10 +85,11 @@ class WorldModel(nn.Module):
         image_rec = unflatten3(self._decoder_image.forward(features_flat), (n, b))
         map_rec = unflatten3(self._map_model.forward(features_flat if self._map_grad else features_flat.detach()), (n, b))
 
-        # TODO: Optional
-        prior_samples = diag_normal(prior).sample()
-        features_prior = self._core.feature_replace_z(features, prior_samples)
-        image_pred = unflatten3(self._decoder_image(flatten3(features_prior)), (n, b))
+        image_pred = None
+        if do_image_pred:
+            prior_samples = diag_normal(prior).sample()
+            features_prior = self._core.feature_replace_z(features, prior_samples)
+            image_pred = unflatten3(self._decoder_image(flatten3(features_prior)), (n, b))
 
         return (
             prior,                       # (N,B,I,2S)
@@ -102,6 +104,7 @@ class WorldModel(nn.Module):
     def predict(self,
                 prior, post, post_samples, image_rec, map_rec, image_pred, out_state,     # forward() output
                 ):
+        assert image_pred is not None, 'image_pred not calculated'
         # Return distributions
         image_pred_distr = imgrec_to_distr(image_pred)
         image_rec_distr = imgrec_to_distr(image_rec)
@@ -122,7 +125,8 @@ class WorldModel(nn.Module):
         N, B, I = image_rec.shape[:3]
         image = image.unsqueeze(2).expand(image_rec.shape)
         loss_image = unflatten3(self._decoder_image.loss(flatten3(image_rec), flatten3(image)), (N, B))  # (N,B,I)
-        logprob_img = unflatten3(self._decoder_image.loss(flatten3(image_pred), flatten3(image)), (N, B))
+        if image_pred is not None:
+            logprob_img = unflatten3(self._decoder_image.loss(flatten3(image_pred), flatten3(image)), (N, B))
 
         # KL
 
@@ -180,12 +184,14 @@ class WorldModel(nn.Module):
             loss_image = -logavgexp(-loss_image, dim=-1)
             loss_kl = -logavgexp(-loss_kl, dim=-1)
             loss_map = -logavgexp(-loss_map, dim=-1)
-            logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
 
             log_tensors = dict(loss_kl=loss_kl,
                                loss_image=loss_image,
-                               loss_map=loss_map,
-                               logprob_img=logprob_img)
+                               loss_map=loss_map)
+
+            if image_pred is not None:
+                logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
+                log_tensors.update(logprob_img=logprob_img)
 
             metrics = dict(loss=dloss.detach(),
                            loss_model=loss_model.mean(),
