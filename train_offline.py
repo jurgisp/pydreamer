@@ -266,7 +266,7 @@ def evaluate(prefix: str,
     start_time = time.time()
     metrics_eval = defaultdict(list)
     state = None
-    logprob_map, logprob_img = None, None
+    loss_tensors = None
     n_episodes = 0
 
     for i_batch in range(eval_batches):
@@ -283,17 +283,17 @@ def evaluate(prefix: str,
 
                 if reset.sum() > 0:
                     assert all(reset[0].cpu().numpy()), 'First step should be reset'
-                    metrics_eval['logprob_map_last'].append(logprob_map[-1].mean().item())
+                    metrics_eval['logprob_map_last'].append(loss_tensors['loss_map'][-1].mean().item())
                     n_episodes += image.shape[1]
 
                 # Forward (prior) & unseen logprob
 
                 if reset.sum() == 0:
                     output = model.forward(0 * image[:5], action[:5], reset[:5], map[:5], state, I=eval_samples, imagine=True)
-                    image_pred, image_rec, map_rec, logprob_img, logprob_map = \
-                        model.predict(*output, image[:5], map[:5])
-                    metrics_eval['logprob_img_1step'].append(logprob_img[0].mean().item())
-                    metrics_eval['logprob_img_2step'].append(logprob_img[1].mean().item())
+                    _, _, loss_tensors = model.loss(*output, image[:5], map[:5])  # type: ignore
+                    metrics_eval['logprob_img_1step'].append(loss_tensors['logprob_img'][0].mean().item())
+                    metrics_eval['logprob_img_2step'].append(loss_tensors['logprob_img'][1].mean().item())
+                    # image_pred, image_rec, map_rec = model.predict(*output)  # TODO: log 5-step prediction sequence
 
             # Forward (posterior) & loss
 
@@ -302,18 +302,16 @@ def evaluate(prefix: str,
             output = model.forward(image, action, reset, map, state, I=eval_samples)
             state = output[-1]
 
-            loss, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
+            _, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
+            metrics_eval['logprob_map'].append(loss_tensors['loss_map'].mean().item())  # Backwards-compat, same as loss_map
+            metrics_eval['logprob_img'].append(loss_tensors['logprob_img'].mean().item())
             for k, v in loss_metrics.items():
                 metrics_eval[k].append(v.item())
-
-            image_pred, image_rec, map_rec, logprob_img, logprob_map = \
-                model.predict(*output, image, map)
-            metrics_eval['logprob_map'].append(logprob_map.mean().item())
-            metrics_eval['logprob_img'].append(logprob_img.mean().item())
 
             # Log one batch
 
             if i_batch == 0:
+                image_pred, image_rec, map_rec = model.predict(*output)
                 log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir=f'd2_wm_predict_{prefix}')
 
     metrics_eval = {f'{prefix}/{k}': np.mean(v) for k, v in metrics_eval.items()}

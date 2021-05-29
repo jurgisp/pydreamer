@@ -54,21 +54,18 @@ class WorldModel(nn.Module):
             init_weights_tf2(m)
 
     def init_state(self, batch_size: int) -> Tuple[Any, Any]:
-        return (
-            self._core.init_state(batch_size),
-            self._mem_model.init_state(batch_size))
+        return self._core.init_state(batch_size)
 
     def forward(self,
                 image: Tensor,     # tensor(N, B, C, H, W)
                 action: Tensor,    # tensor(N, B, A)
                 reset: Tensor,     # tensor(N, B)
                 map: Tensor,       # tensor(N, B, C, MH, MW)
-                in_state_full: Tuple[Any, Any],
+                in_state: Any,
                 I: int = 1,
                 imagine=False,     # If True, will imagine sequence, not using observations to form posterior
                 ):
 
-        in_state, in_mem_state = in_state_full
         n, b = image.shape[:2]
         embed = unflatten(self._encoder(flatten(image)), n)  # (N,B,E)
 
@@ -77,78 +74,55 @@ class WorldModel(nn.Module):
             embed_rnn, _ = self._input_rnn.forward(embed, action)  # (N,B,2E)
             embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E)
 
-        mem_out, mem_sample, mem_state = (None,), None, None
+        # mem_out, mem_sample, mem_state = (None,), None, None
         # mem_out = self._mem_model(embed, action, reset, in_mem_state)
         # mem_sample, mem_state = mem_out[0], mem_out[-1]
 
-        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, mem_sample, I=I, imagine=imagine)
+        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, None, I=I, imagine=imagine)
         features_flat = flatten3(features)
 
         image_rec = unflatten3(self._decoder_image.forward(features_flat), (n, b))
-        map_out = unflatten3(self._map_model.forward(features_flat if self._map_grad else features_flat.detach()), (n, b))
+        map_rec = unflatten3(self._map_model.forward(features_flat if self._map_grad else features_flat.detach()), (n, b))
+
+        # TODO: Optional
+        prior_samples = diag_normal(prior).sample()
+        features_prior = self._core.feature_replace_z(features, prior_samples)
+        image_pred = unflatten3(self._decoder_image(flatten3(features_prior)), (n, b))
 
         return (
             prior,                       # (N,B,I,2S)
             post,                        # (N,B,I,2S)
             post_samples,                # (N,B,I,S)
             image_rec,                   # (N,B,I,C,H,W)
-            map_out,                     # (N,B,I,C,M,M)
-            features,                    # (N,B,I,D+S+G)
-            mem_out,                     # Any
-            (out_state, mem_state),     # out_state_full: Any
+            map_rec,                     # (N,B,I,C,M,M)
+            image_pred,                  # Optional[(N,B,I,C,H,W)]
+            out_state,
         )
 
     def predict(self,
-                prior, post, post_samples, image_rec, map_out, features, mem_out, out_state_full,     # forward() output
-                image,                                      # tensor(N, B, C, H, W)
-                map,                                        # tensor(N, B, MH, MW)
+                prior, post, post_samples, image_rec, map_rec, image_pred, out_state,     # forward() output
                 ):
-        n, b = image.shape[:2]
-        map_rec = map_out
-
-        # Predict images with z sampled from prior instead of posterior
-
-        # When using smoothing posterior, these predictions would have seen the future already
-        prior_samples = diag_normal(prior).sample()
-        features_prior = self._core.feature_replace_z(features, prior_samples)
-        image_pred = unflatten3(self._decoder_image(flatten3(features_prior)), (n, b))
-
-        # Logprob loss
-
-        # This is *negative*-log-prob, so actually positive, same as loss
-        image = image.unsqueeze(2).expand(image_pred.shape)
-        logprob_img = unflatten3(self._decoder_image.loss(flatten3(image_pred), flatten3(image)), (n, b))
-        logprob_img = -logavgexp(-logprob_img, dim=-1)
-        map = map.unsqueeze(2).expand(map_rec.shape)
-        logprob_map = unflatten3(self._map_model.loss(flatten3(map_rec), flatten3(map)), (n, b))
-        logprob_map = -logavgexp(-logprob_map, dim=-1)  # Same as loss_map, when not using map VAE
-
         # Return distributions
-
         image_pred_distr = imgrec_to_distr(image_pred)
         image_rec_distr = imgrec_to_distr(image_rec)
         map_rec_distr = self._map_model.predict_obs(map_rec)
-
         return (
             image_pred_distr,    # categorical(N,B,H,W,C)
             image_rec_distr,     # categorical(N,B,H,W,C)
             map_rec_distr,       # categorical(N,B,HM,WM,C)
-            logprob_img,
-            logprob_map,
         )
 
     def loss(self,
-             prior, post, post_samples, image_rec, map_out, states, mem_out, out_state_full,     # forward() output
+             prior, post, post_samples, image_rec, map_rec, image_pred, out_state,     # forward() output
              image,                                      # tensor(N, B, C, H, W)
              map,                                        # tensor(N, B, MH, MW)
              ):
         # Image
 
         N, B, I = image_rec.shape[:3]
-        output = flatten3(image_rec)  # (N,B,I,...) => (NBI,...)
-        target = flatten3(image.unsqueeze(2).expand(image_rec.shape))
-        loss_image = self._decoder_image.loss(output, target)
-        loss_image = unflatten3(loss_image, (N, B))  # (N,B,I)
+        image = image.unsqueeze(2).expand(image_rec.shape)
+        loss_image = unflatten3(self._decoder_image.loss(flatten3(image_rec), flatten3(image)), (N, B))  # (N,B,I)
+        logprob_img = unflatten3(self._decoder_image.loss(flatten3(image_pred), flatten3(image)), (N, B))
 
         # KL
 
@@ -161,12 +135,9 @@ class WorldModel(nn.Module):
 
         # Map
 
-        map_rec = map_out
-        output = flatten3(map_rec)  # (N,B,I,...) => (NBI,...)
-        target = flatten3(map.unsqueeze(2).expand(map_rec.shape))
-        loss_map = self._map_model.loss(output, target)
+        map = map.unsqueeze(2).expand(map_rec.shape)
+        loss_map = unflatten3(self._map_model.loss(flatten3(map_rec), flatten3(map)), (N, B))    # (N,B,I)
         # metrics_map = {k.replace('loss_', 'loss_map_'): v for k, v in metrics_map.items()}  # loss_kl => loss_map_kl
-        loss_map = unflatten3(loss_map, (N, B))    # (N,B,I)
 
         # IWAE averaging
 
@@ -209,9 +180,12 @@ class WorldModel(nn.Module):
             loss_image = -logavgexp(-loss_image, dim=-1)
             loss_kl = -logavgexp(-loss_kl, dim=-1)
             loss_map = -logavgexp(-loss_map, dim=-1)
+            logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
 
             log_tensors = dict(loss_kl=loss_kl,
-                               loss_image=loss_image)
+                               loss_image=loss_image,
+                               loss_map=loss_map,
+                               logprob_img=logprob_img)
 
             metrics = dict(loss=dloss.detach(),
                            loss_model=loss_model.mean(),
