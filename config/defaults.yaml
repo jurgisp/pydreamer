@@ -29,7 +29,7 @@ defaults:
   device: "cuda:0"
 
   # Eval
-  eval_batches: 20  # For unbiased eval needs to be enough to cover full episodes
+  eval_batches: 21  # For unbiased eval needs to be enough to cover full episodes
   full_eval_batches: 101  # Big enough to reach episode end (xN). +1 to log last episode
   full_eval_samples: 100  # Big enough for good sampling
   full_eval_length: 50  # Fixed =batch_length

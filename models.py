@@ -64,7 +64,8 @@ class WorldModel(nn.Module):
                 reset: Tensor,     # tensor(N, B)
                 map: Tensor,       # tensor(N, B, C, MH, MW)
                 in_state_full: Tuple[Any, Any],
-                I: int = 1
+                I: int = 1,
+                imagine=False,     # If True, will imagine sequence, not using observations to form posterior
                 ):
 
         in_state, in_mem_state = in_state_full
@@ -80,7 +81,7 @@ class WorldModel(nn.Module):
         # mem_out = self._mem_model(embed, action, reset, in_mem_state)
         # mem_sample, mem_state = mem_out[0], mem_out[-1]
 
-        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, mem_sample, I=I)
+        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, mem_sample, I=I, imagine=imagine)
         features_flat = flatten3(features)
 
         image_rec = unflatten3(self._decoder_image.forward(features_flat), (n, b))

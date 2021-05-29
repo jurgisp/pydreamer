@@ -21,7 +21,8 @@ class RSSMCore(nn.Module):
                 reset: Tensor,       # tensor(N, B)
                 in_state: Tuple[Tensor, Tensor],    # [(BI,D) (BI,S)]
                 glob_state: Any,     # (B,G)?
-                I: int = 1
+                I: int = 1,
+                imagine=False,       # If True, will imagine sequence, not using observations to form posterior
                 ):
 
         n, b = embed.shape[:2]
@@ -46,7 +47,10 @@ class RSSMCore(nn.Module):
         (h, z) = in_state
 
         for i in range(n):
-            post, (h, z) = self._cell.forward(embeds[i], actions[i], reset_masks[i], (h, z), glob_state, noises[i])
+            if not imagine:
+                post, (h, z) = self._cell.forward(embeds[i], actions[i], reset_masks[i], (h, z), glob_state, noises[i])
+            else:
+                post, (h, z) = self._cell.forward_prior(actions[i], (h, z), glob_state, noises[i])  # post=prior in this case
             posts.append(post)
             states_h.append(h)
             samples.append(z)
@@ -112,19 +116,15 @@ class RSSMCell(nn.Module):
                 in_state: Tuple[Tensor, Tensor],  # tensor(B,D+S)
                 glob_state: Tensor,               # tensor(B,G)
                 noise: Tensor,                    # tensor(B,S)
-                ) -> Tuple[
-                    Tensor,
-                    Tuple[Tensor, Tensor]
-    ]:
+                ) -> Tuple[Tensor,
+                           Tuple[Tensor, Tensor]]:
 
         in_h, in_z = in_state
         in_h = in_h * reset_mask
         in_z = in_z * reset_mask
 
         za = F.elu(self._z_mlp(in_z) + self._a_mlp(action))    # (B, H)
-
         h = self._gru(za, in_h)                                             # (B, D)
-
         post_in = F.elu(self._post_mlp_h(h) + self._post_mlp_e(embed))
         post = self._post_mlp(post_in)                                    # (B, 2*S)
         sample = rsample(post, noise)                                     # (B, S)
@@ -134,10 +134,27 @@ class RSSMCell(nn.Module):
             (h, sample),                  # tensor(B, D+S+G)
         )
 
-    def batch_prior(self,
-                    states_h: Tensor,     # tensor(N, B, D)
-                    ) -> Tensor:
+    def forward_prior(self,
+                      action: Tensor,                   # tensor(B,A)
+                      in_state: Tuple[Tensor, Tensor],  # tensor(B,D+S)
+                      glob_state: Tensor,               # tensor(B,G)
+                      noise: Tensor,                    # tensor(B,S)
+                      ) -> Tuple[Tensor,
+                                 Tuple[Tensor, Tensor]]:
 
-        prior_in = F.elu(self._prior_mlp_h(states_h))
-        prior = self._prior_mlp(prior_in)               # (N, B, 2*S)
-        return prior    # tensor(B, 2*S)
+        in_h, in_z = in_state
+
+        za = F.elu(self._z_mlp(in_z) + self._a_mlp(action))    # (B,H)
+        h = self._gru(za, in_h)                                # (B,D)
+        prior = self._prior_mlp(F.elu(self._prior_mlp_h(h)))   # (B,2S)
+        sample = rsample(prior, noise)                         # (B,S)
+
+        return (
+            prior,                        # (B,2S)
+            (h, sample),                  # (B,D+S)
+        )
+
+    def batch_prior(self,
+                    h: Tensor,     # tensor(N, B, D)
+                    ) -> Tensor:
+        return self._prior_mlp(F.elu(self._prior_mlp_h(h)))  # tensor(B,2S)
