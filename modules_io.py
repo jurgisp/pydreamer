@@ -77,7 +77,10 @@ class DenseEncoder(nn.Module):
         self._model = nn.Sequential(*layers)
 
     def forward(self, x):
-        return self._model(x)
+        x, bd = flatten_batch(x, 3)
+        y = self._model(x)
+        y = unflatten_batch(y, bd)
+        return y
 
 
 class DenseDecoder(nn.Module):
@@ -99,9 +102,11 @@ class DenseDecoder(nn.Module):
         self._model = nn.Sequential(*layers)
         self._min_prob = min_prob
 
-    def forward(self, x):
-        assert len(x.shape) == 2
-        return self._model(x)
+    def forward(self, x: Tensor) -> Tensor:
+        x, bd = flatten_batch(x)
+        y = self._model(x)
+        y = unflatten_batch(y, bd)
+        return y
 
     def loss(self,
              output,  # (NB,C,H,W)
@@ -109,6 +114,8 @@ class DenseDecoder(nn.Module):
              ):
         if output.shape == target.shape:
             target = target.argmax(dim=-3)  # float(NB,C,H,W) => int(NB,H,W)
+        output, bd = flatten_batch(output, 3)
+        target, _ = flatten_batch(target, 2)
 
         if self._min_prob == 0:
             loss = F.nll_loss(F.log_softmax(output, 1), target, reduction='none')  # = F.cross_entropy()
@@ -117,7 +124,8 @@ class DenseDecoder(nn.Module):
             prob = (1.0 - self._min_prob) * prob + self._min_prob * (1.0 / prob.size(1))  # mix with uniform prob
             loss = F.nll_loss(prob.log(), target, reduction='none')
         
-        return loss.sum(dim=[-1, -2])  # (NB,H,W) => (NB)
+        loss = loss.sum(dim=[-1, -2])  # (NB,H,W) => (NB)
+        return unflatten_batch(loss, bd) 
 
 
 class CondVAEHead(nn.Module):
@@ -192,7 +200,6 @@ class DirectHead(nn.Module):
                 # obs,       # tensor(B, C, H, W)
                 state,     # tensor(B, D+S+G)
                 ):
-        assert len(state.shape) == 2
         return self._decoder(state)  # TODO: make VAE head -compatible
 
     def loss(self,

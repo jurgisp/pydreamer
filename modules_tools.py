@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as D
-from torch import Tensor
+from torch import Tensor, Size
 
 
 def flatten(x: Tensor) -> Tensor:
@@ -12,19 +12,22 @@ def flatten(x: Tensor) -> Tensor:
     return torch.reshape(x, (-1,) + x.shape[2:])
 
 
-def flatten3(x: Tensor) -> Tensor:
-    # (N, B, ...) => (N*B, ...)
-    return torch.reshape(x, (-1,) + x.shape[3:])
-
-
 def unflatten(x: Tensor, n: int) -> Tensor:
     # (N*B, ...) => (N, B, ...)
     return torch.reshape(x, (n, -1) + x.shape[1:])
 
 
-def unflatten3(x: Tensor, nb: Tuple) -> Tensor:
-    # (NBI, ...) => (N,B,I, ...)
-    return torch.reshape(x, nb + (-1,) + x.shape[1:])
+def flatten_batch(x: Tensor, nonbatch_dims=1) -> Tuple[Tensor, Size]:
+    # (b1,b2,..., X) => (B, X)
+    batch_dim = x.shape[:-nonbatch_dims]
+    x = torch.reshape(x, (-1,) + x.shape[-nonbatch_dims:])
+    return x, batch_dim
+
+
+def unflatten_batch(x: Tensor, batch_dim: Size) -> Tensor:
+    # (B, X) => (b1,b2,..., X)
+    x = torch.reshape(x, batch_dim + x.shape[1:])
+    return x
 
 
 def cat(x1, x2):

@@ -25,7 +25,7 @@ class WorldModel(nn.Module):
                  embed_rnn=False
                  ):
         super().__init__()
-        self._encoder = encoder
+        self._encoder: DenseEncoder = encoder
         self._decoder_image: DenseDecoder = decoder
         self._map_model: DirectHead = map_model
         self._mem_model = mem_model
@@ -67,8 +67,7 @@ class WorldModel(nn.Module):
                 do_image_pred=False,
                 ):
 
-        n, b = image.shape[:2]
-        embed = unflatten(self._encoder(flatten(image)), n)  # (N,B,E)
+        embed = self._encoder.forward(image)  # (N,B,E)
 
         if self._embed_rnn:
             # TODO: should apply reset
@@ -80,16 +79,15 @@ class WorldModel(nn.Module):
         # mem_sample, mem_state = mem_out[0], mem_out[-1]
 
         prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, None, I=I, imagine=imagine)
-        features_flat = flatten3(features)
 
-        image_rec = unflatten3(self._decoder_image.forward(features_flat), (n, b))
-        map_rec = unflatten3(self._map_model.forward(features_flat if self._map_grad else features_flat.detach()), (n, b))
+        image_rec = self._decoder_image.forward(features)
+        map_rec = self._map_model.forward(features if self._map_grad else features.detach())
 
         image_pred = None
         if do_image_pred:
             prior_samples = diag_normal(prior).sample()
             features_prior = self._core.feature_replace_z(features, prior_samples)
-            image_pred = unflatten3(self._decoder_image(flatten3(features_prior)), (n, b))
+            image_pred = self._decoder_image(features_prior)
 
         return (
             prior,                       # (N,B,I,2S)
@@ -122,11 +120,11 @@ class WorldModel(nn.Module):
              ):
         # Image
 
-        N, B, I = image_rec.shape[:3]
         image = image.unsqueeze(2).expand(image_rec.shape)
-        loss_image = unflatten3(self._decoder_image.loss(flatten3(image_rec), flatten3(image)), (N, B))  # (N,B,I)
+        loss_image = self._decoder_image.loss(image_rec, image)  # (N,B,I)
+        logprob_img = None
         if image_pred is not None:
-            logprob_img = unflatten3(self._decoder_image.loss(flatten3(image_pred), flatten3(image)), (N, B))
+            logprob_img = self._decoder_image.loss(image_pred, image)
 
         # KL
 
@@ -140,7 +138,7 @@ class WorldModel(nn.Module):
         # Map
 
         map = map.unsqueeze(2).expand(map_rec.shape)
-        loss_map = unflatten3(self._map_model.loss(flatten3(map_rec), flatten3(map)), (N, B))    # (N,B,I)
+        loss_map = self._map_model.loss(map_rec, map)    # (N,B,I)
         # metrics_map = {k.replace('loss_', 'loss_map_'): v for k, v in metrics_map.items()}  # loss_kl => loss_map_kl
 
         # IWAE averaging
@@ -189,7 +187,7 @@ class WorldModel(nn.Module):
                                loss_image=loss_image,
                                loss_map=loss_map)
 
-            if image_pred is not None:
+            if logprob_img is not None:
                 logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
                 log_tensors.update(logprob_img=logprob_img)
 
@@ -228,12 +226,11 @@ class MapPredictModel(nn.Module):
                 in_state: Tensor,
                 ):
 
-        n = image.size(0)
-        embed = unflatten(self._encoder(flatten(image)), n)
+        embed = self._encoder(image)
 
         features, out_state = self._core.forward(embed, action, in_state)  # TODO: should apply reset
 
-        image_rec = unflatten(self._decoder_image(flatten(features)), n)
+        image_rec = self._decoder_image(features)
         map_out = self._map_model.forward(features)  # NOT detached
 
         return (
