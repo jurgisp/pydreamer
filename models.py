@@ -100,15 +100,15 @@ class WorldModel(nn.Module):
     def predict(self,
                 prior, post, post_samples, image_rec, map_rec, image_pred, out_state,     # forward() output
                 ):
-        assert image_pred is not None, 'image_pred not calculated'
         # Return distributions
-        image_pred_distr = imgrec_to_distr(image_pred)
-        image_rec_distr = imgrec_to_distr(image_rec)
-        map_rec_distr = self._map_model.predict_obs(map_rec)
+        if image_pred is not None:
+            image_pred = imgrec_to_distr(image_pred)
+        image_rec = imgrec_to_distr(image_rec)
+        map_rec = self._map_model.predict_obs(map_rec)
         return (
-            image_pred_distr,    # categorical(N,B,H,W,C)
-            image_rec_distr,     # categorical(N,B,H,W,C)
-            map_rec_distr,       # categorical(N,B,HM,WM,C)
+            image_pred,    # categorical(N,B,H,W,C)
+            image_rec,     # categorical(N,B,H,W,C)
+            map_rec,       # categorical(N,B,HM,WM,C)
         )
 
     def loss(self,
@@ -213,6 +213,7 @@ class MapPredictModel(nn.Module):
         self._state_dim = state_dim
         self._map_weight = map_weight
         self._core = GRU2Inputs(encoder.out_dim, action_dim, state_dim, state_dim)
+        self._input_rnn = None
         for m in self.modules():
             init_weights_tf2(m)
 
@@ -222,6 +223,9 @@ class MapPredictModel(nn.Module):
                 reset: Tensor,     # tensor(N, B)
                 map: Tensor,       # tensor(N, B, C, MH, MW)
                 in_state: Tensor,
+                I: int = 1,
+                imagine=False,     # If True, will imagine sequence, not using observations to form posterior
+                do_image_pred=False,
                 ):
 
         embed = self._encoder(image)
@@ -242,23 +246,16 @@ class MapPredictModel(nn.Module):
         return self._core.init_state(batch_size)
 
     def predict(self,
-                image: Tensor,     # tensor(N, B, C, H, W)
-                action: Tensor,    # tensor(N, B, A)
-                reset: Tensor,     # tensor(N, B)
-                map: Tensor,       # tensor(N, B, C, MH, MW)
-                in_state: Tensor,
+                image_rec, map_rec, features, out_state,     # forward() output
                 ):
-
-        image_rec, map_out, _, _ = self.forward(image, action, reset, map, in_state)
-
-        image_pred_distr = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2))  # (N,B,C,H,W) => (N,B,H,W,C)
-        image_rec_distr = D.Categorical(logits=image_rec.permute(0, 1, 3, 4, 2))
-        map_rec_distr = self._map_model.predict_obs(*map_out)
-
+        # Return distributions
+        image_pred = None
+        image_rec = imgrec_to_distr(image_rec.unsqueeze(2))
+        map_rec = self._map_model.predict_obs(map_rec.unsqueeze(2))
         return (
-            image_pred_distr,    # categorical(N,B,H,W,C)
-            image_rec_distr,     # categorical(N,B,H,W,C)
-            map_rec_distr,       # categorical(N,B,HM,WM,C)
+            image_pred,    # categorical(N,B,H,W,C)
+            image_rec,     # categorical(N,B,H,W,C)
+            map_rec,       # categorical(N,B,HM,WM,C)
         )
 
     def loss(self,
@@ -267,17 +264,18 @@ class MapPredictModel(nn.Module):
              map,                                        # tensor(N, B, MH, MW)
              ):
         loss_image = self._decoder_image.loss(image_rec, image)
-        loss_image = loss_image.mean()
-        loss_model = loss_image
-
         loss_map = self._map_model.loss(map_out, map)
-        # metrics_map = {k.replace('loss_', 'loss_map_'): v for k, v in metrics_map.items()}  # loss_kl => loss_map_kl
 
-        loss = loss_model + self._map_weight * loss_map
+        log_tensors = dict(loss_image=loss_image.detach(),
+                           loss_map=loss_map.detach())
 
-        log_tensors = {}
-        metrics = dict(loss_model_image=loss_image.detach(),
-                       loss_model=loss_model.detach(),
+        loss_image = loss_image.mean()
+        loss_map = loss_map.mean()
+        loss = loss_image + self._map_weight * loss_map
+
+        metrics = dict(loss=loss.detach(),
+                       loss_model_image=loss_image.detach(),
+                       loss_model=loss_image.detach(),
                        loss_map=loss_map.detach(),
                        #    **metrics_map
                        )

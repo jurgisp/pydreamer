@@ -197,11 +197,8 @@ def run(conf):
                 #       f"  loss_model_image_max: {loss_metrics['loss_model_image_max'].item():.1f}"
                 #       f"  loss_model_kl_max: {loss_metrics['loss_model_kl_max'].item():.1f}")
                 with torch.no_grad():
-                    image_rec, map_rec = output[3], output[4]
-                    image_rec_distr = imgrec_to_distr(image_rec)
-                    map_rec_distr = imgrec_to_distr(map_rec)
-                log_batch_npz(steps, batch, loss_tensors, None, image_rec_distr, map_rec_distr,
-                              file_suffix=f"_{loss_metrics['loss_model_image_max'].item():.0f}")
+                    image_pred, image_rec, map_rec = model.predict(*output)
+                log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec)
 
             # Log metrics
 
@@ -290,8 +287,9 @@ def evaluate(prefix: str,
                 if reset.sum() == 0:
                     output = model.forward(0 * image[:5], action[:5], reset[:5], map[:5], state, I=eval_samples, imagine=True, do_image_pred=True)
                     _, _, loss_tensors = model.loss(*output, image[:5], map[:5])  # type: ignore
-                    metrics_eval['logprob_img_1step'].append(loss_tensors['logprob_img'][0].mean().item())
-                    metrics_eval['logprob_img_2step'].append(loss_tensors['logprob_img'][1].mean().item())
+                    if 'logprob_img' in loss_tensors:
+                        metrics_eval['logprob_img_1step'].append(loss_tensors['logprob_img'][0].mean().item())
+                        metrics_eval['logprob_img_2step'].append(loss_tensors['logprob_img'][1].mean().item())
                     # image_pred, image_rec, map_rec = model.predict(*output)  # TODO: log 5-step prediction sequence
 
             # Forward (posterior) & loss
@@ -303,7 +301,8 @@ def evaluate(prefix: str,
 
             _, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
             metrics_eval['logprob_map'].append(loss_tensors['loss_map'].mean().item())  # Backwards-compat, same as loss_map
-            metrics_eval['logprob_img'].append(loss_tensors['logprob_img'].mean().item())
+            if 'logprob_img' in loss_tensors:
+                metrics_eval['logprob_img'].append(loss_tensors['logprob_img'].mean().item())
             for k, v in loss_metrics.items():
                 metrics_eval[k].append(v.item())
 
