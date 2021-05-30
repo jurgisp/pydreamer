@@ -62,3 +62,11 @@ defaults:
   generator_env:
   generator_wait: 300
   generator_buffer: 0
+
+top: # Top-down observations instead of agent-centric
+  # Env
+  channels: 8
+  image_key: map_masked
+  image_size: 11
+  map_key: map
+  map_size: 11
