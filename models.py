@@ -21,7 +21,6 @@ class WorldModel(nn.Module):
                  kl_weight=1.0,
                  map_grad=False,
                  map_weight=0.1,  # Only matters if map_grad
-                 iwae_samples=0,      # arxiv.org/abs/1509.00519
                  embed_rnn=False
                  ):
         super().__init__()
@@ -35,7 +34,6 @@ class WorldModel(nn.Module):
         self._kl_weight = kl_weight
         self._map_grad = map_grad
         self._map_weight = map_weight
-        self._iwae_samples = iwae_samples
         self._embed_rnn = embed_rnn
         self._core = RSSMCore(embed_dim=encoder.out_dim * (3 if embed_rnn else 1),
                               deter_dim=deter_dim,

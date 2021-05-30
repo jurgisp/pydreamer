@@ -18,7 +18,7 @@ defaults:
   map_size: 19
 
   # Training
-  iwae_samples: 0
+  iwae_samples: 1
   kl_weight: 1.0
   adam_lr: 3.0e-4
   adam_eps: 1.0e-5
