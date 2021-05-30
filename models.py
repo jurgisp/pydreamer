@@ -217,6 +217,9 @@ class MapPredictModel(nn.Module):
         for m in self.modules():
             init_weights_tf2(m)
 
+    def init_state(self, batch_size):
+        return self._core.init_state(batch_size)
+
     def forward(self,
                 image: Tensor,     # tensor(N, B, C, H, W)
                 action: Tensor,    # tensor(N, B, A)
@@ -238,15 +241,11 @@ class MapPredictModel(nn.Module):
         return (
             image_rec,                   # tensor(N, B, C, H, W)
             map_out,                     # tuple, map.forward() output
-            features,                    # tensor(N, B, D+S+G)
             out_state,
         )
 
-    def init_state(self, batch_size):
-        return self._core.init_state(batch_size)
-
     def predict(self,
-                image_rec, map_rec, features, out_state,     # forward() output
+                image_rec, map_rec, out_state,     # forward() output
                 ):
         # Return distributions
         image_pred = None
@@ -259,7 +258,7 @@ class MapPredictModel(nn.Module):
         )
 
     def loss(self,
-             image_rec, map_out, features, out_state,     # forward() output
+             image_rec, map_out, out_state,     # forward() output
              image,                                      # tensor(N, B, C, H, W)
              map,                                        # tensor(N, B, MH, MW)
              ):
