@@ -42,6 +42,7 @@ defaults:
   deter_dim: 512
   stoch_dim: 30
   hidden_dim: 200
+  gru_layers: 1
   image_encoder: dense
   image_encoder_layers: 3
   image_decoder: dense

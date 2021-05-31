@@ -116,7 +116,8 @@ def run(conf):
             hidden_dim=conf.hidden_dim,
             kl_weight=conf.kl_weight,
             map_grad=conf.map_grad,
-            embed_rnn=conf.embed_rnn != 'none'
+            embed_rnn=conf.embed_rnn != 'none',
+            gru_layers=conf.gru_layers
         )
     elif conf.model == 'map_rnn':
         model = MapPredictModel(

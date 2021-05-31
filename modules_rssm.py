@@ -11,9 +11,9 @@ from modules_tools import *
 
 class RSSMCore(nn.Module):
 
-    def __init__(self, embed_dim=256, action_dim=7, deter_dim=200, stoch_dim=30, hidden_dim=200, global_dim=30):
+    def __init__(self, embed_dim=256, action_dim=7, deter_dim=200, stoch_dim=30, hidden_dim=200, global_dim=30, gru_layers=1):
         super().__init__()
-        self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim)
+        self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers)
 
     def forward(self,
                 embed: Tensor,       # tensor(N, B, E)
@@ -88,7 +88,7 @@ class RSSMCore(nn.Module):
 
 class RSSMCell(nn.Module):
 
-    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim):
+    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers=1):
         super().__init__()
         self._stoch_dim = stoch_dim
         self._deter_dim = deter_dim
@@ -98,7 +98,11 @@ class RSSMCell(nn.Module):
         self._a_mlp = nn.Linear(action_dim, hidden_dim, bias=False)  # No bias, because outputs are added
         # self._g_mlp = nn.Linear(global_dim, hidden_dim, bias=False)  # TODO
 
-        self._gru = nn.GRUCell(hidden_dim, deter_dim)
+        self._gru = nn.GRUCell(hidden_dim, deter_dim // gru_layers)
+        self._gru_layers = gru_layers
+        if gru_layers > 1:
+            assert gru_layers == 2
+            self._gru2 = nn.GRUCell(deter_dim // gru_layers, deter_dim // gru_layers)
 
         self._prior_mlp_h = nn.Linear(deter_dim, hidden_dim)
         # self._prior_mlp_g = nn.Linear(global_dim, hidden_dim, bias=False)  # TODO
@@ -131,7 +135,14 @@ class RSSMCell(nn.Module):
         in_z = in_z * reset_mask
 
         za = F.elu(self._z_mlp(in_z) + self._a_mlp(action))    # (B, H)
-        h = self._gru(za, in_h)                                             # (B, D)
+        if self._gru_layers == 1:
+            h = self._gru(za, in_h)                                             # (B, D)
+        else:
+            in_h1, in_h2 = in_h.chunk(2, -1)
+            h1 = self._gru(za, in_h1)
+            h2 = self._gru2(h1, in_h2)
+            h = torch.cat((h1, h2), -1)
+
         post_in = F.elu(self._post_mlp_h(h) + self._post_mlp_e(embed))
         post = self._post_mlp(post_in)                                    # (B, 2*S)
         sample = rsample(post, noise)                                     # (B, S)
@@ -152,7 +163,14 @@ class RSSMCell(nn.Module):
         in_h, in_z = in_state
 
         za = F.elu(self._z_mlp(in_z) + self._a_mlp(action))    # (B,H)
-        h = self._gru(za, in_h)                                # (B,D)
+        if self._gru_layers == 1:
+            h = self._gru(za, in_h)                                             # (B, D)
+        else:
+            in_h1, in_h2 = in_h.chunk(2, -1)
+            h1 = self._gru(za, in_h1)
+            h2 = self._gru2(h1, in_h2)
+            h = torch.cat((h1, h2), -1)
+
         prior = self._prior_mlp(F.elu(self._prior_mlp_h(h)))   # (B,2S)
         sample = rsample(prior, noise)                         # (B,S)
 

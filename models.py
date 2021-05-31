@@ -21,7 +21,8 @@ class WorldModel(nn.Module):
                  kl_weight=1.0,
                  map_grad=False,
                  map_weight=0.1,  # Only matters if map_grad
-                 embed_rnn=False
+                 embed_rnn=False,
+                 gru_layers=1
                  ):
         super().__init__()
         self._encoder: DenseEncoder = encoder
@@ -39,7 +40,8 @@ class WorldModel(nn.Module):
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
                               hidden_dim=hidden_dim,
-                              global_dim=self._global_dim)
+                              global_dim=self._global_dim,
+                              gru_layers=gru_layers)
         if self._embed_rnn:
             self._input_rnn = GRU2Inputs(input1_dim=encoder.out_dim,
                                          input2_dim=action_dim,
