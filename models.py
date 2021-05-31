@@ -212,7 +212,7 @@ class MapPredictModel(nn.Module):
         self._map_model: DirectHead = map_model
         self._state_dim = state_dim
         self._map_weight = map_weight
-        self._core = GRU2Inputs(encoder.out_dim, action_dim, state_dim, state_dim)
+        self._core = GRU2Inputs(encoder.out_dim, action_dim, mlp_dim=encoder.out_dim, state_dim=state_dim)
         self._input_rnn = None
         for m in self.modules():
             init_weights_tf2(m)
