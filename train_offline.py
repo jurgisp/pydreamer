@@ -241,7 +241,7 @@ def run(conf):
 
             # Evaluate
 
-            if conf.eval_interval and steps % conf.eval_interval == 0:
+            if conf.eval_interval and steps % conf.eval_interval == 1:
                 # Same batch as train
                 eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
                 evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.iwae_samples, conf.keep_state)
@@ -308,10 +308,9 @@ def evaluate(prefix: str,
             for k, v in loss_metrics.items():
                 metrics_eval[k].append(v.item())
 
-            # Log one (or more?) episode batch
+            # Log one episode batch
 
-            # if n_episodes == 0:
-            if True:
+            if n_episodes == 0:
                 image_pred, image_rec, map_rec = model.predict(*output)
                 npz_datas.append(prepare_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec))
 
