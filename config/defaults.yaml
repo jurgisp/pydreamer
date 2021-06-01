@@ -55,7 +55,7 @@ defaults:
   global_dim: 0
 
   # Optimizer
-  grad_clip: 100
+  grad_clip: 20
   image_decoder_min_prob: 0
 
   # Generator
