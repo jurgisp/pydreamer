@@ -199,7 +199,7 @@ def run(conf):
                 #       f"  loss_model_kl_max: {loss_metrics['loss_model_kl_max'].item():.1f}")
                 with torch.no_grad():
                     image_pred, image_rec, map_rec = model.predict(*output)
-                log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec)
+                log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, f'{steps:07}.npz')
 
             # Log metrics
 
@@ -264,6 +264,7 @@ def evaluate(prefix: str,
     metrics_eval = defaultdict(list)
     state = None
     loss_tensors = None
+    npz_datas = []
     n_episodes = 0
 
     for i_batch in range(eval_batches):
@@ -307,39 +308,51 @@ def evaluate(prefix: str,
             for k, v in loss_metrics.items():
                 metrics_eval[k].append(v.item())
 
-            # Log one batch
+            # Log one (or more?) episode batch
 
-            if i_batch == 0:
+            # if n_episodes == 0:
+            if True:
                 image_pred, image_rec, map_rec = model.predict(*output)
-                log_batch_npz(steps, batch, loss_tensors, image_pred, image_rec, map_rec, top=10, subdir=f'd2_wm_predict_{prefix}')
+                npz_datas.append(prepare_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec))
 
     metrics_eval = {f'{prefix}/{k}': np.mean(v) for k, v in metrics_eval.items()}
     mlflow.log_metrics(metrics_eval, step=steps)
+
+    npz_data = {k: np.concatenate([d[k] for d in npz_datas], 1) for k in npz_datas[0]}
+    tools.mlflow_log_npz(npz_data, f'{steps:07}.npz', subdir=f'd2_wm_predict_{prefix}', verbose=True)
+
     print(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_episodes} episodes')
 
 
-def log_batch_npz(steps,
-                  batch,
+def log_batch_npz(batch,
                   loss_tensors,
                   image_pred: Optional[D.Categorical],
                   image_rec: Optional[D.Categorical],
                   map_rec: Optional[D.Categorical],
-                  top=-1,
-                  subdir='d2_wm_predict',
-                  file_suffix=''):
+                  filename: str,
+                  subdir='d2_wm_predict'):
+    data = prepare_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec)
+    tools.mlflow_log_npz(data, filename, subdir)
+
+
+def prepare_batch_npz(batch,
+                      loss_tensors,
+                      image_pred: Optional[D.Categorical],
+                      image_rec: Optional[D.Categorical],
+                      map_rec: Optional[D.Categorical]):
     data = batch.copy()
     data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
     if image_pred is not None:
-        data['image_pred'] = image_pred.sample().cpu().numpy()
+        # data['image_pred'] = image_pred.sample().cpu().numpy()
         data['image_pred_p'] = image_pred.probs.cpu().numpy()
     if image_rec is not None:
-        data['image_rec'] = image_rec.sample().cpu().numpy()
+        # data['image_rec'] = image_rec.sample().cpu().numpy()
         data['image_rec_p'] = image_rec.probs.cpu().numpy()
     if map_rec is not None:
-        data['map_rec'] = map_rec.sample().cpu().numpy()
+        # data['map_rec'] = map_rec.sample().cpu().numpy()
         data['map_rec_p'] = map_rec.probs.cpu().numpy()
-    data = {k: v.swapaxes(0, 1)[:top] for k, v in data.items()}  # (N,B,...) => (B,N,...)
-    tools.mlflow_log_npz(data, f'{steps:07}{file_suffix}.npz', subdir)
+    data = {k: v.swapaxes(0, 1) for k, v in data.items()}  # (N,B,...) => (B,N,...)
+    return data
 
 
 def run_generator(conf):
