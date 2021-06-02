@@ -7,6 +7,7 @@ from typing import Iterator
 import numpy as np
 import time
 import torch
+from torch import tensor, Tensor
 import torch.nn as nn
 import torch.distributions as D
 from torch.profiler import ProfilerActivity
@@ -87,7 +88,8 @@ def run(conf):
         map_model = DirectHead(
             decoder=DenseDecoder(in_dim=state_dim,
                                  out_shape=(conf.channels, conf.map_size, conf.map_size),
-                                 hidden_layers=4),
+                                 hidden_dim=conf.map_hidden_dim,
+                                 hidden_layers=conf.map_hidden_layers),
         )
     else:
         map_model = NoHead(out_shape=(conf.channels, conf.map_size, conf.map_size))
@@ -241,7 +243,7 @@ def run(conf):
 
             # Evaluate
 
-            if conf.eval_interval and steps % conf.eval_interval == 1:
+            if conf.eval_interval and steps % conf.eval_interval == 0:
                 # Same batch as train
                 eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
                 evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.iwae_samples, conf.keep_state)
@@ -282,6 +284,7 @@ def evaluate(prefix: str,
                 if reset.sum() > 0:
                     assert all(reset[0].cpu().numpy()), 'First step should be reset'
                     metrics_eval['logprob_map_last'].append(loss_tensors['loss_map'][-1].mean().item())
+                    metrics_eval['logprob_img_last'].append(loss_tensors.get('logprob_img', tensor([0.0]))[-1].mean().item())
                     n_episodes += image.shape[1]
 
                 # Forward (prior) & unseen logprob
@@ -303,8 +306,7 @@ def evaluate(prefix: str,
 
             _, loss_metrics, loss_tensors = model.loss(*output, image, map)  # type: ignore
             metrics_eval['logprob_map'].append(loss_tensors['loss_map'].mean().item())  # Backwards-compat, same as loss_map
-            if 'logprob_img' in loss_tensors:
-                metrics_eval['logprob_img'].append(loss_tensors['logprob_img'].mean().item())
+            metrics_eval['logprob_img'].append(loss_tensors.get('logprob_img', tensor(0.0)).mean().item())
             for k, v in loss_metrics.items():
                 metrics_eval[k].append(v.item())
 
