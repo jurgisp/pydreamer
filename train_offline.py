@@ -279,12 +279,12 @@ def evaluate(prefix: str,
 
             if state is not None:  # Non-first batch
 
-                # Log _last predictions at the end of previous episode
+                # Log _last predictions from the last batch of previous episode
 
                 if reset.sum() > 0:
                     assert all(reset[0].cpu().numpy()), 'First step should be reset'
-                    metrics_eval['logprob_map_last'].append(loss_tensors['loss_map'][-1].mean().item())
-                    metrics_eval['logprob_img_last'].append(loss_tensors.get('logprob_img', tensor([0.0]))[-1].mean().item())
+                    metrics_eval['logprob_map_last'].append(loss_tensors['loss_map'].mean().item())
+                    metrics_eval['logprob_img_last'].append(loss_tensors.get('logprob_img', tensor(0.0)).mean().item())
                     n_episodes += image.shape[1]
 
                 # Forward (prior) & unseen logprob
