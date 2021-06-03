@@ -164,34 +164,36 @@ class WorldModel(nn.Module):
         #         = sum_x ( delta_{c=O(x)} ( logavgexp_i ( y_{ixc} - logsumexp_c(y_{ixc})
         #
 
-        with torch.no_grad():  # This stop gradient is important for correctness
-            weights = F.softmax(-(loss_image + loss_kl), dim=-1)    # TODO: should we apply kl_weight here?
-            weights_map = F.softmax(-loss_map, dim=-1)
-        dloss_image = (weights * loss_image).sum(dim=-1)  # (N,B,I) => (N,B)
-        dloss_kl = (weights * loss_kl).sum(dim=-1)
-        dloss_map = (weights_map * loss_map).sum(dim=-1)
+        # with torch.no_grad():  # This stop gradient is important for correctness
+        #     weights = F.softmax(-(loss_image + loss_kl), dim=-1)    # TODO: should we apply kl_weight here?
+        #     weights_map = F.softmax(-loss_map, dim=-1)
+        # dloss_image = (weights * loss_image).sum(dim=-1)  # (N,B,I) => (N,B)
+        # dloss_kl = (weights * loss_kl).sum(dim=-1)
+        # dloss_map = (weights_map * loss_map).sum(dim=-1)
 
-        dloss = (dloss_image.mean()
-                 + self._kl_weight * dloss_kl.mean()
-                 + self._map_weight * dloss_map.mean())
+        # dloss = (dloss_image.mean()
+        #          + self._kl_weight * dloss_kl.mean()
+        #          + self._map_weight * dloss_map.mean())
 
         # Metrics
 
+        loss_model = -logavgexp(-(loss_kl + loss_image), dim=-1)  # not the same as (loss_kl+loss_image)
+        loss_map = -logavgexp(-loss_map, dim=-1)
+        loss = loss_model.mean() + self._map_weight * loss_map.mean()
+
         with torch.no_grad():
-            loss_model = -logavgexp(-(loss_kl + loss_image), dim=-1)  # not the same as (loss_kl+loss_image)
             loss_image = -logavgexp(-loss_image, dim=-1)
             loss_kl = -logavgexp(-loss_kl, dim=-1)
-            loss_map = -logavgexp(-loss_map, dim=-1)
 
-            log_tensors = dict(loss_kl=loss_kl,
-                               loss_image=loss_image,
-                               loss_map=loss_map)
+            log_tensors = dict(loss_kl=loss_kl.detach(),
+                               loss_image=loss_image.detach(),
+                               loss_map=loss_map.detach())
 
             if logprob_img is not None:
                 logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
                 log_tensors.update(logprob_img=logprob_img)
 
-            metrics = dict(loss=dloss.detach(),
+            metrics = dict(loss=loss.detach(),
                            loss_model=loss_model.mean(),
                            loss_model_image=loss_image.mean(),
                            loss_model_image_max=loss_image.max(),
@@ -202,7 +204,7 @@ class WorldModel(nn.Module):
                            #    **metrics_map
                            )
 
-        return dloss, metrics, log_tensors
+        return loss, metrics, log_tensors
 
 
 class MapPredictModel(nn.Module):
