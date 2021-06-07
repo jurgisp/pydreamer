@@ -22,6 +22,7 @@ class WorldModel(nn.Module):
                  map_grad=False,
                  map_weight=0.1,  # Only matters if map_grad
                  embed_rnn=False,
+                 embed_rnn_dim=512,
                  gru_layers=1
                  ):
         super().__init__()
@@ -36,7 +37,7 @@ class WorldModel(nn.Module):
         self._map_grad = map_grad
         self._map_weight = map_weight
         self._embed_rnn = embed_rnn
-        self._core = RSSMCore(embed_dim=encoder.out_dim * (3 if embed_rnn else 1),
+        self._core = RSSMCore(embed_dim=encoder.out_dim + 2 * embed_rnn_dim if embed_rnn else encoder.out_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
                               hidden_dim=hidden_dim,
@@ -45,8 +46,8 @@ class WorldModel(nn.Module):
         if self._embed_rnn:
             self._input_rnn = GRU2Inputs(input1_dim=encoder.out_dim,
                                          input2_dim=action_dim,
-                                         mlp_dim=encoder.out_dim,
-                                         state_dim=encoder.out_dim,
+                                         mlp_dim=embed_rnn_dim,
+                                         state_dim=embed_rnn_dim,
                                          bidirectional=True)
         else:
             self._input_rnn = None
