@@ -118,6 +118,7 @@ class WorldModel(nn.Module):
              prior, post, post_samples, image_rec, map_rec, image_pred, out_state,     # forward() output
              image,                                      # tensor(N, B, C, H, W)
              map,                                        # tensor(N, B, MH, MW)
+             reset,
              ):
         # Image
 
@@ -129,9 +130,9 @@ class WorldModel(nn.Module):
 
         # KL
 
-        # # Usual VAE KL loss
-        # loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
-        # Sampled KL loss
+        # loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))  # Usual VAE KL loss, only I=1
+
+        # Sampled KL loss, works for I>1
         prior_d = diag_normal(prior)
         post_d = diag_normal(post)
         loss_kl = post_d.log_prob(post_samples) - prior_d.log_prob(post_samples)  # (N,B,I)
@@ -178,7 +179,7 @@ class WorldModel(nn.Module):
 
         # Metrics
 
-        loss_model = -logavgexp(-(loss_kl + loss_image), dim=-1)  # not the same as (loss_kl+loss_image)
+        loss_model = -logavgexp(-(self._kl_weight * loss_kl + loss_image), dim=-1)  # not the same as (loss_kl+loss_image)
         loss_map = -logavgexp(-loss_map, dim=-1)
         loss = loss_model.mean() + self._map_weight * loss_map.mean()
 
@@ -186,10 +187,16 @@ class WorldModel(nn.Module):
             loss_image = -logavgexp(-loss_image, dim=-1)
             loss_kl = -logavgexp(-loss_kl, dim=-1)
 
+            entropy_prior = prior_d.entropy().mean(dim=-1)
+            entropy_post = post_d.entropy().mean(dim=-1)
+            entropy_increase = entropy_prior[1:] - entropy_post[:-1]  # No need to mask by reset(), as long as reset always comes in first step
+
             log_tensors = dict(loss_kl=loss_kl.detach(),
                                loss_image=loss_image.detach(),
-                               loss_map=loss_map.detach())
-
+                               loss_map=loss_map.detach(),
+                               entropy_prior=entropy_prior,
+                               entropy_post=entropy_post,
+                               )
             if logprob_img is not None:
                 logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
                 log_tensors.update(logprob_img=logprob_img)
@@ -202,8 +209,12 @@ class WorldModel(nn.Module):
                            loss_model_kl_max=loss_kl.max(),
                            loss_model_mem=torch.tensor(0.0),
                            loss_map=loss_map.mean(),
-                           #    **metrics_map
+                           entropy_prior=entropy_prior.mean(),
+                           entropy_post=entropy_post.mean(),
+                           entropy_increase=entropy_increase.mean(),
                            )
+            if reset.sum() > 0:
+                metrics.update(entropy_prior_start=(entropy_prior * reset).sum() / reset.sum())
 
         return loss, metrics, log_tensors
 
