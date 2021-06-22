@@ -189,7 +189,6 @@ class WorldModel(nn.Module):
 
             entropy_prior = prior_d.entropy().mean(dim=-1)
             entropy_post = post_d.entropy().mean(dim=-1)
-            entropy_increase = entropy_prior[1:] - entropy_post[:-1]  # No need to mask by reset(), as long as reset always comes in first step
 
             log_tensors = dict(loss_kl=loss_kl.detach(),
                                loss_image=loss_image.detach(),
@@ -211,7 +210,6 @@ class WorldModel(nn.Module):
                            loss_map=loss_map.mean(),
                            entropy_prior=entropy_prior.mean(),
                            entropy_post=entropy_post.mean(),
-                           entropy_increase=entropy_increase.mean(),
                            )
             if reset.sum() > 0:
                 metrics.update(entropy_prior_start=(entropy_prior * reset).sum() / reset.sum())
