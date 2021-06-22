@@ -98,9 +98,18 @@ class RandomPolicy:
 
 class MinigridWanderPolicy:
     def __call__(self, obs):
-        front = MiniGrid.GRID_VALUES[obs['image'][3, 5]]
-        left = MiniGrid.GRID_VALUES[obs['image'][2, 6]]
-        right = MiniGrid.GRID_VALUES[obs['image'][4, 6]]
+        if obs['image'].shape == (7, 7):
+            (ax, ay) = (3, 6)  # agent is here
+            front = MiniGrid.GRID_VALUES[obs['image'][ax, ay - 1]]  # front is up
+            left = MiniGrid.GRID_VALUES[obs['image'][ax - 1, ay]]
+            right = MiniGrid.GRID_VALUES[obs['image'][ax + 1, ay]]
+        elif 'map_centered' in obs:
+            ax = ay = obs['map_centered'].shape[0] // 2  # agent is here
+            front = MiniGrid.GRID_VALUES[obs['map_centered'][ax, ay - 1]]
+            left = MiniGrid.GRID_VALUES[obs['map_centered'][ax - 1, ay]]
+            right = MiniGrid.GRID_VALUES[obs['map_centered'][ax + 1, ay]]
+        else:
+            assert False, f'Unsupported observation {obs["image"].shape}'
 
         empty = [1, 8]  # Empty or goal
 
