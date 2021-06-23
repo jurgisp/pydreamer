@@ -1,7 +1,6 @@
 torch==1.8.1
 torchvision==0.9.1
 gym
-gym-minigrid
 
 # Logging
 mlflow
@@ -12,3 +11,7 @@ pathy
 bokeh
 tensorboard
 torch-tb-profiler
+
+# Environments
+# git+https://github.com/jurgisp/gym-minigrid.git@e979bc77a9377346a6a0311a257e8bbb218e611c#egg=gym-minigrid
+# git+https://github.com/jurgisp/gym-miniworld.git@d95617d87405ea2ab98047abc4c094ce192a7e76#egg=gym-miniworld

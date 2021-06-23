@@ -25,7 +25,20 @@ def main(output_dir,
         output_dir = pathlib.Path(output_dir).expanduser()
         output_dir.mkdir(parents=True, exist_ok=True)
 
-    env = MiniGrid(env_name, max_steps=max_steps, seed=conf.seed)
+    if env_name.startswith('MiniGrid-'):
+        env = MiniGrid(env_name, max_steps=max_steps, seed=conf.seed)
+
+    elif env_name.startswith('MiniWorld-'):
+        import gym_miniworld
+        from gym_miniworld.wrappers import DictWrapper, MapWrapper, AgentPosWrapper
+        env = gym.make(env_name, max_steps=max_steps)
+        env = DictWrapper(env)
+        env = MapWrapper(env)
+        env = AgentPosWrapper(env)
+        
+    else:
+        env = gym.make(env_name, max_steps=max_steps)
+
     env = CollectWrapper(env)
 
     if policy == 'random':
@@ -66,7 +79,7 @@ def main(output_dir,
 
         print(f"[{steps:08}/{conf.num_steps:08}] "
               f"Episode data: {data['image'].shape} written to {fname}"
-              f",  explored%: {(data['map_vis'][-1] < max_steps).mean():.1%}"
+            #   f",  explored%: {(data['map_vis'][-1] < max_steps).mean():.1%}"
               f",  fps: {fps:.0f}"
               )
 
