@@ -1,6 +1,6 @@
 defaults:
   # Job
-  n_steps: 100_000
+  n_steps: 500_000
   run_name: none
   resume_id:
   input_dir: ./data/train
@@ -11,11 +11,12 @@ defaults:
   enable_profiler: False
 
   # Env
-  channels: 4
   image_key: image
   image_size: 7
+  image_channels: 4
   map_key: map_centered
   map_size: 19
+  map_channels: 4
 
   # Training
   iwae_samples: 1
@@ -66,10 +67,57 @@ defaults:
   generator_wait: 300
   generator_buffer: 0
 
-top: # Top-down observations instead of agent-centric
+minigrid:
+  # Data
+  input_dir: /data/MiniGrid-MazeS11N-v0_100M/episodes/
+  eval_dir: /data/MiniGrid-MazeS11N-v0_100M/eval/
+
   # Env
-  channels: 8
+  image_key: image
+  image_size: 7
+  image_channels: 4
+  map_key: map_centered
+  map_size: 19
+  map_channels: 4
+
+  # Model
+  image_encoder: dense
+  image_encoder_layers: 3
+  image_decoder: dense
+  image_decoder_layers: 2
+
+minigrid_top: # Top-down observations instead of agent-centric
+  # Data
+  input_dir: /data/MiniGrid-MazeS11N-v0_100M/episodes/
+  eval_dir: /data/MiniGrid-MazeS11N-v0_100M/eval/
+
+  # Env
   image_key: map_masked
   image_size: 11
+  image_channels: 8
   map_key: map
   map_size: 11
+  map_channels: 8
+
+  # Model
+  image_encoder: dense
+  image_encoder_layers: 3
+  image_decoder: dense
+  image_decoder_layers: 2
+
+miniworld:
+  # Data
+  input_dir: /data/MiniWorld-MazeS5GridN-v0_100M/train/
+  eval_dir: /data/MiniWorld-MazeS5GridN-v0_100M/eval/
+
+  # Env
+  image_key: image
+  image_size: 64
+  image_channels: 3
+  map_key: map_centered
+  map_size: 19
+  map_channels: 4
+
+  # Model
+  image_encoder: cnn
+  image_decoder: cnn

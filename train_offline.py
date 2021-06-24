@@ -39,7 +39,7 @@ def run(conf):
     data = (OfflineDataSequential(conf.input_dir) if conf.data_seq else OfflineDataRandom(conf.input_dir))
     data_eval = (OfflineDataSequential(conf.eval_dir) if conf.data_seq else OfflineDataRandom(conf.eval_dir))
 
-    preprocess = MinigridPreprocess(categorical=conf.channels,
+    preprocess = MinigridPreprocess(categorical=conf.image_channels,  # TODO
                                     image_key=conf.image_key,
                                     map_key=conf.map_key,
                                     device=device)
@@ -49,12 +49,12 @@ def run(conf):
     # Encoder
 
     if conf.image_encoder == 'cnn':
-        encoder = ConvEncoder(in_channels=conf.channels,
+        encoder = ConvEncoder(in_channels=conf.image_channels,
                               out_dim=conf.embed_dim,
                               stride=1,
                               kernels=(1, 3, 3, 3))
     else:
-        encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * conf.channels,
+        encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * conf.image_channels,
                                out_dim=conf.embed_dim,
                                hidden_layers=conf.image_encoder_layers)
 
@@ -62,12 +62,12 @@ def run(conf):
 
     if conf.image_decoder == 'cnn':
         decoder = ConvDecoderCat(in_dim=state_dim,
-                                 out_channels=conf.channels,
+                                 out_channels=conf.image_channels,
                                  stride=1,
                                  kernels=(3, 3, 3, 1))
     else:
         decoder = DenseDecoder(in_dim=state_dim,
-                               out_shape=(conf.channels, conf.image_size, conf.image_size),
+                               out_shape=(conf.image_channels, conf.image_size, conf.image_size),
                                hidden_layers=conf.image_decoder_layers,
                                min_prob=conf.image_decoder_min_prob)
 
@@ -75,11 +75,11 @@ def run(conf):
 
     if conf.map_model == 'vae':
         map_model = CondVAEHead(
-            encoder=DenseEncoder(in_dim=conf.map_size * conf.map_size * conf.channels,
+            encoder=DenseEncoder(in_dim=conf.map_size * conf.map_size * conf.map_channels,
                                  out_dim=conf.embed_dim,
                                  hidden_layers=3),
             decoder=DenseDecoder(in_dim=state_dim + conf.map_stoch_dim,
-                                 out_shape=(conf.channels, conf.map_size, conf.map_size),
+                                 out_shape=(conf.map_channels, conf.map_size, conf.map_size),
                                  hidden_layers=4),
             state_dim=state_dim,
             latent_dim=conf.map_stoch_dim
@@ -87,12 +87,12 @@ def run(conf):
     elif conf.map_model == 'direct':
         map_model = DirectHead(
             decoder=DenseDecoder(in_dim=state_dim,
-                                 out_shape=(conf.channels, conf.map_size, conf.map_size),
+                                 out_shape=(conf.map_channels, conf.map_size, conf.map_size),
                                  hidden_dim=conf.map_hidden_dim,
                                  hidden_layers=conf.map_hidden_layers),
         )
     else:
-        map_model = NoHead(out_shape=(conf.channels, conf.map_size, conf.map_size))
+        map_model = NoHead(out_shape=(conf.map_channels, conf.map_size, conf.map_size))
 
     # Memory model
 
@@ -282,7 +282,7 @@ def evaluate(prefix: str,
 
                 # Log _last predictions from the last batch of previous episode
 
-                if reset.sum() > 0:
+                if reset.sum() > 0 and loss_tensors is not None:
                     assert all(reset[0].cpu().numpy()), 'First step should be reset'
                     metrics_eval['logprob_map_last'].append(loss_tensors['loss_map'].mean().item())
                     metrics_eval['logprob_img_last'].append(loss_tensors.get('logprob_img', tensor(0.0)).mean().item())

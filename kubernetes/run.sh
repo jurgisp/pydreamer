@@ -52,7 +52,7 @@ spec:
             - train_offline.py
             - --configs
             - defaults
-            - offline_minigrid
+            - minigrid
             - $EXPERIMENT
             - --run_name
             - py_$EXPERIMENT
