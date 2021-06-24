@@ -1,7 +1,8 @@
 conda activate pydreamer
 
-## MiniWorld
+## Generate MiniWorld
 
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridN-v0 0
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridN-v0 1
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridN-v0 2
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridN-v0 3
@@ -11,7 +12,40 @@ conda activate pydreamer
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridN-v0 7
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridN-v0 8
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridN-v0 9
-./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridN-v0 10
+
+
+## Copy data to shared disk
+
+gcloud compute instances attach-disk "adhoc-jurgis" --disk "gke-shared-disk"
+gcloud compute instances start adhoc-jurgis
+gcloud compute ssh adhoc-jurgis
+sudo mount -o discard,defaults /dev/sdb /data
+
+mkdir /data/MiniWorld-MazeS5GridN-v0_100M
+mkdir /data/MiniWorld-MazeS5GridN-v0_100M/train
+mkdir /data/MiniWorld-MazeS5GridN-v0_100M/eval
+
+gsutil ls gs://humanui-mlflow-west4/artifacts/29/92a026d91fee4aa6b1df06e4a0b16750/artifacts/episodes | wc -l
+cat << EOF > script.sh
+# gsutil -m cp gs://humanui-mlflow-west4/artifacts/29/92a026d91fee4aa6b1df06e4a0b16750/artifacts/episodes/* /data/MiniWorld-MazeS5GridN-v0_100M/train
+gsutil -m cp gs://humanui-mlflow-west4/artifacts/29/4dd3e103003b4348bb3fe77b7bf59f44/artifacts/episodes/* /data/MiniWorld-MazeS5GridN-v0_100M/train
+gsutil -m cp gs://humanui-mlflow-west4/artifacts/29/e1ac3198da6a4d7ca8f69e0e18f88867/artifacts/episodes/* /data/MiniWorld-MazeS5GridN-v0_100M/train
+gsutil -m cp gs://humanui-mlflow-west4/artifacts/29/e4eec3178632498094274c4be820cefc/artifacts/episodes/* /data/MiniWorld-MazeS5GridN-v0_100M/train
+gsutil -m cp gs://humanui-mlflow-west4/artifacts/29/cc65392bba694374906fe2893bdb55f6/artifacts/episodes/* /data/MiniWorld-MazeS5GridN-v0_100M/train
+gsutil -m cp gs://humanui-mlflow-west4/artifacts/29/345d158cd5ce47e6a2b8f9bbc061ea66/artifacts/episodes/* /data/MiniWorld-MazeS5GridN-v0_100M/train
+gsutil -m cp gs://humanui-mlflow-west4/artifacts/29/a47ec03621a1491180e801c2279a6ed8/artifacts/episodes/* /data/MiniWorld-MazeS5GridN-v0_100M/train
+gsutil -m cp gs://humanui-mlflow-west4/artifacts/29/474fa57a831f4f0b93886889a7ad5b75/artifacts/episodes/* /data/MiniWorld-MazeS5GridN-v0_100M/train
+gsutil -m cp gs://humanui-mlflow-west4/artifacts/29/b8d366c826544b699832f5dec5794c13/artifacts/episodes/* /data/MiniWorld-MazeS5GridN-v0_100M/train
+gsutil -m cp gs://humanui-mlflow-west4/artifacts/29/89a3ccabf3f744cfb8eda99b98c6ae52/artifacts/episodes/* /data/MiniWorld-MazeS5GridN-v0_100M/train
+EOF
+chmod u+x script.sh
+./script.sh & disown
+
+ls /data/MiniWorld-MazeS5GridN-v0_100M/train | wc -l
+
+sudo umount /dev/sdb
+gcloud compute instances stop adhoc-jurgis
+gcloud compute instances detach-disk "adhoc-jurgis" --disk "gke-shared-disk"
 
 
 ## MiniGrid
