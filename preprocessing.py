@@ -46,8 +46,10 @@ class MinigridPreprocess:
         if self._image_categorical:
             image = to_onehot(batch['image'], self._image_categorical).to(device=self._device)
         else:
+            assert batch['image'].dtype == np.uint8
             image = torch.from_numpy(batch['image'])
             image = image.permute(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
+            image = image / 255.0 - 0.5
             image= image.to(dtype=torch.float, device=self._device)
 
         if self._map_categorical:

@@ -60,7 +60,7 @@ def run(conf):
     # Decoder
 
     if conf.image_decoder == 'cnn':
-        decoder = ConvDecoderCat(in_dim=state_dim,
+        decoder = ConvDecoder(in_dim=state_dim,
                                  out_channels=conf.image_channels)
     else:
         decoder = DenseDecoder(in_dim=state_dim,

@@ -32,7 +32,7 @@ class ConvEncoder(nn.Module):
         return y
 
 
-class ConvDecoderCat(nn.Module):
+class ConvDecoder(nn.Module):
 
     def __init__(self, in_dim, out_channels=3, activation=nn.ELU):
         super().__init__()
@@ -59,13 +59,10 @@ class ConvDecoderCat(nn.Module):
         return y
 
     def loss(self, output, target):
-        # TODO
-        n = output.size(0)
-        output = flatten(output)
-        target = flatten(target).argmax(dim=-3)
-        loss = F.cross_entropy(output, target, reduction='none')
-        loss = unflatten(loss, n)
-        return loss.sum(dim=[-1, -2])
+        output, bd = flatten_batch(output, 3)
+        target, _ = flatten_batch(target, 3)
+        loss = torch.square(output - target).sum(dim=[-1, -2, -3])  # MSE
+        return unflatten_batch(loss, bd)
 
 
 class DenseEncoder(nn.Module):
