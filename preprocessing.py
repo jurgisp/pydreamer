@@ -13,11 +13,11 @@ def to_onehot(x_np, n_categories):
 
 class MinigridPreprocess:
 
-    def __init__(self, device='cpu', categorical=33, image_key='image', map_key='map'):
+    def __init__(self, device='cpu', image_categorical=33, image_key='image', map_categorical=33, map_key='map'):
         self._device = device
-        self._categorical = categorical
-        self.img_channels = categorical
+        self._image_categorical = image_categorical
         self._image_key = image_key
+        self._map_categorical = map_categorical
         self._map_key = map_key
         self._first = True
 
@@ -39,7 +39,19 @@ class MinigridPreprocess:
         batch['image'] = batch[self._image_key]  # Use something else (e.g. map_masked) as image
         batch['map'] = batch[self._map_key]
 
-        image = to_onehot(batch['image'], self._categorical).to(device=self._device)
+        if self._image_categorical:
+            image = to_onehot(batch['image'], self._image_categorical).to(device=self._device)
+        else:
+            image = torch.from_numpy(batch['image'])
+            image = image.permute(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
+            image= image.to(dtype=torch.float, device=self._device)
+
+        if self._map_categorical:
+            map = to_onehot(batch['map'], self._map_categorical).to(device=self._device)
+        else:
+            map = torch.from_numpy(batch['map'])
+            map = map.permute(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
+            map= map.to(dtype=torch.float, device=self._device)
 
         action = torch.from_numpy(batch['action']).to(dtype=torch.float, device=self._device)
 
@@ -47,7 +59,5 @@ class MinigridPreprocess:
             reset = torch.from_numpy(batch['reset']).to(dtype=torch.bool, device=self._device)
         else:
             reset = torch.zeros(action.shape[0:2], dtype=torch.bool, device=self._device)
-
-        map = to_onehot(batch['map'], self._categorical).to(device=self._device)
 
         return image, action, reset, map

@@ -38,6 +38,7 @@ class WorldModel(nn.Module):
         self._map_weight = map_weight
         self._embed_rnn = embed_rnn
         self._core = RSSMCore(embed_dim=encoder.out_dim + 2 * embed_rnn_dim if embed_rnn else encoder.out_dim,
+                              action_dim=action_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
                               hidden_dim=hidden_dim,
@@ -70,7 +71,7 @@ class WorldModel(nn.Module):
 
         embed = self._encoder.forward(image)  # (N,B,E)
 
-        if self._embed_rnn:
+        if self._input_rnn:
             # TODO: should apply reset
             embed_rnn, _ = self._input_rnn.forward(embed, action)  # (N,B,2E)
             embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E)

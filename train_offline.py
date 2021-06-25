@@ -39,8 +39,9 @@ def run(conf):
     data = (OfflineDataSequential(conf.input_dir) if conf.data_seq else OfflineDataRandom(conf.input_dir))
     data_eval = (OfflineDataSequential(conf.eval_dir) if conf.data_seq else OfflineDataRandom(conf.eval_dir))
 
-    preprocess = MinigridPreprocess(categorical=conf.image_channels,  # TODO
+    preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
                                     image_key=conf.image_key,
+                                    map_categorical=conf.map_channels,
                                     map_key=conf.map_key,
                                     device=device)
 
@@ -50,9 +51,7 @@ def run(conf):
 
     if conf.image_encoder == 'cnn':
         encoder = ConvEncoder(in_channels=conf.image_channels,
-                              out_dim=conf.embed_dim,
-                              stride=1,
-                              kernels=(1, 3, 3, 3))
+                              out_dim=conf.embed_dim)
     else:
         encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * conf.image_channels,
                                out_dim=conf.embed_dim,
@@ -62,9 +61,7 @@ def run(conf):
 
     if conf.image_decoder == 'cnn':
         decoder = ConvDecoderCat(in_dim=state_dim,
-                                 out_channels=conf.image_channels,
-                                 stride=1,
-                                 kernels=(3, 3, 3, 1))
+                                 out_channels=conf.image_channels)
     else:
         decoder = DenseDecoder(in_dim=state_dim,
                                out_shape=(conf.image_channels, conf.image_size, conf.image_size),
@@ -98,6 +95,7 @@ def run(conf):
 
     if conf.mem_model == 'global_state':
         mem_model = GlobalStateMem(embed_dim=conf.embed_dim,
+                                   action_dim=conf.action_dim,
                                    mem_dim=conf.deter_dim,
                                    stoch_dim=conf.global_dim,
                                    hidden_dim=conf.hidden_dim,
@@ -113,6 +111,7 @@ def run(conf):
             decoder=decoder,
             map_model=map_model,
             mem_model=mem_model,
+            action_dim=conf.action_dim,
             deter_dim=conf.deter_dim,
             stoch_dim=conf.stoch_dim,
             hidden_dim=conf.hidden_dim,
@@ -126,6 +125,7 @@ def run(conf):
             encoder=encoder,
             decoder=decoder,
             map_model=map_model,
+            action_dim=conf.action_dim,
             state_dim=state_dim,
         )  # type: ignore
     else:

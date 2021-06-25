@@ -14,9 +14,11 @@ defaults:
   image_key: image
   image_size: 7
   image_channels: 4
+  image_categorical: True
   map_key: map_centered
   map_size: 19
   map_channels: 4
+  action_dim: 7
 
   # Training
   iwae_samples: 1
@@ -76,15 +78,18 @@ minigrid:
   image_key: image
   image_size: 7
   image_channels: 4
+  image_categorical: True
   map_key: map_centered
   map_size: 19
   map_channels: 4
+  action_dim: 7
 
   # Model
   image_encoder: dense
   image_encoder_layers: 3
   image_decoder: dense
   image_decoder_layers: 2
+  embed_dim: 256
 
 minigrid_top: # Top-down observations instead of agent-centric
   # Data
@@ -95,15 +100,18 @@ minigrid_top: # Top-down observations instead of agent-centric
   image_key: map_masked
   image_size: 11
   image_channels: 8
+  image_categorical: True
   map_key: map
   map_size: 11
   map_channels: 8
+  action_dim: 7
 
   # Model
   image_encoder: dense
   image_encoder_layers: 3
   image_decoder: dense
   image_decoder_layers: 2
+  embed_dim: 256
 
 miniworld:
   # Data
@@ -114,10 +122,13 @@ miniworld:
   image_key: image
   image_size: 64
   image_channels: 3
+  image_categorical: False
   map_key: map_centered
-  map_size: 19
+  map_size: 17
   map_channels: 4
+  action_dim: 3
 
   # Model
   image_encoder: cnn
   image_decoder: cnn
+  embed_dim: 1024

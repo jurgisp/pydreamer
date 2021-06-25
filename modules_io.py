@@ -7,10 +7,12 @@ from modules_tools import *
 
 class ConvEncoder(nn.Module):
 
-    def __init__(self, in_channels=3, kernels=(4, 4, 4, 4), stride=2, out_dim=256, activation=nn.ELU):
+    def __init__(self, in_channels=3, out_dim=1024, activation=nn.ELU):
         super().__init__()
         self.out_dim = out_dim
-        assert out_dim == 256
+        assert out_dim == 1024
+        kernels = (4, 4, 4, 4)
+        stride = 2
         self._model = nn.Sequential(
             nn.Conv2d(in_channels, 32, kernels[0], stride),
             activation(),
@@ -24,14 +26,19 @@ class ConvEncoder(nn.Module):
         )
 
     def forward(self, x):
-        return self._model(x)
+        x, bd = flatten_batch(x, 3)
+        y = self._model(x)
+        y = unflatten_batch(y, bd)
+        return y
 
 
 class ConvDecoderCat(nn.Module):
 
-    def __init__(self, in_dim, out_channels=3, kernels=(5, 5, 6, 6), stride=2, activation=nn.ELU):
+    def __init__(self, in_dim, out_channels=3, activation=nn.ELU):
         super().__init__()
         self.in_dim = in_dim
+        kernels = (5, 5, 6, 6)
+        stride = 2
         self._model = nn.Sequential(
             # FC
             nn.Linear(in_dim, 1024),  # No activation here in DreamerV2
@@ -46,9 +53,13 @@ class ConvDecoderCat(nn.Module):
             nn.ConvTranspose2d(32, out_channels, kernels[3], stride))
 
     def forward(self, x):
-        return self._model(x)
+        x, bd = flatten_batch(x)
+        y = self._model(x)
+        y = unflatten_batch(y, bd)
+        return y
 
     def loss(self, output, target):
+        # TODO
         n = output.size(0)
         output = flatten(output)
         target = flatten(target).argmax(dim=-3)
@@ -123,9 +134,9 @@ class DenseDecoder(nn.Module):
             prob = F.softmax(output, 1)
             prob = (1.0 - self._min_prob) * prob + self._min_prob * (1.0 / prob.size(1))  # mix with uniform prob
             loss = F.nll_loss(prob.log(), target, reduction='none')
-        
+
         loss = loss.sum(dim=[-1, -2])  # (NB,H,W) => (NB)
-        return unflatten_batch(loss, bd) 
+        return unflatten_batch(loss, bd)
 
 
 class CondVAEHead(nn.Module):

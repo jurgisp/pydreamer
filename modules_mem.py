@@ -27,7 +27,7 @@ class NoMemory(nn.Module):
 
 class GlobalStateMem(nn.Module):
 
-    def __init__(self, embed_dim=256, action_dim=7, mem_dim=200, stoch_dim=30, hidden_dim=200, loss_type='last_kl'):
+    def __init__(self, embed_dim, action_dim, mem_dim, stoch_dim, hidden_dim, loss_type='last_kl'):
         super().__init__()
         self._cell = GlobalStateCell(embed_dim, action_dim, mem_dim, stoch_dim, hidden_dim)
         self.global_dim = stoch_dim
@@ -88,7 +88,7 @@ class GlobalStateMem(nn.Module):
 
 class GlobalStateCell(nn.Module):
 
-    def __init__(self, embed_dim=256, action_dim=7, mem_dim=200, stoch_dim=30, hidden_dim=200):
+    def __init__(self, embed_dim, action_dim, mem_dim, stoch_dim, hidden_dim):
         super().__init__()
         self._mem_dim = mem_dim
 

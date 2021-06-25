@@ -11,7 +11,7 @@ from modules_tools import *
 
 class RSSMCore(nn.Module):
 
-    def __init__(self, embed_dim=256, action_dim=7, deter_dim=200, stoch_dim=30, hidden_dim=200, global_dim=30, gru_layers=1):
+    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers):
         super().__init__()
         self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers)
 
