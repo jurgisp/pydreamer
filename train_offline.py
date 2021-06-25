@@ -328,9 +328,9 @@ def evaluate(prefix: str,
 
 def log_batch_npz(batch,
                   loss_tensors,
-                  image_pred: Optional[D.Categorical],
-                  image_rec: Optional[D.Categorical],
-                  map_rec: Optional[D.Categorical],
+                  image_pred: Optional[D.Distribution],
+                  image_rec: Optional[D.Distribution],
+                  map_rec: Optional[D.Distribution],
                   filename: str,
                   subdir='d2_wm_predict'):
     data = prepare_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec)
@@ -339,20 +339,26 @@ def log_batch_npz(batch,
 
 def prepare_batch_npz(batch,
                       loss_tensors,
-                      image_pred: Optional[D.Categorical],
-                      image_rec: Optional[D.Categorical],
-                      map_rec: Optional[D.Categorical]):
+                      image_pred: Optional[D.Distribution],
+                      image_rec: Optional[D.Distribution],
+                      map_rec: Optional[D.Distribution]):
     data = batch.copy()
     data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
     if image_pred is not None:
-        # data['image_pred'] = image_pred.sample().cpu().numpy()
-        data['image_pred_p'] = image_pred.probs.cpu().numpy()
+        if isinstance(image_pred, D.Categorical):
+            data['image_pred_p'] = image_pred.probs.cpu().numpy()
+        else:
+            data['image_pred'] = ((image_pred.sample().cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
     if image_rec is not None:
-        # data['image_rec'] = image_rec.sample().cpu().numpy()
-        data['image_rec_p'] = image_rec.probs.cpu().numpy()
+        if isinstance(image_rec, D.Categorical):
+            data['image_rec_p'] = image_rec.probs.cpu().numpy()
+        else:
+            data['image_rec'] = ((image_rec.sample().cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
     if map_rec is not None:
-        # data['map_rec'] = map_rec.sample().cpu().numpy()
-        data['map_rec_p'] = map_rec.probs.cpu().numpy()
+        if isinstance(map_rec, D.Categorical):
+            data['map_rec_p'] = map_rec.probs.cpu().numpy()
+        else:
+            data['map_rec'] = ((map_rec.sample().cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
     data = {k: v.swapaxes(0, 1) for k, v in data.items()}  # (N,B,...) => (B,N,...)
     return data
 
