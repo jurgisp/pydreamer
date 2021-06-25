@@ -3,7 +3,8 @@
 kubectl config use-context gke_human-ui_europe-west4-b_mlflow-cluster
 
 MLFLOW_EXPERIMENT_NAME=$1
-EXPERIMENT=$2
+CONFIG=$2
+EXPERIMENT=$3
 TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
 TAG=$(git describe --tags | sed 's/-g[a-z0-9]\{7\}//')
 RND=$(base64 < /dev/urandom | tr -d '[A-Z/+]' | head -c 6)
@@ -52,10 +53,10 @@ spec:
             - train_offline.py
             - --configs
             - defaults
-            - minigrid
+            - $CONFIG
             - $EXPERIMENT
             - --run_name
-            - py_$EXPERIMENT
+            - $EXPERIMENT
             - --resume_id
             - $RND
           resources:
