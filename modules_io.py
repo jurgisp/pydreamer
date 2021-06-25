@@ -64,6 +64,16 @@ class ConvDecoder(nn.Module):
         loss = torch.square(output - target).sum(dim=[-1, -2, -3])  # MSE
         return unflatten_batch(loss, bd)
 
+    def to_distr(self, output: Tensor) -> D.Categorical:
+        # TODO
+        assert len(output.shape) == 6
+        logits = output.permute(2, 0, 1, 4, 5, 3)  # (N,B,I,C,H,W) => (I,N,B,H,W,C)
+        # Normalize probability
+        logits = logits - logits.logsumexp(dim=-1, keepdim=True)
+        # Aggregate prob=avg(prob_i)
+        logits_agg = torch.logsumexp(logits, dim=0)  # (I,N,B,H,W,C) => (N,B,H,W,C)
+        return D.Categorical(logits=logits_agg)
+
 
 class DenseEncoder(nn.Module):
 
@@ -135,6 +145,16 @@ class DenseDecoder(nn.Module):
         loss = loss.sum(dim=[-1, -2])  # (NB,H,W) => (NB)
         return unflatten_batch(loss, bd)
 
+    def to_distr(self, output: Tensor) -> D.Categorical:
+        assert len(output.shape) == 6
+        logits = output.permute(2, 0, 1, 4, 5, 3)  # (N,B,I,C,H,W) => (I,N,B,H,W,C)
+        # Normalize probability
+        logits = logits - logits.logsumexp(dim=-1, keepdim=True)
+        # Aggregate prob=avg(prob_i)
+        logits_agg = torch.logsumexp(logits, dim=0)  # (I,N,B,H,W,C) => (N,B,H,W,C)
+        return D.Categorical(logits=logits_agg)
+
+
 
 class CondVAEHead(nn.Module):
     # Conditioned VAE
@@ -187,16 +207,6 @@ class CondVAEHead(nn.Module):
         metrics = dict(loss_kl=loss_kl.detach(), loss_rec=loss_rec.detach())
         return loss, metrics
 
-    def predict_obs(self,
-                    prior, post, obs_rec, states,                 # forward() output
-                    ):
-        n = prior.size(0)
-        # Sample from prior instead of posterior
-        sample = diag_normal(prior).sample()
-        obs_pred = unflatten(self._decoder(flatten(cat(states, sample))), n)    # (N,B,C,MH,MW)
-        obs_pred_distr = D.Categorical(logits=obs_pred.permute(0, 1, 3, 4, 2))  # (N,B,C,MH,MW) => (N,B,MH,MW,C)
-        return obs_pred_distr       # categorical(N,B,HM,WM,C)
-
 
 class DirectHead(nn.Module):
 
@@ -216,11 +226,6 @@ class DirectHead(nn.Module):
              ):
         return self._decoder.loss(obs_pred, obs_target)  # TODO: make VAE head -compatible
 
-    def predict_obs(self,
-                    obs_pred,                 # forward() output
-                    ):
-        return imgrec_to_distr(obs_pred)
-
 
 class NoHead(nn.Module):
 
@@ -234,6 +239,3 @@ class NoHead(nn.Module):
     def loss(self, obs, obs_target):
         return torch.tensor(0.0, device=obs.device), {}
 
-    def predict_obs(self, obs):
-        zeros = torch.zeros(obs.shape[:2] + self.out_shape, device=obs.device)  # (N,B,C,MH,MW)
-        return D.Categorical(logits=zeros.permute(0, 1, 3, 4, 2))  # (N,B,MH,MW,C)

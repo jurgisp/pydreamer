@@ -68,15 +68,5 @@ def init_weights_tf2(m):
         nn.init.zeros_(m.bias_hh.data)
 
 
-def imgrec_to_distr(x: Tensor) -> D.Categorical:  # (N,B,I,C,H,W) -> (N,B,H,W,C)
-    assert len(x.shape) == 6
-    logits = x.permute(2, 0, 1, 4, 5, 3)  # (N,B,I,C,H,W) => (I,N,B,H,W,C)
-    # Normalize probability
-    logits = logits - logits.logsumexp(dim=-1, keepdim=True)
-    # Aggregate prob=avg(prob_i)
-    logits_agg = torch.logsumexp(logits, dim=0)  # (I,N,B,H,W,C) => (N,B,H,W,C)
-    return D.Categorical(logits=logits_agg)
-
-
 def logavgexp(x: Tensor, dim: int) -> Tensor:
     return x.logsumexp(dim=dim) - np.log(x.size(dim))

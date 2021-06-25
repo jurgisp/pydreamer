@@ -106,9 +106,9 @@ class WorldModel(nn.Module):
                 ):
         # Return distributions
         if image_pred is not None:
-            image_pred = imgrec_to_distr(image_pred)
-        image_rec = imgrec_to_distr(image_rec)
-        map_rec = self._map_model.predict_obs(map_rec)
+            image_pred = self._decoder_image.to_distr(image_pred)
+        image_rec = self._decoder_image.to_distr(image_rec)
+        map_rec = self._map_model._decoder.to_distr(map_rec)
         return (
             image_pred,    # categorical(N,B,H,W,C)
             image_rec,     # categorical(N,B,H,W,C)
@@ -264,8 +264,8 @@ class MapPredictModel(nn.Module):
                 ):
         # Return distributions
         image_pred = None
-        image_rec = imgrec_to_distr(image_rec.unsqueeze(2))
-        map_rec = self._map_model.predict_obs(map_rec.unsqueeze(2))
+        image_rec = self._decoder_image.to_distr(image_rec.unsqueeze(2))
+        map_rec = self._map_model._decoder.to_distr(map_rec.unsqueeze(2))
         return (
             image_pred,    # categorical(N,B,H,W,C)
             image_rec,     # categorical(N,B,H,W,C)
