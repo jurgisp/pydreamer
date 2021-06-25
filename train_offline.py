@@ -348,17 +348,17 @@ def prepare_batch_npz(batch,
         if isinstance(image_pred, D.Categorical):
             data['image_pred_p'] = image_pred.probs.cpu().numpy()
         else:
-            data['image_pred'] = ((image_pred.sample().cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
+            data['image_pred'] = ((image_pred.mean.cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
     if image_rec is not None:
         if isinstance(image_rec, D.Categorical):
             data['image_rec_p'] = image_rec.probs.cpu().numpy()
         else:
-            data['image_rec'] = ((image_rec.sample().cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
+            data['image_rec'] = ((image_rec.mean.cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
     if map_rec is not None:
         if isinstance(map_rec, D.Categorical):
             data['map_rec_p'] = map_rec.probs.cpu().numpy()
         else:
-            data['map_rec'] = ((map_rec.sample().cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
+            data['map_rec'] = ((map_rec.mean.cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
     data = {k: v.swapaxes(0, 1) for k, v in data.items()}  # (N,B,...) => (B,N,...)
     return data
 
