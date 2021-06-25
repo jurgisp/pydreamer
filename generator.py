@@ -62,11 +62,16 @@ def main(output_dir,
             epsteps += 1
         data = info['episode']  # type: ignore
 
+        # Transform for smaller size
+
+        data['image_t'] = data['image'].transpose(1, 2, 3, 0)
+        del data['image']
+
         # Save to npz
 
         fname = f's{conf.seed}-ep{episodes:06}-{epsteps:04}.npz'
         if conf.save_to_mlflow:
-            tools.mlflow_log_npz(data, fname, 'episodes')
+            tools.mlflow_log_npz(data, fname, 'episodes', verbose=True)
         else:
             fname = output_dir / fname
             tools.save_npz(data, fname)
@@ -78,7 +83,7 @@ def main(output_dir,
             print('Data sample: ', {k: v.shape for k, v in data.items()})
 
         print(f"[{steps:08}/{conf.num_steps:08}] "
-              f"Episode data: {data['image'].shape} written to {fname}"
+              f"Episode data written to {fname}"
             #   f",  explored%: {(data['map_vis'][-1] < max_steps).mean():.1%}"
               f",  fps: {fps:.0f}"
               )

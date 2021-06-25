@@ -36,6 +36,10 @@ class MinigridPreprocess:
             print('Data batch: ', {k: v.shape for k, v in batch.items()})
             self._first = False
 
+        if 'image' not in batch and 'image_t' in batch:
+            batch['image'] = batch['image_t'].transpose(3, 0, 1, 2)  # CHWN => NCHW
+            del batch['image_t']
+
         batch['image'] = batch[self._image_key]  # Use something else (e.g. map_masked) as image
         batch['map'] = batch[self._map_key]
 
