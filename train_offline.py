@@ -166,7 +166,7 @@ def run(conf):
     timer_other = Timer('other', conf.verbose)
 
     state = None
-    data_iter = iter(DataLoader(preprocess(data), batch_size=None, num_workers=0, pin_memory=True))
+    data_iter = iter(DataLoader(preprocess(data), batch_size=None, num_workers=1, pin_memory=True))
 
     with get_profiler(conf) as profiler:
         while True:
@@ -279,11 +279,11 @@ def run(conf):
 
                     if conf.eval_interval and steps % conf.eval_interval == 0:
                         # Same batch as train
-                        eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None, num_workers=0, pin_memory=True))
+                        eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
                         evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.iwae_samples, conf.keep_state)
 
                         # Full episodes
-                        eval_iter_full = iter(DataLoader(preprocess(data_eval_full), batch_size=None, num_workers=0, pin_memory=True))
+                        eval_iter_full = iter(DataLoader(preprocess(data_eval_full), batch_size=None))
                         evaluate('eval_full', steps, model, eval_iter_full, device, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
 
             print(f"[{steps:06}] timers"
