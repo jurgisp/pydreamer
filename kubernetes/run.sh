@@ -30,6 +30,9 @@ spec:
           persistentVolumeClaim:
             claimName: gke-shared-disk-pvc
             readOnly: true
+        - name: dshm
+          emptyDir:
+            medium: Memory
       containers:
         - name: dreamer
           imagePullPolicy: Always
@@ -47,6 +50,8 @@ spec:
             - name: gke-shared-disk
               mountPath: /data
               readOnly: true
+            - name: dshm
+              mountPath: /dev/shm
           command:
             - python3
           args:
