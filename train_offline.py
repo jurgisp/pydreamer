@@ -13,6 +13,7 @@ import torch.distributions as D
 from torch.profiler import ProfilerActivity
 import mlflow
 from torch.utils.data import DataLoader
+from torch.cuda.amp import GradScaler, autocast
 
 import tools
 from tools import Timer, mlflow_start_or_resume, param_count, NoProfiler
@@ -168,6 +169,8 @@ def run(conf):
     state = None
     data_iter = iter(DataLoader(preprocess(data), batch_size=None, num_workers=1, pin_memory=True))
 
+    scaler = GradScaler()
+
     with get_profiler(conf) as profiler:
         while True:
             with timer_total:
@@ -183,27 +186,29 @@ def run(conf):
                      reset = batch['reset'].to(device)
                      map = batch['map'].to(device)
 
-                # Predict
+                with autocast():
 
-                with timer_forward:
+                    # Predict
 
-                    if state is None or not conf.keep_state:
-                        state = model.init_state(image.size(1) * conf.iwae_samples)
-                    output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)  # type: ignore
-                    state = output[-1]
+                    with timer_forward:
 
-                # Loss
+                        if state is None or not conf.keep_state:
+                            state = model.init_state(image.size(1) * conf.iwae_samples)
+                        output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)  # type: ignore
+                        state = output[-1]
 
-                with timer_loss:
+                    # Loss
 
-                    loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)  # type: ignore
+                    with timer_loss:
+
+                        loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)  # type: ignore
 
                 # Backward
 
                 with timer_backward:
 
                     optimizer.zero_grad()
-                    loss.backward()
+                    scaler.scale(loss).backward()  # loss.backward()
 
                 # Grad step
 
@@ -211,8 +216,10 @@ def run(conf):
                     # if torch.cuda.is_available():
                     #     with Timer('backward.cuda_wait'):
                     #         torch.cuda.synchronize()
+                    scaler.unscale_(optimizer)
                     grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
-                    optimizer.step()
+                    scaler.step(optimizer)  # optimizer.step()
+                    scaler.update()
 
                 with timer_other:
 
