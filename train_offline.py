@@ -14,7 +14,7 @@ from torch.profiler import ProfilerActivity
 import mlflow
 
 import tools
-from tools import mlflow_start_or_resume, param_count, NoProfiler
+from tools import Timer, mlflow_start_or_resume, param_count, NoProfiler
 from data import OfflineDataSequential, OfflineDataRandom
 from preprocessing import MinigridPreprocess
 from models import *
@@ -156,102 +156,112 @@ def run(conf):
     metrics_max = defaultdict(list)
 
     state = None
+    data_iter = data.iterate(conf.batch_length, conf.batch_size)
 
     with get_profiler(conf) as profiler:
-        for batch in data.iterate(conf.batch_length, conf.batch_size):
+        while True:
             profiler.step()
 
-            image, action, reset, map = preprocess(batch)
-            if state is None or not conf.keep_state:
-                state = model.init_state(image.size(1) * conf.iwae_samples)
+            with Timer('data'):
 
-            # Predict
+                # Make batch
 
-            output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)  # type: ignore
-            state = output[-1]
+                batch = next(data_iter)
+                image, action, reset, map = preprocess(batch)
 
-            # Loss
+            with Timer('train'):
 
-            loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)  # type: ignore
+                # Predict
 
-            # Grad step
+                if state is None or not conf.keep_state:
+                    state = model.init_state(image.size(1) * conf.iwae_samples)
+                output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)  # type: ignore
+                state = output[-1]
 
-            optimizer.zero_grad()
-            loss.backward()
-            grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
-            # var_norm = torch.norm(torch.stack([torch.norm(p.detach()) for p in model.parameters() if p.requires_grad]))
-            # metrics['var_norm'].append(var_norm.item())
-            optimizer.step()
+                # Loss
 
-            # Metrics
+                loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)  # type: ignore
 
-            steps += 1
-            for k, v in loss_metrics.items():
-                metrics[k].append(v.item())
-            if grad_norm is not None:
-                metrics['grad_norm'].append(grad_norm.item())
-                metrics_max['grad_norm_max'].append(grad_norm.item())
+                # Grad step
 
-            # Log sample
+                optimizer.zero_grad()
+                loss.backward()
+                grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
+                # var_norm = torch.norm(torch.stack([torch.norm(p.detach()) for p in model.parameters() if p.requires_grad]))
+                # metrics['var_norm'].append(var_norm.item())
+                optimizer.step()
 
-            if steps % conf.log_interval == 1:
-                # if (steps == 1) or (steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200):  # DEBUG high loss
-                # print(f"[{steps}] Saving batch sample:"
-                #       f"  loss_model_image_max: {loss_metrics['loss_model_image_max'].item():.1f}"
-                #       f"  loss_model_kl_max: {loss_metrics['loss_model_kl_max'].item():.1f}")
-                with torch.no_grad():
-                    image_pred, image_rec, map_rec = model.predict(*output)
-                log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, f'{steps:07}.npz')
+            with Timer('other'):
 
-            # Log metrics
+                # Metrics
 
-            if steps % conf.log_interval == 0:
-                metrics = {k: np.mean(v) for k, v in metrics.items()}
-                metrics.update({k: np.max(v) for k, v in metrics_max.items()})
-                metrics['_step'] = steps
-                metrics['_loss'] = metrics['loss']
+                steps += 1
+                for k, v in loss_metrics.items():
+                    metrics[k].append(v.item())
+                if grad_norm is not None:
+                    metrics['grad_norm'].append(grad_norm.item())
+                    metrics_max['grad_norm_max'].append(grad_norm.item())
 
-                t = time.time()
-                fps = (steps - last_steps) / (t - last_time)
-                metrics['fps'] = fps
-                last_time, last_steps = t, steps
+                # Log sample
 
-                print(f"T:{t-start_time:05.0f}  "
-                      f"[{steps:06}]"
-                      f"  loss_model: {metrics.get('loss_model', 0):.3f}"
-                      f"  loss_model_kl: {metrics.get('loss_model_kl', 0):.3f}"
-                      f"  loss_model_image: {metrics.get('loss_model_image', 0):.3f}"
-                      f"  loss_map: {metrics['loss_map']:.3f}"
-                      f"  entropy_prior: {metrics.get('entropy_prior',0):.3f}"
-                      f"  entropy_prior_start: {metrics.get('entropy_prior_start',0):.3f}"
-                      f"  fps: {metrics['fps']:.3f}"
-                      )
-                mlflow.log_metrics(metrics, step=steps)
-                metrics = defaultdict(list)
-                metrics_max = defaultdict(list)
+                if steps % conf.log_interval == 1:
+                    # if (steps == 1) or (steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200):  # DEBUG high loss
+                    # print(f"[{steps}] Saving batch sample:"
+                    #       f"  loss_model_image_max: {loss_metrics['loss_model_image_max'].item():.1f}"
+                    #       f"  loss_model_kl_max: {loss_metrics['loss_model_kl_max'].item():.1f}")
+                    with torch.no_grad():
+                        image_pred, image_rec, map_rec = model.predict(*output)
+                    log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, f'{steps:07}.npz')
 
-            # Save model
+                # Log metrics
 
-            if steps % conf.save_interval == 0:
-                tools.mlflow_save_checkpoint(model, optimizer, steps)
-                print(f'Saved model checkpoint')
+                if steps % conf.log_interval == 0:
+                    metrics = {k: np.mean(v) for k, v in metrics.items()}
+                    metrics.update({k: np.max(v) for k, v in metrics_max.items()})
+                    metrics['_step'] = steps
+                    metrics['_loss'] = metrics['loss']
 
-            # Stop
+                    t = time.time()
+                    fps = (steps - last_steps) / (t - last_time)
+                    metrics['fps'] = fps
+                    last_time, last_steps = t, steps
 
-            if steps >= conf.n_steps:
-                print('Stopping')
-                break
+                    print(f"T:{t-start_time:05.0f}  "
+                        f"[{steps:06}]"
+                        f"  loss_model: {metrics.get('loss_model', 0):.3f}"
+                        f"  loss_model_kl: {metrics.get('loss_model_kl', 0):.3f}"
+                        f"  loss_model_image: {metrics.get('loss_model_image', 0):.3f}"
+                        f"  loss_map: {metrics['loss_map']:.3f}"
+                        f"  entropy_prior: {metrics.get('entropy_prior',0):.3f}"
+                        f"  entropy_prior_start: {metrics.get('entropy_prior_start',0):.3f}"
+                        f"  fps: {metrics['fps']:.3f}"
+                        )
+                    mlflow.log_metrics(metrics, step=steps)
+                    metrics = defaultdict(list)
+                    metrics_max = defaultdict(list)
 
-            # Evaluate
+                # Save model
 
-            if conf.eval_interval and steps % conf.eval_interval == 0:
-                # Same batch as train
-                eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
-                evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.iwae_samples, conf.keep_state)
+                if steps % conf.save_interval == 0:
+                    tools.mlflow_save_checkpoint(model, optimizer, steps)
+                    print(f'Saved model checkpoint')
 
-                # Full episodes
-                eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size, skip_first=False)
-                evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
+                # Stop
+
+                if steps >= conf.n_steps:
+                    print('Stopping')
+                    break
+
+                # Evaluate
+
+                if conf.eval_interval and steps % conf.eval_interval == 0:
+                    # Same batch as train
+                    eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
+                    evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.iwae_samples, conf.keep_state)
+
+                    # Full episodes
+                    eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size, skip_first=False)
+                    evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
 
 
 def evaluate(prefix: str,
