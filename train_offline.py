@@ -158,19 +158,20 @@ def run(conf):
 
     state = None
     data_iter = data.iterate(conf.batch_length, conf.batch_size)
+    v = conf.verbose
 
     with get_profiler(conf) as profiler:
         while True:
             profiler.step()
 
-            with Timer('data', conf.verbose):
+            with Timer('data', v):
 
                 # Make batch
 
                 batch = next(data_iter)
                 image, action, reset, map = preprocess(batch)
 
-            with Timer('forward', conf.verbose):
+            with Timer('forward', v):
 
                 # Predict
 
@@ -179,25 +180,23 @@ def run(conf):
                 output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)  # type: ignore
                 state = output[-1]
 
-            with Timer('loss', conf.verbose):
-
                 # Loss
 
                 loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)  # type: ignore
 
-            with Timer('backward', conf.verbose):
+            with Timer('backward', v):
 
                 # Grad step
 
                 optimizer.zero_grad()
                 loss.backward()
                 # if torch.cuda.is_available():
-                #     with Timer('train.cuda_wait'):
+                #     with Timer('backward.cuda_wait'):
                 #         torch.cuda.synchronize()
                 grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
                 optimizer.step()
 
-            with Timer('other', conf.verbose):
+            with Timer('other', v):
 
                 # Metrics
 

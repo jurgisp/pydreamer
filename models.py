@@ -212,8 +212,8 @@ class WorldModel(nn.Module):
                            entropy_prior=entropy_prior.mean(),
                            entropy_post=entropy_post.mean(),
                            )
-            if reset.sum() > 0:
-                metrics.update(entropy_prior_start=(entropy_prior * reset).sum() / reset.sum())
+            # if reset.sum() > 0:
+            #     metrics.update(entropy_prior_start=(entropy_prior * reset).sum() / reset.sum())
 
         return loss, metrics, log_tensors
 
