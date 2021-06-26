@@ -1,27 +1,49 @@
+from typing import Dict, Tuple, Callable
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch.utils.data import IterableDataset
 
 
-def to_onehot(x_np, n_categories):
-    x = torch.from_numpy(x_np).to(torch.int64)
-    x = F.one_hot(x, num_classes=n_categories)
-    x = x.permute(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
-    x = x.to(dtype=torch.float)
+def to_onehot(x: np.ndarray, n_categories) -> np.ndarray:
+    e = np.eye(n_categories, dtype=np.float32)
+    x = e[x]  # Nice trick: https://stackoverflow.com/a/37323404
+    x = x.transpose(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
     return x
+
+def to_image(x: np.ndarray) -> np.ndarray:
+    assert x.dtype == np.uint8
+    x = x.astype(np.float32)
+    x = x.transpose(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
+    x = x / 255.0 - 0.5
+    return x
+
+
+class TransformedDataset(IterableDataset):
+
+    def __init__(self, dataset: IterableDataset, fn: Callable):
+        super().__init__()
+        self.dataset = dataset
+        self.fn = fn
+
+    def __iter__(self):
+        for batch in iter(self.dataset):
+            yield self.fn(batch)
 
 
 class MinigridPreprocess:
 
-    def __init__(self, device='cpu', image_categorical=33, image_key='image', map_categorical=33, map_key='map'):
-        self._device = device
+    def __init__(self, image_categorical=33, image_key='image', map_categorical=33, map_key='map'):
         self._image_categorical = image_categorical
         self._image_key = image_key
         self._map_categorical = map_categorical
         self._map_key = map_key
         self._first = True
 
-    def __call__(self, batch):
+    def __call__(self, dataset: IterableDataset) -> IterableDataset:
+        return TransformedDataset(dataset, self.apply)
+
+    def apply(self, batch: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         # Input:
         #   batch['image']:     np.array(N, B, 7, 7)
         #   batch['action']:    np.array(N, B, 7)
@@ -40,26 +62,20 @@ class MinigridPreprocess:
         batch['map'] = batch[self._map_key]
 
         if self._image_categorical:
-            image = to_onehot(batch['image'], self._image_categorical).to(device=self._device)
+            batch['image'] = to_onehot(batch['image'], self._image_categorical)
         else:
-            assert batch['image'].dtype == np.uint8
-            image = torch.from_numpy(batch['image'])
-            image = image.permute(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
-            image = image / 255.0 - 0.5
-            image= image.to(dtype=torch.float, device=self._device)
+            batch['image'] = to_image(batch['image'])
 
         if self._map_categorical:
-            map = to_onehot(batch['map'], self._map_categorical).to(device=self._device)
+            batch['map'] = to_onehot(batch['map'], self._map_categorical)
         else:
-            map = torch.from_numpy(batch['map'])
-            map = map.permute(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
-            map= map.to(dtype=torch.float, device=self._device)
+            batch['map'] = to_image(batch['map'])
 
-        action = torch.from_numpy(batch['action']).to(dtype=torch.float, device=self._device)
+        assert len(batch['action'].shape) == 3  # should be already one-hot
+        batch['action'] = batch['action'].astype(np.float32) 
 
-        if 'reset' in batch:
-            reset = torch.from_numpy(batch['reset']).to(dtype=torch.bool, device=self._device)
-        else:
-            reset = torch.zeros(action.shape[0:2], dtype=torch.bool, device=self._device)
+        if not 'reset' in batch:
+            batch['reset'] = np.zeros(batch['action'].shape[0:2], dtype=bool)
 
-        return image, action, reset, map
+
+        return batch

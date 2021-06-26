@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.distributions as D
 from torch.profiler import ProfilerActivity
 import mlflow
+from torch.utils.data import DataLoader
 
 import tools
 from tools import Timer, mlflow_start_or_resume, param_count, NoProfiler
@@ -43,8 +44,7 @@ def run(conf):
     preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
                                     image_key=conf.image_key,
                                     map_categorical=conf.map_channels,
-                                    map_key=conf.map_key,
-                                    device=device)
+                                    map_key=conf.map_key)
 
     state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim
 
@@ -166,7 +166,7 @@ def run(conf):
     timer_other = Timer('other', conf.verbose)
 
     state = None
-    data_iter = iter(data)
+    data_iter = iter(DataLoader(preprocess(data), batch_size=None, num_workers=0, pin_memory=True))
 
     with get_profiler(conf) as profiler:
         while True:
@@ -177,8 +177,11 @@ def run(conf):
 
                 with timer_data:
 
-                    batch = next(data_iter)
-                    image, action, reset, map = preprocess(batch)
+                     batch = next(data_iter)
+                     image = batch['image'].to(device)
+                     action = batch['action'].to(device)
+                     reset = batch['reset'].to(device)
+                     map = batch['map'].to(device)
 
                 # Predict
 
@@ -276,12 +279,12 @@ def run(conf):
 
                     if conf.eval_interval and steps % conf.eval_interval == 0:
                         # Same batch as train
-                        eval_iter = iter(data_eval)
-                        evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.iwae_samples, conf.keep_state)
+                        eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None, num_workers=0, pin_memory=True))
+                        evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.iwae_samples, conf.keep_state)
 
                         # Full episodes
-                        eval_iter_full = iter(data_eval_full)
-                        evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
+                        eval_iter_full = iter(DataLoader(preprocess(data_eval_full), batch_size=None, num_workers=0, pin_memory=True))
+                        evaluate('eval_full', steps, model, eval_iter_full, device, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
 
             print(f"[{steps:06}] timers"
                   f"  TOTAL: {timer_total.dt_ms:>4}"
@@ -298,7 +301,7 @@ def evaluate(prefix: str,
              steps: int,
              model: WorldModel,
              data_iterator: Iterator,
-             preprocess: MinigridPreprocess,
+             device,
              eval_batches: int,
              eval_samples: int,
              keep_state: bool):
@@ -314,7 +317,10 @@ def evaluate(prefix: str,
         with torch.no_grad():
 
             batch = next(data_iterator)
-            image, action, reset, map = preprocess(batch)
+            image = batch['image'].to(device)
+            action = batch['action'].to(device)
+            reset = batch['reset'].to(device)
+            map = batch['map'].to(device)
             if i_batch == 0:
                 print(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
 
@@ -382,7 +388,7 @@ def prepare_batch_npz(batch,
                       image_pred: Optional[D.Distribution],
                       image_rec: Optional[D.Distribution],
                       map_rec: Optional[D.Distribution]):
-    data = batch.copy()
+    data = {k: v.cpu().numpy() for k, v in batch.items()}
     data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
     if image_pred is not None:
         if isinstance(image_pred, D.Categorical):
