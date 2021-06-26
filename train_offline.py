@@ -61,7 +61,7 @@ def run(conf):
 
     if conf.image_decoder == 'cnn':
         decoder = ConvDecoder(in_dim=state_dim,
-                                 out_channels=conf.image_channels)
+                              out_channels=conf.image_channels)
     else:
         decoder = DenseDecoder(in_dim=state_dim,
                                out_shape=(conf.image_channels, conf.image_size, conf.image_size),
@@ -156,117 +156,141 @@ def run(conf):
     metrics_max = defaultdict(list)
     grad_norm = None
 
+    timer_total = Timer('total', conf.verbose)
+    timer_data = Timer('data', conf.verbose)
+    timer_forward = Timer('forward', conf.verbose)
+    timer_loss = Timer('loss', conf.verbose)
+    timer_backward = Timer('backward', conf.verbose)
+    timer_gradstep = Timer('gradstep', conf.verbose)
+    timer_other = Timer('other', conf.verbose)
+
     state = None
     data_iter = data.iterate(conf.batch_length, conf.batch_size)
-    v = conf.verbose
 
     with get_profiler(conf) as profiler:
         while True:
-            profiler.step()
-
-            with Timer('data', v):
+            with timer_total:
+                profiler.step()
 
                 # Make batch
 
-                batch = next(data_iter)
-                image, action, reset, map = preprocess(batch)
+                with timer_data:
 
-            with Timer('forward', v):
+                    batch = next(data_iter)
+                    image, action, reset, map = preprocess(batch)
 
                 # Predict
 
-                if state is None or not conf.keep_state:
-                    state = model.init_state(image.size(1) * conf.iwae_samples)
-                output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)  # type: ignore
-                state = output[-1]
+                with timer_forward:
+
+                    if state is None or not conf.keep_state:
+                        state = model.init_state(image.size(1) * conf.iwae_samples)
+                    output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)  # type: ignore
+                    state = output[-1]
 
                 # Loss
 
-                loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)  # type: ignore
+                with timer_loss:
 
-            with Timer('backward', v):
+                    loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)  # type: ignore
+
+                # Backward
+
+                with timer_backward:
+
+                    optimizer.zero_grad()
+                    loss.backward()
 
                 # Grad step
 
-                optimizer.zero_grad()
-                loss.backward()
-                # if torch.cuda.is_available():
-                #     with Timer('backward.cuda_wait'):
-                #         torch.cuda.synchronize()
-                grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
-                optimizer.step()
+                with timer_gradstep:  # This timer will absorb CUDA wait, because of blocking clip_grad_norm
+                    # if torch.cuda.is_available():
+                    #     with Timer('backward.cuda_wait'):
+                    #         torch.cuda.synchronize()
+                    grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
+                    optimizer.step()
 
-            with Timer('other', v):
+                with timer_other:
 
-                # Metrics
+                    # Metrics
 
-                steps += 1
-                for k, v in loss_metrics.items():
-                    metrics[k].append(v.item())
-                if grad_norm is not None:
-                    metrics['grad_norm'].append(grad_norm.item())
-                    metrics_max['grad_norm_max'].append(grad_norm.item())
+                    steps += 1
+                    for k, v in loss_metrics.items():
+                        metrics[k].append(v.item())
+                    if grad_norm is not None:
+                        metrics['grad_norm'].append(grad_norm.item())
+                        metrics_max['grad_norm_max'].append(grad_norm.item())
 
-                # Log sample
+                    # Log sample
 
-                if steps % conf.log_interval == 1:
-                    # if (steps == 1) or (steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200):  # DEBUG high loss
-                    # print(f"[{steps}] Saving batch sample:"
-                    #       f"  loss_model_image_max: {loss_metrics['loss_model_image_max'].item():.1f}"
-                    #       f"  loss_model_kl_max: {loss_metrics['loss_model_kl_max'].item():.1f}")
-                    with torch.no_grad():
-                        image_pred, image_rec, map_rec = model.predict(*output)
-                    log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, f'{steps:07}.npz')
+                    if steps % conf.log_interval == 1:
+                        # if (steps == 1) or (steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200):  # DEBUG high loss
+                        # print(f"[{steps}] Saving batch sample:"
+                        #       f"  loss_model_image_max: {loss_metrics['loss_model_image_max'].item():.1f}"
+                        #       f"  loss_model_kl_max: {loss_metrics['loss_model_kl_max'].item():.1f}")
+                        with torch.no_grad():
+                            image_pred, image_rec, map_rec = model.predict(*output)
+                        log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, f'{steps:07}.npz')
 
-                # Log metrics
+                    # Log metrics
 
-                if steps % conf.log_interval == 0:
-                    metrics = {k: np.mean(v) for k, v in metrics.items()}
-                    metrics.update({k: np.max(v) for k, v in metrics_max.items()})
-                    metrics['_step'] = steps
-                    metrics['_loss'] = metrics['loss']
+                    if steps % conf.log_interval == 0:
+                        metrics = {k: np.mean(v) for k, v in metrics.items()}
+                        metrics.update({k: np.max(v) for k, v in metrics_max.items()})
+                        metrics['_step'] = steps
+                        metrics['_loss'] = metrics['loss']
 
-                    t = time.time()
-                    fps = (steps - last_steps) / (t - last_time)
-                    metrics['fps'] = fps
-                    last_time, last_steps = t, steps
+                        t = time.time()
+                        fps = (steps - last_steps) / (t - last_time)
+                        metrics['fps'] = fps
+                        last_time, last_steps = t, steps
 
-                    print(f"T:{t-start_time:05.0f}  "
-                        f"[{steps:06}]"
-                        f"  loss_model: {metrics.get('loss_model', 0):.3f}"
-                        f"  loss_model_kl: {metrics.get('loss_model_kl', 0):.3f}"
-                        f"  loss_model_image: {metrics.get('loss_model_image', 0):.3f}"
-                        f"  loss_map: {metrics['loss_map']:.3f}"
-                        f"  entropy_prior: {metrics.get('entropy_prior',0):.3f}"
-                        f"  entropy_prior_start: {metrics.get('entropy_prior_start',0):.3f}"
-                        f"  fps: {metrics['fps']:.3f}"
-                        )
-                    mlflow.log_metrics(metrics, step=steps)
-                    metrics = defaultdict(list)
-                    metrics_max = defaultdict(list)
+                        print(f"T:{t-start_time:05.0f}  "
+                            f"[{steps:06}]"
+                            f"  loss_model: {metrics.get('loss_model', 0):.3f}"
+                            f"  loss_model_kl: {metrics.get('loss_model_kl', 0):.3f}"
+                            f"  loss_model_image: {metrics.get('loss_model_image', 0):.3f}"
+                            f"  loss_map: {metrics['loss_map']:.3f}"
+                            f"  entropy_prior: {metrics.get('entropy_prior',0):.3f}"
+                            f"  entropy_prior_start: {metrics.get('entropy_prior_start',0):.3f}"
+                            f"  fps: {metrics['fps']:.3f}"
+                            )
+                        mlflow.log_metrics(metrics, step=steps)
+                        metrics = defaultdict(list)
+                        metrics_max = defaultdict(list)
 
-                # Save model
+                    # Save model
 
-                if steps % conf.save_interval == 0:
-                    tools.mlflow_save_checkpoint(model, optimizer, steps)
-                    print(f'Saved model checkpoint')
+                    if steps % conf.save_interval == 0:
+                        tools.mlflow_save_checkpoint(model, optimizer, steps)
+                        print(f'Saved model checkpoint')
 
-                # Stop
+                    # Stop
 
-                if steps >= conf.n_steps:
-                    print('Stopping')
-                    break
+                    if steps >= conf.n_steps:
+                        print('Stopping')
+                        break
 
-                # Evaluate
+                    # Evaluate
 
-                if conf.eval_interval and steps % conf.eval_interval == 0:
-                    # Same batch as train
-                    eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
-                    evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.iwae_samples, conf.keep_state)
+                    if conf.eval_interval and steps % conf.eval_interval == 0:
+                        # Same batch as train
+                        eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
+                        evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.iwae_samples, conf.keep_state)
 
-                    # Full episodes
-                    eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size, skip_first=False)
-                    evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
+                        # Full episodes
+                        eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size, skip_first=False)
+                        evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
+
+            print(f"[{steps:06}] timers"
+                  f"  TOTAL: {timer_total.dt_ms:>4}"
+                  f"  data: {timer_data.dt_ms:>4}"
+                  f"  forward: {timer_forward.dt_ms:>4}"
+                  f"  loss: {timer_loss.dt_ms:>4}"
+                  f"  backward: {timer_backward.dt_ms:>4}"
+                  f"  gradstep: {timer_gradstep.dt_ms:>4}"
+                  f"  other: {timer_other.dt_ms:>4}"
+                  )
 
 
 def evaluate(prefix: str,

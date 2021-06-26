@@ -104,14 +104,18 @@ class Timer:
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        dt = time.time() - self.start_time  # type: ignore
+        self.dt = time.time() - self.start_time  # type: ignore
         # self.times.append(dt)
         self.start_time = None
         if self.verbose:
-            self.debug_print(dt)
+            self.debug_print(self.dt)
 
     def debug_print(self, dt):
         print(f'{self.name:<10}: {int(dt*1000):>5} ms')
+
+    @property
+    def dt_ms(self):
+        return int(self.dt * 1000)
 
 
 class NoProfiler:
