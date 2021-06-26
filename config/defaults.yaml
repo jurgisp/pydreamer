@@ -8,7 +8,7 @@ defaults:
   log_interval: 500
   save_interval: 5000
   eval_interval: 5000
-  enable_profiler: False
+  enable_profiler: True
   verbose: False
 
   # Env
