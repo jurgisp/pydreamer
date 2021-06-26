@@ -3,18 +3,23 @@ import random
 import time
 from pathlib import Path
 from pathy import Pathy
+from torch.utils.data import IterableDataset
 
 from tools import *
 
 
-class OfflineDataSequential:
+class OfflineDataSequential(IterableDataset):
     """Offline data which processes episodes sequentially"""
 
-    def __init__(self, input_dir: str, reload_interval=0):
+    def __init__(self, input_dir: str, batch_length, batch_size, skip_first=True, reload_interval=0):
+        super().__init__()
         if input_dir.startswith('gs:/') or input_dir.startswith('s3:/'):
             self.input_dir = Pathy(input_dir)
         else:
             self.input_dir = Path(input_dir)
+        self.batch_length = batch_length
+        self.batch_size = batch_size
+        self.skip_first = skip_first
         self.reload_interval = reload_interval
         self._reload_files()
         assert len(self._files) > 0, 'No data found'
@@ -28,24 +33,24 @@ class OfflineDataSequential:
     def _should_reload_files(self):
         return self.reload_interval and (time.time() - self._last_reload > self.reload_interval)
 
-    def iterate(self, batch_length, batch_size, skip_first=True):
+    def __iter__(self):
         # Parallel iteration over (batch_size) iterators
         # Iterates forever
 
-        iters = [self._iter_single(batch_length, skip_first) for _ in range(batch_size)]
+        iters = [self._iter_single() for _ in range(self.batch_size)]
         for batches in zip(*iters):
             batch = {}
             for key in batches[0]:
                 batch[key] = np.stack([b[key] for b in batches]).swapaxes(0, 1)
             yield batch
 
-    def _iter_single(self, batch_length, skip_first):
+    def _iter_single(self):
         # Iterates "single thread" forever
         # TODO: join files so we don't miss the last step indicating done
 
         is_first = True
         for file in self._iter_shuffled_files():
-            for batch in self._iter_file(file, batch_length, skip_random=is_first and skip_first):
+            for batch in self._iter_file(file, self.batch_length, skip_random=is_first and self.skip_first):
                 yield batch
             is_first = False
 

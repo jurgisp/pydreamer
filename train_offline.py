@@ -36,8 +36,9 @@ def run(conf):
     mlflow.log_params(vars(conf))
     device = torch.device(conf.device)
 
-    data = (OfflineDataSequential(conf.input_dir) if conf.data_seq else OfflineDataRandom(conf.input_dir))
-    data_eval = (OfflineDataSequential(conf.eval_dir) if conf.data_seq else OfflineDataRandom(conf.eval_dir))
+    data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True) # if conf.data_seq else OfflineDataRandom(conf.input_dir)
+    data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.batch_size, skip_first=False)
+    data_eval_full = OfflineDataSequential(conf.eval_dir, conf.full_eval_length, conf.full_eval_size, skip_first=False)
 
     preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
                                     image_key=conf.image_key,
@@ -165,7 +166,7 @@ def run(conf):
     timer_other = Timer('other', conf.verbose)
 
     state = None
-    data_iter = data.iterate(conf.batch_length, conf.batch_size)
+    data_iter = iter(data)
 
     with get_profiler(conf) as profiler:
         while True:
@@ -275,11 +276,11 @@ def run(conf):
 
                     if conf.eval_interval and steps % conf.eval_interval == 0:
                         # Same batch as train
-                        eval_iter = data_eval.iterate(conf.batch_length, conf.batch_size, skip_first=False)
+                        eval_iter = iter(data_eval)
                         evaluate('eval', steps, model, eval_iter, preprocess, conf.eval_batches, conf.iwae_samples, conf.keep_state)
 
                         # Full episodes
-                        eval_iter_full = data_eval.iterate(conf.full_eval_length, conf.full_eval_size, skip_first=False)
+                        eval_iter_full = iter(data_eval_full)
                         evaluate('eval_full', steps, model, eval_iter_full, preprocess, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
 
             print(f"[{steps:06}] timers"
