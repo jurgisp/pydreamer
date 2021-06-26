@@ -9,6 +9,7 @@ defaults:
   save_interval: 5000
   eval_interval: 5000
   enable_profiler: False
+  verbose: False
 
   # Env
   image_key: image
