@@ -38,7 +38,7 @@ def run(conf):
     mlflow.log_params(vars(conf))
     device = torch.device(conf.device)
 
-    data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True) # if conf.data_seq else OfflineDataRandom(conf.input_dir)
+    data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True)  # if conf.data_seq else OfflineDataRandom(conf.input_dir)
     data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.batch_size, skip_first=False)
     data_eval_full = OfflineDataSequential(conf.eval_dir, conf.full_eval_length, conf.full_eval_size, skip_first=False)
 
@@ -189,23 +189,23 @@ def run(conf):
                     reset = batch['reset'].to(device)
                     map = batch['map'].to(device)
 
-                with autocast():  # TODO: use @autocast decorator
+                # Predict
 
-                    # Predict
-
-                    with timer_forward:
+                with timer_forward:
+                    with autocast():
 
                         state = states.get(wid)
                         if state is None or not conf.keep_state:
                             state = model.init_state(image.size(1) * conf.iwae_samples)
-                        output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)  # type: ignore
+                        output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)
                         states[wid] = output[-1]
 
-                    # Loss
+                # Loss
 
-                    with timer_loss:
+                with timer_loss:
+                    with autocast():
 
-                        loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)  # type: ignore
+                        loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)
 
                 # Backward
 
@@ -216,10 +216,8 @@ def run(conf):
 
                 # Grad step
 
-                with timer_gradstep:  # This timer will absorb CUDA wait, because of blocking clip_grad_norm
-                    # if torch.cuda.is_available():
-                    #     with Timer('backward.cuda_wait'):
-                    #         torch.cuda.synchronize()
+                with timer_gradstep:  # CUDA wait happens here
+
                     scaler.unscale_(optimizer)
                     grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
                     scaler.step(optimizer)  # optimizer.step()
@@ -239,10 +237,6 @@ def run(conf):
                     # Log sample
 
                     if steps % conf.log_interval == 1:
-                        # if (steps == 1) or (steps > 1000 and loss_metrics['loss_model_image_max'].item() > 200):  # DEBUG high loss
-                        # print(f"[{steps}] Saving batch sample:"
-                        #       f"  loss_model_image_max: {loss_metrics['loss_model_image_max'].item():.1f}"
-                        #       f"  loss_model_kl_max: {loss_metrics['loss_model_kl_max'].item():.1f}")
                         with torch.no_grad():
                             image_pred, image_rec, map_rec = model.predict(*output)
                         log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, f'{steps:07}.npz')

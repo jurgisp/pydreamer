@@ -27,7 +27,11 @@ class WorkerInfoPreprocess(IterableDataset):
 
     def __iter__(self):
         worker_info = get_worker_info()
-        worker_id = worker_info.id if worker_info else 0
+        if worker_info:
+            worker_id = worker_info.id
+            print(f'Started data worker ({worker_id})')
+        else:
+            worker_id = 0
         for batch in iter(self.dataset):
             yield batch, worker_id
 
