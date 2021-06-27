@@ -395,8 +395,23 @@ def prepare_batch_npz(batch,
                       image_pred: Optional[D.Distribution],
                       image_rec: Optional[D.Distribution],
                       map_rec: Optional[D.Distribution]):
-    data = {k: v.cpu().numpy() for k, v in batch.items()}
+    # "Unpreprocess" batch
+    data = {}
+    for k, v in batch.items():
+        x = v.cpu().numpy()
+        if len(x.shape) == 5 and x.dtype == np.float32 and x.shape[-3] == 3:
+            # RGB (image)
+            x = x.transpose(0, 1, 3, 4, 2)
+            x = ((x + 0.5) * 255.0).clip(0, 255).astype('uint8')
+        if len(x.shape) == 5 and x.dtype == np.float32 and not x.shape[-3] == 3:  # Hacky detection, based on 3 channels
+            # One-hot (image or map)
+            x = x.argmax(axis=-3)
+        data[k] = x
+
+    # Loss tensors
     data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
+
+    # Predictions
     if image_pred is not None:
         if isinstance(image_pred, D.Categorical):
             data['image_pred_p'] = image_pred.probs.cpu().numpy()
@@ -412,6 +427,7 @@ def prepare_batch_npz(batch,
             data['map_rec_p'] = map_rec.probs.cpu().numpy()
         else:
             data['map_rec'] = ((map_rec.mean.cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
+            
     data = {k: v.swapaxes(0, 1) for k, v in data.items()}  # (N,B,...) => (B,N,...)
     return data
 
