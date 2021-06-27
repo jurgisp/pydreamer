@@ -231,8 +231,9 @@ def run(conf):
                     for k, v in loss_metrics.items():
                         metrics[k].append(v.item())
                     if grad_norm is not None:
-                        metrics['grad_norm'].append(grad_norm.item())
-                        metrics_max['grad_norm_max'].append(grad_norm.item())
+                        if np.isfinite(grad_norm.item()):  # It's ok to be inf, when using amp
+                            metrics['grad_norm'].append(grad_norm.item())
+                            metrics_max['grad_norm_max'].append(grad_norm.item())
 
                     # Log sample
 
