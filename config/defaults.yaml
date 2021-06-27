@@ -8,6 +8,7 @@ defaults:
   log_interval: 500
   save_interval: 5000
   eval_interval: 5000
+  data_workers: 1
   enable_profiler: True
   verbose: False
 

@@ -2,7 +2,7 @@ from typing import Dict, Tuple, Callable
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import IterableDataset
+from torch.utils.data import IterableDataset, get_worker_info
 
 
 def to_onehot(x: np.ndarray, n_categories) -> np.ndarray:
@@ -17,6 +17,19 @@ def to_image(x: np.ndarray) -> np.ndarray:
     x = x.transpose(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
     x = x / 255.0 - 0.5
     return x
+
+
+class WorkerInfoPreprocess(IterableDataset):
+
+    def __init__(self, dataset: IterableDataset):
+        super().__init__()
+        self.dataset = dataset
+
+    def __iter__(self):
+        worker_info = get_worker_info()
+        worker_id = worker_info.id if worker_info else 0
+        for batch in iter(self.dataset):
+            yield batch, worker_id
 
 
 class TransformedDataset(IterableDataset):

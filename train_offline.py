@@ -18,7 +18,7 @@ from torch.cuda.amp import GradScaler, autocast
 import tools
 from tools import Timer, mlflow_start_or_resume, param_count, NoProfiler
 from data import OfflineDataSequential, OfflineDataRandom
-from preprocessing import MinigridPreprocess
+from preprocessing import MinigridPreprocess, WorkerInfoPreprocess
 from models import *
 from modules_io import *
 from modules_mem import *
@@ -166,8 +166,11 @@ def run(conf):
     timer_gradstep = Timer('gradstep', conf.verbose)
     timer_other = Timer('other', conf.verbose)
 
-    state = None
-    data_iter = iter(DataLoader(preprocess(data), batch_size=None, num_workers=1, pin_memory=True))
+    states = {}  # by worker
+    data_iter = iter(DataLoader(WorkerInfoPreprocess(preprocess(data)),
+                                batch_size=None,
+                                num_workers=conf.data_workers,
+                                pin_memory=True))
 
     scaler = GradScaler()
 
@@ -180,22 +183,23 @@ def run(conf):
 
                 with timer_data:
 
-                     batch = next(data_iter)
-                     image = batch['image'].to(device)
-                     action = batch['action'].to(device)
-                     reset = batch['reset'].to(device)
-                     map = batch['map'].to(device)
+                    batch, wid = next(data_iter)
+                    image = batch['image'].to(device)
+                    action = batch['action'].to(device)
+                    reset = batch['reset'].to(device)
+                    map = batch['map'].to(device)
 
-                with autocast():
+                with autocast():  # TODO: use @autocast decorator
 
                     # Predict
 
                     with timer_forward:
 
+                        state = states.get(wid)
                         if state is None or not conf.keep_state:
                             state = model.init_state(image.size(1) * conf.iwae_samples)
                         output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)  # type: ignore
-                        state = output[-1]
+                        states[wid] = output[-1]
 
                     # Loss
 
@@ -257,15 +261,15 @@ def run(conf):
                         last_time, last_steps = t, steps
 
                         print(f"T:{t-start_time:05.0f}  "
-                            f"[{steps:06}]"
-                            f"  loss_model: {metrics.get('loss_model', 0):.3f}"
-                            f"  loss_model_kl: {metrics.get('loss_model_kl', 0):.3f}"
-                            f"  loss_model_image: {metrics.get('loss_model_image', 0):.3f}"
-                            f"  loss_map: {metrics['loss_map']:.3f}"
-                            f"  entropy_prior: {metrics.get('entropy_prior',0):.3f}"
-                            f"  entropy_prior_start: {metrics.get('entropy_prior_start',0):.3f}"
-                            f"  fps: {metrics['fps']:.3f}"
-                            )
+                              f"[{steps:06}]"
+                              f"  loss_model: {metrics.get('loss_model', 0):.3f}"
+                              f"  loss_model_kl: {metrics.get('loss_model_kl', 0):.3f}"
+                              f"  loss_model_image: {metrics.get('loss_model_image', 0):.3f}"
+                              f"  loss_map: {metrics['loss_map']:.3f}"
+                              f"  entropy_prior: {metrics.get('entropy_prior',0):.3f}"
+                              f"  entropy_prior_start: {metrics.get('entropy_prior_start',0):.3f}"
+                              f"  fps: {metrics['fps']:.3f}"
+                              )
                         mlflow.log_metrics(metrics, step=steps)
                         metrics = defaultdict(list)
                         metrics_max = defaultdict(list)
@@ -427,7 +431,7 @@ def prepare_batch_npz(batch,
             data['map_rec_p'] = map_rec.probs.cpu().numpy()
         else:
             data['map_rec'] = ((map_rec.mean.cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
-            
+
     data = {k: v.swapaxes(0, 1) for k, v in data.items()}  # (N,B,...) => (B,N,...)
     return data
 
