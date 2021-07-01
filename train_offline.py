@@ -139,7 +139,7 @@ def run(conf):
     for submodel in [model._encoder, model._decoder_image, model._core, model._input_rnn, map_model, mem_model]:
         if submodel is not None:
             print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
-    # print(model)
+    print(model)
     mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')  # type: ignore
 
     # Training
@@ -453,7 +453,7 @@ def run_generator(conf):
 def get_profiler(conf):
     if conf.enable_profiler:
         return torch.profiler.profile(
-            schedule=torch.profiler.schedule(wait=10, warmup=10, active=2, repeat=5),
+            schedule=torch.profiler.schedule(wait=10, warmup=10, active=2, repeat=3),
             on_trace_ready=torch.profiler.tensorboard_trace_handler('./log'),
         )
     else:
