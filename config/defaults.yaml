@@ -8,7 +8,7 @@ defaults:
   log_interval: 500
   save_interval: 5000
   eval_interval: 5000
-  data_workers: 2
+  data_workers: 4  # Need 2 for performance, but more is better - more variety between batches
   enable_profiler: True
   verbose: False
 
@@ -45,8 +45,8 @@ defaults:
   embed_dim: 1024
   embed_rnn: none
   deter_dim: 1024
-  stoch_dim: 30
-  hidden_dim: 200
+  stoch_dim: 32
+  hidden_dim: 256
   gru_layers: 1
   image_encoder: dense
   image_encoder_layers: 3
