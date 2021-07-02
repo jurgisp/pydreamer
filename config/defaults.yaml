@@ -17,8 +17,8 @@ defaults:
   image_size: 7
   image_channels: 4
   image_categorical: True
-  map_key: map_centered
-  map_size: 19
+  map_key: map
+  map_size: 11
   map_channels: 4
   action_dim: 7
 
@@ -80,8 +80,8 @@ minigrid:
   image_size: 7
   image_channels: 4
   image_categorical: True
-  map_key: map_centered
-  map_size: 19
+  map_key: map
+  map_size: 11
   map_channels: 4
   action_dim: 7
 
@@ -124,8 +124,8 @@ miniworld:
   image_size: 64
   image_channels: 3
   image_categorical: False
-  map_key: map_centered
-  map_size: 17
+  map_key: map
+  map_size: 9
   map_channels: 4
   action_dim: 3
 
