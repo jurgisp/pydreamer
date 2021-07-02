@@ -20,6 +20,7 @@ metadata:
   namespace: default
 spec:
   backoffLimit: 5
+  ttlSecondsAfterFinished: 86400
   template:
     spec:
       volumes:
