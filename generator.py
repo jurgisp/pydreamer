@@ -83,6 +83,7 @@ def main(output_dir,
         print(f"[{steps:08}/{conf.num_steps:08}] "
               f"Episode {episodes} recorded:"
               f"  steps: {epsteps}"
+              f",  reward: {data['reward'].sum()}"
               f",  explored%: {visited_pct:.1%}|{np.mean(visited_stats):.1%}"
               f",  fps: {fps:.0f}"
               )
