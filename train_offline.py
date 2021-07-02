@@ -17,7 +17,7 @@ from torch.cuda.amp import GradScaler, autocast
 
 import tools
 from tools import Timer, mlflow_start_or_resume, param_count, NoProfiler
-from data import OfflineDataSequential, OfflineDataRandom
+from data import OfflineDataSequential
 from preprocessing import MinigridPreprocess, WorkerInfoPreprocess
 from models import *
 from modules_io import *
@@ -29,8 +29,6 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 
 
 def run(conf):
-    assert not(conf.keep_state and not conf.data_seq), "Should train sequentially if keeping state"
-
     if conf.generator_run:
         run_generator(conf)
 
@@ -38,7 +36,7 @@ def run(conf):
     mlflow.log_params(vars(conf))
     device = torch.device(conf.device)
 
-    data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True)  # if conf.data_seq else OfflineDataRandom(conf.input_dir)
+    data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True)
     data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.batch_size, skip_first=False)
     data_eval_full = OfflineDataSequential(conf.eval_dir, conf.full_eval_length, conf.full_eval_size, skip_first=False)
 

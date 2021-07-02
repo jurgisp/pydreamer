@@ -27,7 +27,6 @@ defaults:
   kl_weight: 1.0
   adam_lr: 3.0e-4
   adam_eps: 1.0e-5
-  data_seq: True
   keep_state: True
   batch_length: 50
   batch_size: 50
