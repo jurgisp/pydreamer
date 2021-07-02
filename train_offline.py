@@ -290,7 +290,7 @@ def run(conf):
 
                         # Full episodes
                         eval_iter_full = iter(DataLoader(preprocess(data_eval_full), batch_size=None))
-                        evaluate('eval_full', steps, model, eval_iter_full, device, conf.full_eval_batches, conf.full_eval_samples, conf.keep_state)
+                        evaluate('eval_full', steps, model, eval_iter_full, device, conf.full_eval_batches, conf.full_eval_samples, keep_state=True)
 
             print(f"[{steps:06}] timers"
                   f"  TOTAL: {timer_total.dt_ms:>4}"
