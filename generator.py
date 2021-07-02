@@ -12,11 +12,10 @@ import tools
 
 def main(output_dir,
          env_name,
+         policy,
          conf,
-         policy='minigrid_wander',
-         delete_every=100,  # if conf.delete_old is set
-         max_steps=500
          ):
+    delete_every=100  # if conf.delete_old is set
 
     if conf.save_to_mlflow:
         run = mlflow.start_run(run_name=f'{env_name}-s{conf.seed}')
@@ -26,18 +25,18 @@ def main(output_dir,
         output_dir.mkdir(parents=True, exist_ok=True)
 
     if env_name.startswith('MiniGrid-'):
-        env = MiniGrid(env_name, max_steps=max_steps, seed=conf.seed)
+        env = MiniGrid(env_name, max_steps=conf.max_steps, seed=conf.seed)
 
     elif env_name.startswith('MiniWorld-'):
         import gym_miniworld
         from gym_miniworld.wrappers import DictWrapper, MapWrapper, AgentPosWrapper
-        env = gym.make(env_name, max_steps=max_steps)
+        env = gym.make(env_name, max_steps=conf.max_steps)
         env = DictWrapper(env)
         env = MapWrapper(env)
         env = AgentPosWrapper(env)
         
     else:
-        env = gym.make(env_name, max_steps=max_steps)
+        env = gym.make(env_name, max_steps=conf.max_steps)
 
     env = CollectWrapper(env)
 
@@ -45,10 +44,14 @@ def main(output_dir,
         policy = RandomPolicy(env.action_space)
     elif policy == 'minigrid_wander':
         policy = MinigridWanderPolicy()
+    elif policy == 'maze_bouncing_ball':
+        policy = MazeBouncingBallPolicy()
     else:
         assert False, 'Unknown policy'
 
+    visited_stats = []
     steps, episodes = 0, 0
+
     while steps < conf.num_steps:
 
         # Unroll one episode
@@ -76,6 +79,14 @@ def main(output_dir,
             fname = output_dir / fname
             tools.save_npz(data, fname)
 
+        # Calculate visited
+
+        agent_pos = data['agent_pos']
+        agent_pos = np.floor(agent_pos/3/2)
+        agent_pos_visited = len(np.unique(agent_pos, axis=0))
+        visited_pct = agent_pos_visited / 25
+        visited_stats.append(visited_pct)
+
         # Log
 
         fps = epsteps / (time.time() - timer + 1e-6)
@@ -84,7 +95,7 @@ def main(output_dir,
 
         print(f"[{steps:08}/{conf.num_steps:08}] "
               f"Episode data written to {fname}"
-            #   f",  explored%: {(data['map_vis'][-1] < max_steps).mean():.1%}"
+              f",  explored%: {visited_pct:.1%}|{np.mean(visited_stats):.1%}"
               f",  fps: {fps:.0f}"
               )
 
@@ -171,6 +182,50 @@ class MinigridWanderPolicy:
         else:
             return 1
 
+class MazeBouncingBallPolicy:
+    # Policy:
+    #   1) Forward until you hit a wall
+    #   2) Turn in random 360 direction
+    #   3) Go to 1)
+
+    def __init__(self):
+        self.pos = None
+        self.turns_remaining = 0
+
+    def __call__(self, obs):
+        assert 'agent_pos' in obs, f'Need agent position'
+        pos = obs['agent_pos']
+        action = -1
+
+        # print(f'{self.pos} => {pos} ({obs["agent_dir"]})')
+
+        if self.turns_remaining == 0:
+            if self.pos is None or not np.all(self.pos == pos):
+                # Going forward
+                action = 2
+                self.pos = pos
+            else:
+                # Hit the wall - start turning
+                if np.random.randint(2) == 0:
+                    self.turns_remaining = -np.random.randint(2, 5)  # Left
+                else:
+                    self.turns_remaining = np.random.randint(2, 5)  # Right
+                self.pos = None
+
+        if self.turns_remaining > 0:
+            # Turning right
+            action = 1
+            self.turns_remaining -= 1
+
+        elif self.turns_remaining < 0:
+            # Turning left
+            action = 0
+            self.turns_remaining += 1
+
+        assert action >= 0
+        return action
+
+
 
 class CollectWrapper:
 
@@ -216,14 +271,16 @@ class CollectWrapper:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('env')
+    parser.add_argument('policy')
     parser.add_argument('--output_dir', type=str, default=None)
     parser.add_argument('--num_steps', type=int, default=1_000_000)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--delete_old', type=int, default=0)
     parser.add_argument('--sleep', type=int, default=0)
     parser.add_argument('--save_to_mlflow', action='store_true')
+    parser.add_argument('--max_steps', type=int, default=500)
     args = parser.parse_args()
 
     output_dir = args.output_dir or f"data/{args.env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}"
 
-    main(output_dir, args.env, args)
+    main(output_dir, args.env, args.policy, args)
