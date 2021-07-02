@@ -65,12 +65,13 @@ class OfflineDataSequential(IterableDataset):
 
         # Undo the transformation for better compression
         if 'image' not in data and 'image_t' in data:
-            data['image'] = data['image_t'].transpose(3, 0, 1, 2)  # CHWN => NCHW
+            data['image'] = data['image_t'].transpose(3, 0, 1, 2)  # HWCN => NHWC
             del data['image_t']
 
         n = data['image'].shape[0]
-        data['reset'] = np.zeros(n, bool)
-        data['reset'][0] = True  # Indicate episode start
+        if not 'reset' in data:
+            data['reset'] = np.zeros(n, bool)
+            data['reset'][0] = True  # Indicate episode start
 
         i_start = 0
         if skip_random:

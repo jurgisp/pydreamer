@@ -91,9 +91,6 @@ class MinigridPreprocess:
         assert len(batch['action'].shape) == 3  # should be already one-hot
         batch['action'] = batch['action'].astype(np.float32) 
 
-        if not 'reset' in batch:
-            batch['reset'] = np.zeros(batch['action'].shape[0:2], dtype=bool)
-
         if 'agent_pos' in batch and 'agent_dir' in batch:
             agent_pos = (batch['agent_pos'] - 9.0) / 9.0
             agent_dir = batch['agent_dir']
