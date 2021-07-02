@@ -15,7 +15,7 @@ def main(output_dir,
          policy,
          conf,
          ):
-    delete_every = 100  # if conf.delete_old is set
+    # delete_every = 100  # if conf.delete_old is set
 
     if conf.save_to_mlflow:
         run = mlflow.start_run(run_name=f'{env_name}-s{conf.seed}')
@@ -49,8 +49,9 @@ def main(output_dir,
     else:
         assert False, 'Unknown policy'
 
-    visited_stats = []
     steps, episodes = 0, 0
+    datas = []
+    visited_stats = []
 
     while steps < conf.num_steps:
 
@@ -70,15 +71,6 @@ def main(output_dir,
         data['image_t'] = data['image'].transpose(1, 2, 3, 0)
         del data['image']
 
-        # Save to npz
-
-        fname = f's{conf.seed}-ep{episodes:06}-{epsteps:04}.npz'
-        if conf.save_to_mlflow:
-            tools.mlflow_log_npz(data, fname, 'episodes', verbose=True)
-        else:
-            fname = output_dir / fname
-            tools.save_npz(data, fname)
-
         # Calculate visited
 
         agent_pos = data['agent_pos']
@@ -94,27 +86,53 @@ def main(output_dir,
             print('Data sample: ', {k: v.shape for k, v in data.items()})
 
         print(f"[{steps:08}/{conf.num_steps:08}] "
-              f"Episode data written to {fname}"
+              f"Episode {episodes} recorded:"
+              f"  steps: {epsteps}"
               f",  explored%: {visited_pct:.1%}|{np.mean(visited_stats):.1%}"
               f",  fps: {fps:.0f}"
               )
 
-        # Delete old
-
-        if conf.delete_old and episodes % delete_every == 0:
-            assert not conf.save_to_mlflow
-            for i_new in range(episodes - delete_every + 1, episodes + 1):
-                i_old = i_new - conf.delete_old
-                if i_old < 0:
-                    continue
-                del_fname = output_dir / f's{conf.seed}-ep{i_old:06}-{epsteps:04}.npz'  # TODO: problem if epstep changes
-                print(f'Deleting {del_fname}')
-                del_fname.unlink()
-
-        if conf.sleep:
-            time.sleep(conf.sleep)
+        # Save to npz
 
         episodes += 1
+        datas.append(data)
+
+        if len(datas) == conf.episodes_per_npz:
+
+            # Concatenate 10 episodes
+
+            data = {}
+            for key in datas[0]:
+                data[key] = np.concatenate([b[key] for b in datas], axis=0)
+            datas = []
+
+            if episodes == conf.episodes_per_npz:
+                print('Data sample: ', {k: v.shape for k, v in data.items()})
+            assert data['reset'].sum() == conf.episodes_per_npz
+
+            # Save to npz
+
+            fname = f's{conf.seed}-ep{episodes-conf.episodes_per_npz:06}_{episodes-1:06}.npz'
+            if conf.save_to_mlflow:
+                tools.mlflow_log_npz(data, fname, 'episodes', verbose=True)
+            else:
+                fname = output_dir / fname
+                tools.save_npz(data, fname)
+
+        # Delete old
+
+        # if conf.delete_old and episodes % delete_every == 0:
+        #     assert not conf.save_to_mlflow
+        #     for i_new in range(episodes - delete_every + 1, episodes + 1):
+        #         i_old = i_new - conf.delete_old
+        #         if i_old < 0:
+        #             continue
+        #         del_fname = output_dir / f's{conf.seed}-ep{i_old:06}-{epsteps:04}.npz'  # TODO: problem if epstep changes
+        #         print(f'Deleting {del_fname}')
+        #         del_fname.unlink()
+
+        # if conf.sleep:
+        #     time.sleep(conf.sleep)
 
 
 class RandomPolicy:
@@ -282,6 +300,7 @@ if __name__ == '__main__':
     parser.add_argument('--sleep', type=int, default=0)
     parser.add_argument('--save_to_mlflow', action='store_true')
     parser.add_argument('--max_steps', type=int, default=500)
+    parser.add_argument('--episodes_per_npz', type=int, default=10)
     args = parser.parse_args()
 
     output_dir = args.output_dir or f"data/{args.env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}"
