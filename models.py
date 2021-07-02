@@ -62,13 +62,14 @@ class WorldModel(nn.Module):
                 image: Tensor,     # tensor(N, B, C, H, W)
                 action: Tensor,    # tensor(N, B, A)
                 reset: Tensor,     # tensor(N, B)
-                map: Tensor,       # tensor(N, B, C, MH, MW)
+                map_coord: Tensor,       # tensor(N, B, 4)
                 in_state: Any,
                 I: int = 1,
                 imagine=False,     # If True, will imagine sequence, not using observations to form posterior
                 do_image_pred=False,
                 ):
 
+        n, b = image.shape[:2]
         embed = self._encoder.forward(image)  # (N,B,E)
 
         if self._input_rnn:
@@ -83,7 +84,12 @@ class WorldModel(nn.Module):
         prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, None, I=I, imagine=imagine)
 
         image_rec = self._decoder_image.forward(features)
-        map_rec = self._map_model.forward(features if self._map_grad else features.detach())
+
+        
+        map_features = torch.cat((features, map_coord.unsqueeze(2).expand(n, b, I, -1)), dim=-1)
+        if not self._map_grad:
+            map_features = map_features.detach()
+        map_rec = self._map_model.forward(map_features)
 
         image_pred = None
         if do_image_pred:

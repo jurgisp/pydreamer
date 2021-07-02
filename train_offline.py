@@ -85,7 +85,7 @@ def run(conf):
         )
     elif conf.map_model == 'direct':
         map_model = DirectHead(
-            decoder=DenseDecoder(in_dim=state_dim,
+            decoder=DenseDecoder(in_dim=state_dim + 4,  # TODO: 4 = map_coords
                                  out_shape=(conf.map_channels, conf.map_size, conf.map_size),
                                  hidden_dim=conf.map_hidden_dim,
                                  hidden_layers=conf.map_hidden_layers),
@@ -188,17 +188,17 @@ def run(conf):
                     action = batch['action'].to(device)
                     reset = batch['reset'].to(device)
                     map = batch['map'].to(device)
+                    map_coord = batch['map_coord'].to(device)
 
                 # Predict
 
                 with timer_forward:
                     with autocast():
 
-                        state = states.get(wid)
-                        if state is None or not conf.keep_state:
-                            state = model.init_state(image.size(1) * conf.iwae_samples)
-                        output = model.forward(image, action, reset, map, state, I=conf.iwae_samples)
-                        states[wid] = output[-1]
+                        state = states.get(wid) or model.init_state(image.size(1) * conf.iwae_samples)
+                        output = model.forward(image, action, reset, map_coord, state, I=conf.iwae_samples)
+                        if conf.keep_state:
+                            states[wid] = output[-1]
 
                 # Loss
 
@@ -327,6 +327,8 @@ def evaluate(prefix: str,
             action = batch['action'].to(device)
             reset = batch['reset'].to(device)
             map = batch['map'].to(device)
+            map_coord = batch['map_coord'].to(device)
+
             if i_batch == 0:
                 print(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
 
@@ -343,7 +345,7 @@ def evaluate(prefix: str,
                 # Forward (prior) & unseen logprob
 
                 if reset.sum() == 0:
-                    output = model.forward(0 * image[:5], action[:5], reset[:5], map[:5], state, I=eval_samples, imagine=True, do_image_pred=True)
+                    output = model.forward(0 * image[:5], action[:5], reset[:5], map_coord[:5], state, I=eval_samples, imagine=True, do_image_pred=True)
                     _, _, loss_tensors = model.loss(*output, image[:5], map[:5], reset[:5])  # type: ignore
                     if 'logprob_img' in loss_tensors:
                         metrics_eval['logprob_img_1step'].append(loss_tensors['logprob_img'][0].mean().item())
@@ -354,7 +356,7 @@ def evaluate(prefix: str,
 
             if state is None or not keep_state:
                 state = model.init_state(image.size(1) * eval_samples)
-            output = model.forward(image, action, reset, map, state, I=eval_samples, do_image_pred=True)
+            output = model.forward(image, action, reset, map_coord, state, I=eval_samples, do_image_pred=True)
             state = output[-1]
 
             _, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)  # type: ignore
