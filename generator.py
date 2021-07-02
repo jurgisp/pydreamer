@@ -66,11 +66,6 @@ def main(output_dir,
             epsteps += 1
         data = info['episode']  # type: ignore
 
-        # Transform for smaller size
-
-        data['image_t'] = data['image'].transpose(1, 2, 3, 0)
-        del data['image']
-
         # Calculate visited
 
         agent_pos = data['agent_pos']
@@ -105,12 +100,17 @@ def main(output_dir,
             for key in datas[0]:
                 data[key] = np.concatenate([b[key] for b in datas], axis=0)
             datas = []
+            assert data['reset'].sum() == conf.episodes_per_npz
+
+            # NHWC => HWCN for better compression
+
+            data['image_t'] = data['image'].transpose(1, 2, 3, 0)
+            del data['image']
+
+            # Save to npz
 
             if episodes == conf.episodes_per_npz:
                 print('Data sample: ', {k: v.shape for k, v in data.items()})
-            assert data['reset'].sum() == conf.episodes_per_npz
-
-            # Save to npz
 
             fname = f's{conf.seed}-ep{episodes-conf.episodes_per_npz:06}_{episodes-1:06}.npz'
             if conf.save_to_mlflow:
