@@ -168,6 +168,7 @@ def run(conf):
     data_iter = iter(DataLoader(WorkerInfoPreprocess(preprocess(data)),
                                 batch_size=None,
                                 num_workers=conf.data_workers,
+                                prefetch_factor=100,
                                 pin_memory=True))
 
     scaler = GradScaler()

@@ -36,25 +36,22 @@ class OfflineDataSequential(IterableDataset):
     def __iter__(self):
         # Parallel iteration over (batch_size) iterators
         # Iterates forever
-
-        iters = [self._iter_single() for _ in range(self.batch_size)]
+        iters = [self._iter_single(ix) for ix in range(self.batch_size)]
         for batches in zip(*iters):
             batch = {}
             for key in batches[0]:
                 batch[key] = np.stack([b[key] for b in batches]).swapaxes(0, 1)
             yield batch
 
-    def _iter_single(self):
+    def _iter_single(self, ix):
         # Iterates "single thread" forever
-        # TODO: join files so we don't miss the last step indicating done
-
         is_first = True
         for file in self._iter_shuffled_files():
-            for batch in self._iter_file(file, self.batch_length, skip_random=is_first and self.skip_first):
+            for batch in self._iter_file(file, self.batch_length, ix, skip_random=is_first and self.skip_first):
                 yield batch
             is_first = False
 
-    def _iter_file(self, file, batch_length, skip_random=False):
+    def _iter_file(self, file, batch_length, ix, skip_random=False):
         try:
             with Timer(f'Reading {file}'):
                 data = load_npz(file)
@@ -75,7 +72,8 @@ class OfflineDataSequential(IterableDataset):
 
         i_start = 0
         if skip_random:
-            i_start = np.random.randint(n - batch_length)
+            # i_start = np.random.randint(n - batch_length)
+            i_start = (n - batch_length) * ix // self.batch_size
 
         for i in range(i_start, n - batch_length + 1, batch_length):
             # TODO: should return last shorter batch
