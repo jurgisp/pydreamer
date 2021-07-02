@@ -15,7 +15,7 @@ def main(output_dir,
          policy,
          conf,
          ):
-    delete_every=100  # if conf.delete_old is set
+    delete_every = 100  # if conf.delete_old is set
 
     if conf.save_to_mlflow:
         run = mlflow.start_run(run_name=f'{env_name}-s{conf.seed}')
@@ -34,11 +34,11 @@ def main(output_dir,
         env = DictWrapper(env)
         env = MapWrapper(env)
         env = AgentPosWrapper(env)
-        
+
     else:
         env = gym.make(env_name, max_steps=conf.max_steps)
 
-    env = CollectWrapper(env)
+    env = CollectWrapper(env, conf.max_steps)
 
     if policy == 'random':
         policy = RandomPolicy(env.action_space)
@@ -82,7 +82,7 @@ def main(output_dir,
         # Calculate visited
 
         agent_pos = data['agent_pos']
-        agent_pos = np.floor(agent_pos/3/2)
+        agent_pos = np.floor(agent_pos / 3 / 2)
         agent_pos_visited = len(np.unique(agent_pos, axis=0))
         visited_pct = agent_pos_visited / 25
         visited_stats.append(visited_pct)
@@ -182,6 +182,7 @@ class MinigridWanderPolicy:
         else:
             return 1
 
+
 class MazeBouncingBallPolicy:
     # Policy:
     #   1) Forward until you hit a wall
@@ -226,12 +227,12 @@ class MazeBouncingBallPolicy:
         return action
 
 
-
 class CollectWrapper:
 
-    def __init__(self, env):
+    def __init__(self, env, max_steps):
         self._env = env
-        self._episode = None
+        self._episode = []
+        self._max_steps = max_steps
         # Handle environments with one-hot or discrete action, but collect always as one-hot
         self._action_size = env.action_space.shape[0] if env.action_space.shape != () else env.action_space.n
 
@@ -250,7 +251,8 @@ class CollectWrapper:
             action_onehot = action
         transition['action'] = action_onehot
         transition['reward'] = reward
-        transition['discount'] = np.array(1 - float(done))
+        transition['terminal'] = done if len(self._episode) < self._max_steps else False  # Only True if actual terminal state, not done because of max_steps
+        transition['reset'] = False
 
         self._episode.append(transition)
         if done:
@@ -263,7 +265,8 @@ class CollectWrapper:
         transition = obs.copy()
         transition['action'] = np.zeros(self._action_size)
         transition['reward'] = 0.0
-        transition['discount'] = 1.0
+        transition['terminal'] = False
+        transition['reset'] = True
         self._episode = [transition]
         return obs
 
