@@ -25,10 +25,10 @@ class OfflineDataSequential(IterableDataset):
         assert len(self._files) > 0, 'No data found'
 
     def _reload_files(self):
-        print(f'Loading data from {str(self.input_dir)}...')
+        print(f'Reading files from {str(self.input_dir)}...')
         self._files = list(sorted(self.input_dir.glob('*.npz')))
         self._last_reload = time.time()
-        print(f'Found data: {len(self._files)} episodes')
+        print(f'Found {len(self._files)} files')
 
     def _should_reload_files(self):
         return self.reload_interval and (time.time() - self._last_reload > self.reload_interval)
@@ -56,7 +56,8 @@ class OfflineDataSequential(IterableDataset):
 
     def _iter_file(self, file, batch_length, skip_random=False):
         try:
-            data = load_npz(file)
+            with Timer(f'Reading {file}'):
+                data = load_npz(file)
         except Exception as e:
             print('Error reading file - skipping')
             print(e)

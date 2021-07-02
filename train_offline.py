@@ -137,7 +137,7 @@ def run(conf):
     for submodel in [model._encoder, model._decoder_image, model._core, model._input_rnn, map_model, mem_model]:
         if submodel is not None:
             print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
-    print(model)
+    # print(model)
     mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{model}\n```')  # type: ignore
 
     # Training
