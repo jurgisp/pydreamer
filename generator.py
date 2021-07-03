@@ -113,7 +113,12 @@ def main(output_dir,
             if episodes == conf.episodes_per_npz:
                 print('Data sample: ', {k: v.shape for k, v in data.items()})
 
-            fname = f's{conf.seed}-ep{episodes-conf.episodes_per_npz:06}_{episodes-1:06}.npz'
+            n = data['reset'].shape[0] - 1
+            if conf.episodes_per_npz > 1:
+                fname = f's{conf.seed}-ep{episodes-conf.episodes_per_npz:06}_{episodes-1:06}-{n:04}.npz'
+            else:
+                fname = f's{conf.seed}-ep{episodes-1:06}-{n:04}.npz'
+
             if conf.save_to_mlflow:
                 tools.mlflow_log_npz(data, fname, 'episodes', verbose=True)
             else:
