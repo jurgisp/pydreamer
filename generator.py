@@ -301,7 +301,7 @@ if __name__ == '__main__':
     parser.add_argument('--sleep', type=int, default=0)
     parser.add_argument('--save_to_mlflow', action='store_true')
     parser.add_argument('--max_steps', type=int, default=500)
-    parser.add_argument('--episodes_per_npz', type=int, default=10)
+    parser.add_argument('--episodes_per_npz', type=int, default=1)
     args = parser.parse_args()
 
     output_dir = args.output_dir or f"data/{args.env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}"

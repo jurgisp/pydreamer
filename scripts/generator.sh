@@ -1,5 +1,9 @@
 conda activate pydreamer
 
+## Generate MiniWorld-MazeS5A4
+
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4-v0 0
+
 ## Generate MiniWorld-MazeS5N
 
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5N-v0 0
@@ -14,6 +18,7 @@ conda activate pydreamer
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5N-v0 9
 
 # gs://humanui-mlflow-west4/artifacts/29/c7587b1391c8449f85d2b037ff96b356/artifacts/episodes
+gsutil cp gs://humanui-mlflow-west4/artifacts/29/c7587b1391c8449f85d2b037ff96b356/artifacts/episodes/* ./
 
 
 ## Generate MiniWorld
