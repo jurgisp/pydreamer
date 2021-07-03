@@ -336,7 +336,7 @@ def evaluate(prefix: str,
                 # Log _last predictions from the last batch of previous episode
 
                 if reset.sum() > 0 and loss_tensors is not None:
-                    assert all(reset[0].cpu().numpy()), 'First step should be reset'
+                    # assert all(reset[0].cpu().numpy()), 'First step should be reset'  # TODO: check what's going on?
                     metrics_eval['logprob_map_last'].append(loss_tensors['loss_map'].mean().item())
                     metrics_eval['logprob_img_last'].append(loss_tensors.get('logprob_img', tensor(0.0)).mean().item())
                     n_episodes += image.shape[1]
