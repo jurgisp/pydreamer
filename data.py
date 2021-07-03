@@ -73,7 +73,7 @@ class OfflineDataSequential(IterableDataset):
         i_start = 0
         if skip_random:
             # i_start = np.random.randint(n - batch_length)
-            i_start = (n - batch_length) * ix // self.batch_size
+            i_start = n * ix // self.batch_size
 
         for i in range(i_start, n - batch_length + 1, batch_length):
             # TODO: should return last shorter batch
