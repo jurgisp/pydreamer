@@ -70,6 +70,9 @@ class WorldModel(nn.Module):
                 ):
 
         n, b = image.shape[:2]
+        noises = torch.normal(torch.zeros((n, b, I, self._stoch_dim)),
+                              torch.ones((n, b, I, self._stoch_dim))).to(image.device)  # Belongs to RSSM but need to do here for perf
+
         embed = self._encoder.forward(image)  # (N,B,E)
 
         if self._input_rnn:
@@ -81,7 +84,7 @@ class WorldModel(nn.Module):
         # mem_out = self._mem_model(embed, action, reset, in_mem_state)
         # mem_sample, mem_state = mem_out[0], mem_out[-1]
 
-        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, None, I=I, imagine=imagine)
+        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, None, noises, I=I, imagine=imagine)
 
         image_rec = self._decoder_image.forward(features)
 

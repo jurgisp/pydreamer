@@ -20,7 +20,8 @@ class RSSMCore(nn.Module):
                 action: Tensor,      # tensor(N, B, A)
                 reset: Tensor,       # tensor(N, B)
                 in_state: Tuple[Tensor, Tensor],    # [(BI,D) (BI,S)]
-                glob_state: Any,     # (B,G)?
+                glob_state: Any,
+                noises: Tensor,      # (N,B,I)
                 I: int = 1,
                 imagine=False,       # If True, will imagine sequence, not using observations to form posterior
                 ):
@@ -36,8 +37,6 @@ class RSSMCore(nn.Module):
         embeds = expand(embed).unbind(0)     # (N,B,...) => List[(BI,...)]
         actions = expand(action).unbind(0)
         reset_masks = expand(~reset.unsqueeze(2)).unbind(0)
-        noises = torch.normal(torch.zeros((n, b, I, self._cell._stoch_dim), device=embed.device),
-                              torch.ones((n, b, I, self._cell._stoch_dim), device=embed.device))  # TODO perf: this blocks!
         noises = noises.reshape(n, b * I, -1).unbind(0)  # List[(BI,S)]
 
         priors = []
