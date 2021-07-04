@@ -26,7 +26,7 @@ class ConvEncoder(nn.Module):
         )
 
     def forward(self, x):
-        x, bd = flatten_batch(x, 3)
+        x, bd = flatten_batch(x, 3)  # TODO perf: this makes a copy. Also NCHW stuff happening afterward, maybe can prepare better. Also f32=>f16
         y = self._model(x)
         y = unflatten_batch(y, bd)
         return y

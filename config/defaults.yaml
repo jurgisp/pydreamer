@@ -1,6 +1,6 @@
 defaults:
   # Job
-  n_steps: 250_000
+  n_steps: 500_000
   run_name: none
   resume_id:
   input_dir: ./data/train

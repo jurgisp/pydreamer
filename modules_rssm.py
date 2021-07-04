@@ -37,7 +37,7 @@ class RSSMCore(nn.Module):
         actions = expand(action).unbind(0)
         reset_masks = expand(~reset.unsqueeze(2)).unbind(0)
         noises = torch.normal(torch.zeros((n, b, I, self._cell._stoch_dim), device=embed.device),
-                              torch.ones((n, b, I, self._cell._stoch_dim), device=embed.device))
+                              torch.ones((n, b, I, self._cell._stoch_dim), device=embed.device))  # TODO perf: this blocks!
         noises = noises.reshape(n, b * I, -1).unbind(0)  # List[(BI,S)]
 
         priors = []
