@@ -53,7 +53,7 @@ class OfflineDataSequential(IterableDataset):
 
     def _iter_file(self, file, batch_length, ix, skip_random=False):
         try:
-            with Timer(f'Reading {file}'):
+            with Timer(f'Reading {file}', verbose=False):
                 data = load_npz(file)
         except Exception as e:
             print('Error reading file - skipping')
