@@ -14,7 +14,6 @@ conda activate pydreamer
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4-v0 9
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4-v0 10
 
-# TODO: check when fully run which failed
 gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/b202fe249cb84d6bbd017a04ef34949e/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/eval  # 10% for eval
 gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/7267a582727d4b61ae25f2bda155488a/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/train
 gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/a2f3ffc4291244f09338b5d60071d96a/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/train
@@ -22,10 +21,10 @@ gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/c4352462ba904b9ea05144632
 gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/d4cab8bedb5b476697090830cacdd5ec/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/train
 gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/5b14205465174c2e8ed0fd7b32b8e748/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/train
 gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/37e3f06af34f4fdaafeebdb4a0a32ef4/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/63b338e51c204e66a7385887c9c94f6f/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/train
+gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/9e0aba7e54cb4f52b9e46c710123e9cc/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/train
 gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/f10d81fa977c431eb38ff45eb570a7f6/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/train
 gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/597f1d9eb1a84320a25e774f1c4204a6/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/train # TODO #10
+gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/1cc3bb7503f34c61bff176625b1352ad/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/train
 
 gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/train | wc -l
 gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4-v0/eval | wc -l
