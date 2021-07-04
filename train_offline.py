@@ -387,7 +387,7 @@ def log_batch_npz(batch,
                   filename: str,
                   subdir='d2_wm_predict'):
     data = prepare_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec)
-    tools.mlflow_log_npz(data, filename, subdir)
+    tools.mlflow_log_npz(data, filename, subdir, verbose=True)
 
 
 def prepare_batch_npz(batch,
