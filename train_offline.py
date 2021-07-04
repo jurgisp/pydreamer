@@ -344,21 +344,23 @@ def evaluate(prefix: str,
                 # Forward (prior) & unseen logprob
 
                 if reset.sum() == 0:
-                    output = model.forward(0 * image[:5], action[:5], reset[:5], map_coord[:5], state, I=eval_samples, imagine=True, do_image_pred=True)
-                    _, _, loss_tensors = model.loss(*output, image[:5], map[:5], reset[:5])  # type: ignore
-                    if 'logprob_img' in loss_tensors:
-                        metrics_eval['logprob_img_1step'].append(loss_tensors['logprob_img'][0].mean().item())
-                        metrics_eval['logprob_img_2step'].append(loss_tensors['logprob_img'][1].mean().item())
-                    # image_pred, image_rec, map_rec = model.predict(*output)  # TODO: log 5-step prediction sequence
+                    with autocast():
+                        output = model.forward(0 * image[:5], action[:5], reset[:5], map_coord[:5], state, I=eval_samples, imagine=True, do_image_pred=True)
+                        _, _, loss_tensors = model.loss(*output, image[:5], map[:5], reset[:5])  # type: ignore
+                        if 'logprob_img' in loss_tensors:
+                            metrics_eval['logprob_img_1step'].append(loss_tensors['logprob_img'][0].mean().item())
+                            metrics_eval['logprob_img_2step'].append(loss_tensors['logprob_img'][1].mean().item())
+                        # image_pred, image_rec, map_rec = model.predict(*output)  # TODO: log 5-step prediction sequence
 
             # Forward (posterior) & loss
 
-            if state is None or not keep_state:
-                state = model.init_state(image.size(1) * eval_samples)
-            output = model.forward(image, action, reset, map_coord, state, I=eval_samples, do_image_pred=True)
-            state = output[-1]
+            with autocast():
+                if state is None or not keep_state:
+                    state = model.init_state(image.size(1) * eval_samples)
+                output = model.forward(image, action, reset, map_coord, state, I=eval_samples, do_image_pred=True)
+                state = output[-1]
+                _, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)  # type: ignore
 
-            _, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)  # type: ignore
             metrics_eval['logprob_map'].append(loss_tensors['loss_map'].mean().item())  # Backwards-compat, same as loss_map
             metrics_eval['logprob_img'].append(loss_tensors.get('logprob_img', tensor(0.0)).mean().item())
             for k, v in loss_metrics.items():
