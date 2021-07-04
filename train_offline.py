@@ -39,11 +39,11 @@ def run(conf):
     data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True)
     data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.batch_size, skip_first=False)
     data_eval_full = OfflineDataSequential(conf.eval_dir, conf.full_eval_length, conf.full_eval_size, skip_first=False)
-
     preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
                                     image_key=conf.image_key,
                                     map_categorical=conf.map_channels,
-                                    map_key=conf.map_key)
+                                    map_key=conf.map_key,
+                                    cuda=conf.device.startswith('cuda'))
 
     state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim
 
