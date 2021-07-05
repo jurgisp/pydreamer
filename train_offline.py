@@ -254,8 +254,7 @@ def run(conf):
                         metrics['fps'] = fps
                         last_time, last_steps = t, steps
 
-                        print(f"T:{t-start_time:05.0f}  "
-                              f"[{steps:06}]"
+                        print(f"[{steps:06}]"
                               f"  loss_model: {metrics.get('loss_model', 0):.3f}"
                               f"  loss_model_kl: {metrics.get('loss_model_kl', 0):.3f}"
                               f"  loss_model_image: {metrics.get('loss_model_image', 0):.3f}"
