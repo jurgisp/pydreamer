@@ -95,7 +95,7 @@ class RSSMCell(nn.Module):
 
         self._z_mlp = nn.Linear(stoch_dim, hidden_dim)
         self._a_mlp = nn.Linear(action_dim, hidden_dim, bias=False)  # No bias, because outputs are added
-        # self._g_mlp = nn.Linear(global_dim, hidden_dim, bias=False)  # TODO
+        # self._g_mlp = nn.Linear(global_dim, hidden_dim, bias=False)
 
         self._gru = nn.GRUCell(hidden_dim, deter_dim // gru_layers)
         self._gru_layers = gru_layers
@@ -104,11 +104,11 @@ class RSSMCell(nn.Module):
             self._gru2 = nn.GRUCell(deter_dim // gru_layers, deter_dim // gru_layers)
 
         self._prior_mlp_h = nn.Linear(deter_dim, hidden_dim)
-        # self._prior_mlp_g = nn.Linear(global_dim, hidden_dim, bias=False)  # TODO
+        # self._prior_mlp_g = nn.Linear(global_dim, hidden_dim, bias=False)
         self._prior_mlp = nn.Linear(hidden_dim, 2 * stoch_dim)
 
         self._post_mlp_h = nn.Linear(deter_dim, hidden_dim)
-        # self._post_mlp_g = nn.Linear(global_dim, hidden_dim, bias=False)  # TODO
+        # self._post_mlp_g = nn.Linear(global_dim, hidden_dim, bias=False)
         self._post_mlp_e = nn.Linear(embed_dim, hidden_dim, bias=False)
         self._post_mlp = nn.Linear(hidden_dim, 2 * stoch_dim)
 

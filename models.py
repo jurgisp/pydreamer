@@ -177,7 +177,7 @@ class WorldModel(nn.Module):
         #
 
         # with torch.no_grad():  # This stop gradient is important for correctness
-        #     weights = F.softmax(-(loss_image + loss_kl), dim=-1)    # TODO: should we apply kl_weight here?
+        #     weights = F.softmax(-(loss_image + loss_kl), dim=-1)    # should we apply kl_weight here?
         #     weights_map = F.softmax(-loss_map, dim=-1)
         # dloss_image = (weights * loss_image).sum(dim=-1)  # (N,B,I) => (N,B)
         # dloss_kl = (weights * loss_kl).sum(dim=-1)

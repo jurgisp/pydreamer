@@ -168,7 +168,7 @@ def run(conf):
     data_iter = iter(DataLoader(WorkerInfoPreprocess(preprocess(data)),
                                 batch_size=None,
                                 num_workers=conf.data_workers,
-                                prefetch_factor=20,  # GCS download has to be shorter than this many batches (e.g. 1sec < 20*300ms)
+                                prefetch_factor=20 if conf.data_workers else 2,  # GCS download has to be shorter than this many batches (e.g. 1sec < 20*300ms)
                                 pin_memory=True))
 
     scaler = GradScaler()
@@ -333,17 +333,22 @@ def evaluate(prefix: str,
 
             if state is not None:  # Non-first batch
 
+                reset_episodes = reset[0]  # (B,)
+                n_reset_episodes = reset_episodes.sum().item()
+                n_episodes += n_reset_episodes
+
                 # Log _last predictions from the last batch of previous episode
 
-                if reset.sum() > 0 and loss_tensors is not None:
-                    # assert all(reset[0].cpu().numpy()), 'First step should be reset'  # TODO: check what's going on?
-                    metrics_eval['logprob_map_last'].append(loss_tensors['loss_map'].mean().item())
-                    metrics_eval['logprob_img_last'].append(loss_tensors.get('logprob_img', tensor(0.0)).mean().item())
-                    n_episodes += image.shape[1]
+                if n_reset_episodes > 0 and loss_tensors is not None:
+                    logprob_map_last = (loss_tensors['loss_map'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
+                    metrics_eval['logprob_map_last'].append(logprob_map_last.item())
+                    if 'logprob_img' in loss_tensors:
+                        logprob_img_last = (loss_tensors['logprob_img'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
+                        metrics_eval['logprob_img_last'].append(logprob_img_last.item())
 
                 # Forward (prior) & unseen logprob
 
-                if reset.sum() == 0:
+                if n_reset_episodes == 0:
                     with autocast():
                         output = model.forward(0 * image[:5], action[:5], reset[:5], map_coord[:5], state, I=eval_samples, imagine=True, do_image_pred=True)
                         _, _, loss_tensors = model.loss(*output, image[:5], map[:5], reset[:5])  # type: ignore

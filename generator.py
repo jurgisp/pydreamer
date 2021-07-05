@@ -133,7 +133,7 @@ def main(output_dir,
         #         i_old = i_new - conf.delete_old
         #         if i_old < 0:
         #             continue
-        #         del_fname = output_dir / f's{conf.seed}-ep{i_old:06}-{epsteps:04}.npz'  # TODO: problem if epstep changes
+        #         del_fname = output_dir / f's{conf.seed}-ep{i_old:06}-{epsteps:04}.npz'
         #         print(f'Deleting {del_fname}')
         #         del_fname.unlink()
 
