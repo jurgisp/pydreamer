@@ -1,5 +1,33 @@
 conda activate pydreamer
 
+## Generate MiniWorld-MazeS5GridA4
+
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4-v0 2500 0
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4-v0 2500 1
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4-v0 2500 2
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4-v0 2500 3
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4-v0 2500 4
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4-v0 2500 5
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4-v0 2500 6
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4-v0 2500 7
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4-v0 2500 8
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4-v0 2500 9
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4-v0 2500 10
+
+## Generate MiniWorld-MazeS5A4W
+
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4W-v0 0
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4W-v0 1
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4W-v0 2
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4W-v0 3
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4W-v0 4
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4W-v0 5
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4W-v0 6
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4W-v0 7
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4W-v0 8
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4W-v0 9
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4W-v0 10
+
 ## Generate MiniWorld-MazeS5A4
 
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4-v0 0

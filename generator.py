@@ -232,9 +232,11 @@ class MazeBouncingBallPolicy:
             else:
                 # Hit the wall - start turning
                 if np.random.randint(2) == 0:
-                    self.turns_remaining = -np.random.randint(2, 5)  # Left
+                    # self.turns_remaining = -np.random.randint(2, 5)  # Left
+                    self.turns_remaining = -1  # TODO
                 else:
-                    self.turns_remaining = np.random.randint(2, 5)  # Right
+                    # self.turns_remaining = np.random.randint(2, 5)  # Right
+                    self.turns_remaining = 1  # TODO
                 self.pos = None
 
         if self.turns_remaining > 0:

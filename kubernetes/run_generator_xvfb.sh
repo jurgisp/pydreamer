@@ -4,7 +4,8 @@ kubectl config use-context gke_human-ui_europe-west4-b_mlflow-cluster
 
 MLFLOW_EXPERIMENT_NAME=$1
 ENVID=$2
-SEED=$3
+MAXSTEPS=$3
+SEED=$4
 
 TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
 TAG=$(git describe --tags | sed 's/-g[a-z0-9]\{7\}//')
@@ -47,6 +48,7 @@ spec:
             - kubernetes/cmd_xvfb.sh 
             - "${ENVID}"
             - "${SEED}"
+            - "${MAXSTEPS}"
           resources:
             requests:
               memory: 4000Mi
