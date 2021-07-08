@@ -27,10 +27,6 @@ spec:
         - name: google-cloud-key
           secret:
             secretName: mlflow-worker-key
-        - name: gke-shared-disk
-          persistentVolumeClaim:
-            claimName: gke-shared-disk-pvc
-            readOnly: true
         - name: dshm
           emptyDir:
             medium: Memory
@@ -48,9 +44,6 @@ spec:
           volumeMounts:
             - name: google-cloud-key
               mountPath: /var/secrets/google
-            - name: gke-shared-disk
-              mountPath: /data
-              readOnly: true
             - name: dshm
               mountPath: /dev/shm
           command:
