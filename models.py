@@ -140,12 +140,10 @@ class WorldModel(nn.Module):
 
         # KL
 
-        # loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))  # Usual VAE KL loss, only I=1
-
-        # Sampled KL loss, works for I>1
         prior_d = diag_normal(prior)
         post_d = diag_normal(post)
-        loss_kl = post_d.log_prob(post_samples) - prior_d.log_prob(post_samples)  # (N,B,I)
+        loss_kl = D.kl.kl_divergence(post_d, prior_d)  # (N,B,I)
+        # loss_kl = post_d.log_prob(post_samples) - prior_d.log_prob(post_samples)  # Sampled KL loss, works for I>1
 
         # Map
 
