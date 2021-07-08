@@ -326,6 +326,7 @@ def evaluate(prefix: str,
             reset = batch['reset'].to(device)
             map = batch['map'].to(device)
             map_coord = batch['map_coord'].to(device)
+            N, B = image.shape[:2]
 
             if i_batch == 0:
                 print(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
@@ -372,7 +373,7 @@ def evaluate(prefix: str,
 
             # Log one episode batch
 
-            if n_episodes == 0:
+            if n_episodes < B:  # until all episodes finish
                 image_pred, image_rec, map_rec = model.predict(*output)
                 npz_datas.append(prepare_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec))
 
