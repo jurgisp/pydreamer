@@ -154,7 +154,6 @@ def run(conf):
     last_steps = steps
     metrics = defaultdict(list)
     metrics_max = defaultdict(list)
-    grad_norm = None
 
     timer_total = Timer('total', conf.verbose)
     timer_data = Timer('data', conf.verbose)
@@ -218,8 +217,10 @@ def run(conf):
                 with timer_gradstep:  # CUDA wait happens here
 
                     scaler.unscale_(optimizer)
-                    grad_norm = nn.utils.clip_grad_norm_(model.parameters(), conf.grad_clip)
-                    scaler.step(optimizer)  # optimizer.step()
+                    grad_norm_model = nn.utils.clip_grad_norm_(model.parameters_model(), conf.grad_clip)
+                    grad_norm_map = nn.utils.clip_grad_norm_(model.parameters_map(), conf.grad_clip)
+                    grad_metrics = {'grad_norm': grad_norm_model, 'grad_norm_map': grad_norm_map}
+                    scaler.step(optimizer)
                     scaler.update()
 
                 with timer_other:
@@ -229,10 +230,10 @@ def run(conf):
                     steps += 1
                     for k, v in loss_metrics.items():
                         metrics[k].append(v.item())
-                    if grad_norm is not None:
-                        if np.isfinite(grad_norm.item()):  # It's ok to be inf, when using amp
-                            metrics['grad_norm'].append(grad_norm.item())
-                            metrics_max['grad_norm_max'].append(grad_norm.item())
+                    for k, v in grad_metrics.items():
+                        if np.isfinite(v.item()):  # It's ok for grad norm to be inf, when using amp
+                            metrics[k].append(v.item())
+                            metrics_max[k].append(v.item())
 
                     # Log sample
 
@@ -245,7 +246,7 @@ def run(conf):
 
                     if steps % conf.log_interval == 0:
                         metrics = {k: np.mean(v) for k, v in metrics.items()}
-                        metrics.update({k: np.max(v) for k, v in metrics_max.items()})
+                        metrics.update({k + '_max': np.max(v) for k, v in metrics_max.items()})
                         metrics['_step'] = steps
                         metrics['_loss'] = metrics['loss']
 

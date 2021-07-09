@@ -1,4 +1,5 @@
 from typing import Any, Tuple
+from itertools import chain
 
 import torch
 import torch.nn as nn
@@ -58,6 +59,12 @@ class WorldModel(nn.Module):
     def init_state(self, batch_size: int) -> Tuple[Any, Any]:
         return self._core.init_state(batch_size)
 
+    def parameters_model(self):
+        return chain(self._core.parameters(), self._encoder.parameters(), self._decoder_image.parameters())
+
+    def parameters_map(self):
+        return self._map_model.parameters()
+
     def forward(self,
                 image: Tensor,     # tensor(N, B, C, H, W)
                 action: Tensor,    # tensor(N, B, A)
@@ -88,7 +95,6 @@ class WorldModel(nn.Module):
 
         image_rec = self._decoder_image.forward(features)
 
-        
         map_features = torch.cat((features, map_coord.unsqueeze(2).expand(n, b, I, -1)), dim=-1)
         if not self._map_grad:
             map_features = map_features.detach()
