@@ -1,5 +1,9 @@
 conda activate pydreamer
 
+## CLEANUP
+
+gsutil -m rm -r gs://humanui-mlflow-west4/artifacts/29/*
+
 ## Generate MiniWorld-MazeS5A4S (apples, start top-left)
 
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4S-v0 2500 0
@@ -14,20 +18,20 @@ conda activate pydreamer
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4S-v0 2500 9
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4S-v0 2500 10
 
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/***TODO***/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/eval  # 10% for eval
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/29fe5e6065bc4ad28e3b4f4475b93193/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/eval  # 10% for eval
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/1a836916afb74deb9a3e612f9799306e/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/d2900dd1194c4b41aebf54b15ab04f9a/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/7dcf2a3fdd4f448abefe4389d1755949/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/dc1345c3591d453c828987b354ca3aa6/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/94f5fde620c84e15b7833312a5e4f785/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/be991f28191348ea81bd0d81589d606d/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/cc86bba9514a45c0bf82e64079e1386d/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/cc957d15f9e646e0b86fa4f2bb77c4ef/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/efc5e0e81bf84107af89f23765f517fd/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/e6234d5bdb184e21b18135426797e795/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train
 
-gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train | wc -l
-gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/eval | wc -l
+gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/train | wc -l
+gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-v0/eval | wc -l
 
 ## Generate MiniWorld-MazeS5GridA4S (apples, grid, start top-left)
 
@@ -43,17 +47,17 @@ gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/eval | wc -l
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4S-v0 2500 9
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridA4S-v0 2500 10
 
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29/***TODO***/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/eval  # 10% for eval
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
-gsutil -m cp -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/b7f496d7c0d94163ae1daa5906a138d1/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/eval  # 10% for eval
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/be7508a90f4345a6a9ce6d1b1e272914/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/22756dbae16c4f89af55a00f3e7cba49/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/3756a034f1ae45df9feedc2795ae0bfc/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/36bb1cbb4ae846dda975522488c138f2/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/7877bcbcc93f4d58a3affa5ebcf5c0c3/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/676c284ce17c400fb63aab9ad9fe8951/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/bd545d905e08494b9b7aaee39a76ae83/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/2443fbef35f046ea9318bf7e648eeebe/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/648e529b2dbf46b68a2952e760382efe/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/f32ede7f180542c688059a5ce5a83a22/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train
 
 gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/train | wc -l
 gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridA4S-v0/eval | wc -l
