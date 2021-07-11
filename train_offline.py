@@ -170,7 +170,7 @@ def run(conf):
                                 prefetch_factor=20 if conf.data_workers else 2,  # GCS download has to be shorter than this many batches (e.g. 1sec < 20*300ms)
                                 pin_memory=True))
 
-    scaler = GradScaler()
+    scaler = GradScaler(enabled=conf.amp)
 
     with get_profiler(conf) as profiler:
         while True:
@@ -191,7 +191,7 @@ def run(conf):
                 # Predict
 
                 with timer_forward:
-                    with autocast():
+                    with autocast(enabled=conf.amp):
 
                         state = states.get(wid) or model.init_state(image.size(1) * conf.iwae_samples)
                         output = model.forward(image, action, reset, map_coord, state, I=conf.iwae_samples)
@@ -201,7 +201,7 @@ def run(conf):
                 # Loss
 
                 with timer_loss:
-                    with autocast():
+                    with autocast(enabled=conf.amp):
 
                         loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)
 
@@ -289,11 +289,11 @@ def run(conf):
                     if conf.eval_interval and steps % conf.eval_interval == 0:
                         # Same batch as train
                         eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
-                        evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.iwae_samples, conf.keep_state)
+                        evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.iwae_samples, conf.keep_state, conf)
 
                         # Full episodes
                         eval_iter_full = iter(DataLoader(preprocess(data_eval_full), batch_size=None))
-                        evaluate('eval_full', steps, model, eval_iter_full, device, conf.full_eval_batches, conf.full_eval_samples, keep_state=True)
+                        evaluate('eval_full', steps, model, eval_iter_full, device, conf.full_eval_batches, conf.full_eval_samples, True, conf)
 
             # print(f"[{steps:06}] timers"
             #       f"  TOTAL: {timer_total.dt_ms:>4}"
@@ -313,7 +313,8 @@ def evaluate(prefix: str,
              device,
              eval_batches: int,
              eval_samples: int,
-             keep_state: bool):
+             keep_state: bool,
+             conf):
 
     start_time = time.time()
     metrics_eval = defaultdict(list)
@@ -354,7 +355,7 @@ def evaluate(prefix: str,
                 # Forward (prior) & unseen logprob
 
                 if n_reset_episodes == 0:
-                    with autocast():
+                    with autocast(enabled=conf.amp):
                         output = model.forward(0 * image[:5], action[:5], reset[:5], map_coord[:5], state, I=eval_samples, imagine=True, do_image_pred=True)
                         _, _, loss_tensors = model.loss(*output, image[:5], map[:5], reset[:5])  # type: ignore
                         if 'logprob_img' in loss_tensors:
@@ -364,7 +365,7 @@ def evaluate(prefix: str,
 
             # Forward (posterior) & loss
 
-            with autocast():
+            with autocast(enabled=conf.amp):
                 if state is None or not keep_state:
                     state = model.init_state(image.size(1) * eval_samples)
                 output = model.forward(image, action, reset, map_coord, state, I=eval_samples, do_image_pred=True)

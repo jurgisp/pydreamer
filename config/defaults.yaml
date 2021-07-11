@@ -63,6 +63,7 @@ defaults:
   # Optimizer
   grad_clip: 200
   image_decoder_min_prob: 0
+  amp: True
 
   # Generator
   generator_run: False
