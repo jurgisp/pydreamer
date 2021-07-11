@@ -225,6 +225,10 @@ def run(conf):
 
                 with timer_other:
 
+                    print('grad_norm: ', np.round(grad_norm_model.item()),
+                          '  loss: ', list((loss_tensors['loss_image'] + loss_tensors['loss_kl']).cpu().numpy().mean(axis=0).round()),
+                          '  reset: ', list(reset.cpu().numpy().sum(axis=0)))
+
                     # Metrics
 
                     steps += 1
@@ -291,15 +295,15 @@ def run(conf):
                         eval_iter_full = iter(DataLoader(preprocess(data_eval_full), batch_size=None))
                         evaluate('eval_full', steps, model, eval_iter_full, device, conf.full_eval_batches, conf.full_eval_samples, keep_state=True)
 
-            print(f"[{steps:06}] timers"
-                  f"  TOTAL: {timer_total.dt_ms:>4}"
-                  f"  data: {timer_data.dt_ms:>4}"
-                  f"  forward: {timer_forward.dt_ms:>4}"
-                  f"  loss: {timer_loss.dt_ms:>4}"
-                  f"  backward: {timer_backward.dt_ms:>4}"
-                  f"  gradstep: {timer_gradstep.dt_ms:>4}"
-                  f"  other: {timer_other.dt_ms:>4}"
-                  )
+            # print(f"[{steps:06}] timers"
+            #       f"  TOTAL: {timer_total.dt_ms:>4}"
+            #       f"  data: {timer_data.dt_ms:>4}"
+            #       f"  forward: {timer_forward.dt_ms:>4}"
+            #       f"  loss: {timer_loss.dt_ms:>4}"
+            #       f"  backward: {timer_backward.dt_ms:>4}"
+            #       f"  gradstep: {timer_gradstep.dt_ms:>4}"
+            #       f"  other: {timer_other.dt_ms:>4}"
+            #       )
 
 
 def evaluate(prefix: str,
