@@ -43,7 +43,7 @@ def run(conf):
                                     image_key=conf.image_key,
                                     map_categorical=conf.map_channels,
                                     map_key=conf.map_key,
-                                    cuda=conf.device.startswith('cuda'))
+                                    amp=conf.device.startswith('cuda') and conf.amp)
 
     state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim
 

@@ -50,12 +50,12 @@ class TransformedDataset(IterableDataset):
 
 class MinigridPreprocess:
 
-    def __init__(self, image_categorical=33, image_key='image', map_categorical=33, map_key='map', cuda=False):
+    def __init__(self, image_categorical=33, image_key='image', map_categorical=33, map_key='map', amp=False):
         self._image_categorical = image_categorical
         self._image_key = image_key
         self._map_categorical = map_categorical
         self._map_key = map_key
-        self._cuda = cuda
+        self._amp = amp
         self._first = True
 
     def __call__(self, dataset: IterableDataset) -> IterableDataset:
@@ -97,7 +97,7 @@ class MinigridPreprocess:
             agent_dir = batch['agent_dir']
             batch['map_coord'] = np.concatenate([agent_pos, agent_dir], axis=-1).astype(np.float32)
             
-        if self._cuda:
+        if self._amp:
             batch['image'] = batch['image'].astype(np.float16)
             batch['map'] = batch['map'].astype(np.float16)
             batch['action'] = batch['action'].astype(np.float16)
