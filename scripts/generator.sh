@@ -4,6 +4,37 @@ conda activate pydreamer
 
 gsutil -m rm -r gs://humanui-mlflow-west4/artifacts/29/*
 
+
+## Generate MiniWorld-MazeS5GridNR (no apples, random start)
+
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridNR-v0 2500 0
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridNR-v0 2500 1
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridNR-v0 2500 2
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridNR-v0 2500 3
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridNR-v0 2500 4
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridNR-v0 2500 5
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridNR-v0 2500 6
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridNR-v0 2500 7
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridNR-v0 2500 8
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridNR-v0 2500 9
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridNR-v0 2500 10
+
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/***TODO***/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/eval  # 10% for eval
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29//artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/train
+
+gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/train | wc -l
+gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNR-v0/eval | wc -l
+
+
 ## Generate MiniWorld-MazeS5A4S (apples, start top-left)
 
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4S-v0 2500 0
