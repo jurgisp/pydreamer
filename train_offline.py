@@ -37,8 +37,8 @@ def run(conf):
     device = torch.device(conf.device)
 
     data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True)
-    data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.batch_size, skip_first=False)
-    data_eval_full = OfflineDataSequential(conf.eval_dir, conf.full_eval_length, conf.full_eval_size, skip_first=False)
+    data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.eval_batch_size, skip_first=False)
+    data_eval_full = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.full_eval_batch_size, skip_first=False)
     preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
                                     image_key=conf.image_key,
                                     map_categorical=conf.map_channels,
