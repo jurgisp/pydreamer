@@ -28,7 +28,12 @@ class OfflineDataSequential(IterableDataset):
         print(f'Reading files from {str(self.input_dir)}...')
         self._files = list(sorted(self.input_dir.glob('*.npz')))
         self._last_reload = time.time()
-        print(f'Found {len(self._files)} files')
+        steps = 0
+        for f in self._files:
+            s = f.name.split('.')[0].split('-')[-1]
+            if s.isnumeric():
+                steps += int(s)
+        print(f'Found {len(self._files)} files, {steps} steps')
 
     def _should_reload_files(self):
         return self.reload_interval and (time.time() - self._last_reload > self.reload_interval)
