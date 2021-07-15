@@ -136,6 +136,8 @@ class WorldModel(nn.Module):
              map,                                        # tensor(N, B, MH, MW)
              reset,
              ):
+        N, B, I = image_rec.shape[:3]
+
         # Image
 
         image = image.unsqueeze(2).expand(image_rec.shape)
@@ -148,8 +150,12 @@ class WorldModel(nn.Module):
 
         prior_d = diag_normal(prior)
         post_d = diag_normal(post)
-        loss_kl = D.kl.kl_divergence(post_d, prior_d)  # (N,B,I)
-        # loss_kl = post_d.log_prob(post_samples) - prior_d.log_prob(post_samples)  # Sampled KL loss, works for I>1
+        if I == 1:
+            # Analytic KL loss, standard for VAE
+            loss_kl = D.kl.kl_divergence(post_d, prior_d)  # (N,B,I)
+        else:
+            # Sampled KL loss, for IWAE
+            loss_kl = post_d.log_prob(post_samples) - prior_d.log_prob(post_samples)
 
         # Map
 
