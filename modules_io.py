@@ -80,10 +80,12 @@ class DenseEncoder(nn.Module):
         layers = [nn.Flatten()]
         layers += [
             nn.Linear(in_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
             activation()]
         for _ in range(hidden_layers - 1):
             layers += [
                 nn.Linear(hidden_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
                 activation()]
         layers += [
             nn.Linear(hidden_dim, out_dim),
@@ -105,10 +107,12 @@ class DenseDecoder(nn.Module):
         layers = []
         layers += [
             nn.Linear(in_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
             activation()]
         for _ in range(hidden_layers - 1):
             layers += [
                 nn.Linear(hidden_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
                 activation()]
         layers += [
             nn.Linear(hidden_dim, np.prod(out_shape)),

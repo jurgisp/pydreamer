@@ -95,6 +95,7 @@ class RSSMCell(nn.Module):
 
         self._z_mlp = nn.Linear(stoch_dim, hidden_dim)
         self._a_mlp = nn.Linear(action_dim, hidden_dim, bias=False)  # No bias, because outputs are added
+        self._in_norm = nn.LayerNorm(hidden_dim)
         # self._g_mlp = nn.Linear(global_dim, hidden_dim, bias=False)
 
         self._gru = nn.GRUCell(hidden_dim, deter_dim // gru_layers)
@@ -104,12 +105,12 @@ class RSSMCell(nn.Module):
             self._gru2 = nn.GRUCell(deter_dim // gru_layers, deter_dim // gru_layers)
 
         self._prior_mlp_h = nn.Linear(deter_dim, hidden_dim)
-        # self._prior_mlp_g = nn.Linear(global_dim, hidden_dim, bias=False)
+        self._prior_norm = nn.LayerNorm(hidden_dim)
         self._prior_mlp = nn.Linear(hidden_dim, 2 * stoch_dim)
 
         self._post_mlp_h = nn.Linear(deter_dim, hidden_dim)
-        # self._post_mlp_g = nn.Linear(global_dim, hidden_dim, bias=False)
         self._post_mlp_e = nn.Linear(embed_dim, hidden_dim, bias=False)
+        self._post_norm = nn.LayerNorm(hidden_dim)
         self._post_mlp = nn.Linear(hidden_dim, 2 * stoch_dim)
 
     def init_state(self, batch_size):
@@ -133,7 +134,9 @@ class RSSMCell(nn.Module):
         in_h = in_h * reset_mask
         in_z = in_z * reset_mask
 
-        za = F.elu(self._z_mlp(in_z) + self._a_mlp(action))    # (B, H)
+        x = self._z_mlp(in_z) + self._a_mlp(action)  # (B,H)
+        x = self._in_norm(x)
+        za = F.elu(x)
         if self._gru_layers == 1:
             h = self._gru(za, in_h)                                             # (B, D)
         else:
@@ -142,7 +145,9 @@ class RSSMCell(nn.Module):
             h2 = self._gru2(h1, in_h2)
             h = torch.cat((h1, h2), -1)
 
-        post_in = F.elu(self._post_mlp_h(h) + self._post_mlp_e(embed))
+        x = self._post_mlp_h(h) + self._post_mlp_e(embed)
+        x = self._post_norm(x)
+        post_in = F.elu(x)
         post = self._post_mlp(post_in)                                    # (B, 2*S)
         sample = rsample(post, noise)                                     # (B, S)
 
@@ -161,17 +166,22 @@ class RSSMCell(nn.Module):
 
         in_h, in_z = in_state
 
-        za = F.elu(self._z_mlp(in_z) + self._a_mlp(action))    # (B,H)
+        x = self._z_mlp(in_z) + self._a_mlp(action)  # (B,H)
+        x = self._in_norm(x)
+        za = F.elu(x)
         if self._gru_layers == 1:
-            h = self._gru(za, in_h)                                             # (B, D)
+            h = self._gru(za, in_h)                  # (B, D)
         else:
             in_h1, in_h2 = in_h.chunk(2, -1)
             h1 = self._gru(za, in_h1)
             h2 = self._gru2(h1, in_h2)
             h = torch.cat((h1, h2), -1)
 
-        prior = self._prior_mlp(F.elu(self._prior_mlp_h(h)))   # (B,2S)
-        sample = rsample(prior, noise)                         # (B,S)
+        x = self._prior_mlp_h(h)
+        x = self._prior_norm(x)
+        x = F.elu(x)
+        prior = self._prior_mlp(x)          # (B,2S)
+        sample = rsample(prior, noise)      # (B,S)
 
         return (
             prior,                        # (B,2S)
@@ -181,4 +191,8 @@ class RSSMCell(nn.Module):
     def batch_prior(self,
                     h: Tensor,     # tensor(N, B, D)
                     ) -> Tensor:
-        return self._prior_mlp(F.elu(self._prior_mlp_h(h)))  # tensor(B,2S)
+        x = self._prior_mlp_h(h)
+        x = self._prior_norm(x)
+        x = F.elu(x)
+        prior = self._prior_mlp(x)  # tensor(B,2S)
+        return prior
