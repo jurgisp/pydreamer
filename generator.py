@@ -3,11 +3,14 @@ import numpy as np
 import datetime
 import time
 import pathlib
+from collections import deque
 import gym
 from envs import MiniGrid
 import mlflow
 
 import tools
+
+WALL = 2
 
 
 def main(output_dir,
@@ -46,6 +49,8 @@ def main(output_dir,
         policy = MinigridWanderPolicy()
     elif policy == 'maze_bouncing_ball':
         policy = MazeBouncingBallPolicy()
+    elif policy == 'maze_dijkstra':
+        policy = MazeDijkstraPolicy()
     else:
         assert False, 'Unknown policy'
 
@@ -60,7 +65,7 @@ def main(output_dir,
         obs, done = env.reset(), False
         epsteps, timer = 0, time.time()
         while not done:
-            action = policy(obs)
+            action = policy(obs, epsteps)
             obs, reward, done, info = env.step(action)
             steps += 1
             epsteps += 1
@@ -69,7 +74,7 @@ def main(output_dir,
         # Calculate visited
 
         agent_pos = data['agent_pos']
-        agent_pos = np.floor(agent_pos / 3 / 2)
+        agent_pos = np.floor(agent_pos / 2)
         agent_pos_visited = len(np.unique(agent_pos, axis=0))
         visited_pct = agent_pos_visited / 25
         visited_stats.append(visited_pct)
@@ -145,12 +150,12 @@ class RandomPolicy:
     def __init__(self, action_space):
         self.action_space = action_space
 
-    def __call__(self, obs):
+    def __call__(self, obs, epstep):
         return self.action_space.sample()
 
 
 class MinigridWanderPolicy:
-    def __call__(self, obs):
+    def __call__(self, obs, epstep):
         if obs['image'].shape == (7, 7):
             (ax, ay) = (3, 6)  # agent is here
             front = MiniGrid.GRID_VALUES[obs['image'][ax, ay - 1]]  # front is up
@@ -217,7 +222,7 @@ class MazeBouncingBallPolicy:
         self.pos = None
         self.turns_remaining = 0
 
-    def __call__(self, obs):
+    def __call__(self, obs, epstep):
         assert 'agent_pos' in obs, f'Need agent position'
         pos = obs['agent_pos']
         action = -1
@@ -251,6 +256,97 @@ class MazeBouncingBallPolicy:
 
         assert action >= 0
         return action
+
+
+class MazeDijkstraPolicy:
+    # Policy:
+    #   1) Pick a random spot on a map
+    #   2) Go there using shortest path
+    #   3) Occasionally perform a random action
+
+    def __init__(self, epsilon=0.10):
+        self.goal = None
+        self.epsilon = epsilon
+
+    def __call__(self, obs, epstep):
+        assert 'agent_pos' in obs, 'Need agent position'
+        assert 'map_agent' in obs, 'Need map'
+        pos = obs['agent_pos'].astype(int)
+        dir = obs['agent_dir'].astype(int)
+        map = obs['map_agent']
+        assert map[pos[0], pos[1]] >= 3, 'Agent should be here'
+
+        if epstep == 0:
+            self.goal = None  # new episode
+        if self.goal is None:
+            self.goal = self._generate_goal(map)
+
+        while True:
+            actions = MazeDijkstraPolicy.find_shortest(map, (pos[0], pos[1], dir[0], dir[1]), self.goal)
+            if len(actions) > 0:
+                if np.random.rand() < self.epsilon:
+                    return np.random.randint(3)  # random action
+                else:
+                    return actions[0]  # best action
+            else:
+                self.goal = self._generate_goal(map)
+
+    @staticmethod
+    def _generate_goal(map):
+        while True:
+            x = np.random.randint(map.shape[0])
+            y = np.random.randint(map.shape[1])
+            if map[x, y] != WALL:
+                dx, dy = [(1, 0), (-1, 0), (0, 1), (0, -1)][np.random.randint(4)]
+                return x, y, dx, dy
+
+    @staticmethod
+    def find_shortest(map, start, goal):
+        # Well ok, this is BFS not Dijkstra, technically speaking
+        start = tuple(start)
+        assert len(start) == 4
+        q = deque()
+        parent = {}
+        parent_action = {}
+
+        q.append(start)
+        parent[start] = None
+        parent_action[start] = None
+
+        while len(q) > 0:
+            p = q.popleft()
+            x, y, dx, dy = p
+            for action in range(3):
+                x1, y1, dx1, dy1 = x, y, dx, dy
+                if action == 0:
+                    dx1, dy1 = dy, -dx  # turn left
+                if action == 1:
+                    dx1, dy1 = -dy, dx  # turn right
+                if action == 2:
+                    x1, y1 = x + dx, y + dy  # forward
+                    if x1 < 0 or y1 < 0 or x1 >= map.shape[0] or y1 >= map.shape[1] or map[x1, y1] == WALL:
+                        x1, y1 = x, y  # wall
+                p1 = (x1, y1, dx1, dy1)
+                if p1 not in parent:
+                    q.append(p1)
+                    parent[p1] = p
+                    parent_action[p1] = action
+
+        if goal in parent:
+            path = []
+            actions = []
+            p = goal
+            while p is not None:
+                path.append(p)
+                actions.append(parent_action[p])
+                p = parent[p]
+            path = list(reversed(path))
+            actions = list(reversed(actions))[1:]
+            return actions
+
+        else:
+            print('WARN: no path found')
+            return []
 
 
 class CollectWrapper:
