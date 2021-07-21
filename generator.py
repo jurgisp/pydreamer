@@ -33,7 +33,7 @@ def main(output_dir,
     elif env_name.startswith('MiniWorld-'):
         import gym_miniworld
         from gym_miniworld.wrappers import DictWrapper, MapWrapper, AgentPosWrapper
-        env = gym.make(env_name, max_steps=conf.max_steps)
+        env = env_raw = gym.make(env_name, max_steps=conf.max_steps)
         env = DictWrapper(env)
         env = MapWrapper(env)
         env = AgentPosWrapper(env)
@@ -50,7 +50,9 @@ def main(output_dir,
     elif policy == 'maze_bouncing_ball':
         policy = MazeBouncingBallPolicy()
     elif policy == 'maze_dijkstra':
-        policy = MazeDijkstraPolicy()
+        step_size = env_raw.params.params['forward_step'].default / env_raw.room_size  # type: ignore
+        turn_size = env_raw.params.params['turn_step'].default  # type: ignore
+        policy = MazeDijkstraPolicy(step_size, turn_size)
     else:
         assert False, 'Unknown policy'
 
@@ -264,32 +266,45 @@ class MazeDijkstraPolicy:
     #   2) Go there using shortest path
     #   3) Occasionally perform a random action
 
-    def __init__(self, epsilon=0.10):
-        self.goal = None
+    def __init__(self, step_size, turn_size, epsilon=0.10):
+        self.step_size = step_size
+        self.turn_size = turn_size
         self.epsilon = epsilon
+        self._goal = None
+        self._expected_pos = None
 
     def __call__(self, obs, epstep):
         assert 'agent_pos' in obs, 'Need agent position'
         assert 'map_agent' in obs, 'Need map'
-        pos = obs['agent_pos'].astype(int)
-        dir = obs['agent_dir'].astype(int)
+
+        x, y = obs['agent_pos']
+        dx, dy = obs['agent_dir']
+        d = np.arctan2(dy, dx) / np.pi * 180
         map = obs['map_agent']
-        assert map[pos[0], pos[1]] >= 3, 'Agent should be here'
+        assert map[int(x), int(y)] >= 3, 'Agent should be here'
 
         if epstep == 0:
-            self.goal = None  # new episode
-        if self.goal is None:
-            self.goal = self._generate_goal(map)
+            self._goal = None  # new episode
+            self._expected_pos = None
+        if self._goal is None:
+            self._goal = self._generate_goal(map)
+
+        if self._expected_pos is not None:
+            if not np.isclose(self._expected_pos[:2], [x, y]).all():
+                print('WARN: unexpected position - stuck?')
 
         while True:
-            actions = MazeDijkstraPolicy.find_shortest(map, (pos[0], pos[1], dir[0], dir[1]), self.goal)
+            actions, path = self.find_shortest(map, (x, y, d), self._goal)
+            # print(f'Pos: {(x,y,d)}, Goal: ({self._goal}), Len: {len(actions)}, Actions: {actions[:2]}, Path: {path[:2]}')
             if len(actions) > 0:
                 if np.random.rand() < self.epsilon:
+                    self._expected_pos = None
                     return np.random.randint(3)  # random action
                 else:
+                    self._expected_pos = path[1]
                     return actions[0]  # best action
             else:
-                self.goal = self._generate_goal(map)
+                self._goal = self._generate_goal(map)
 
     @staticmethod
     def _generate_goal(map):
@@ -297,56 +312,74 @@ class MazeDijkstraPolicy:
             x = np.random.randint(map.shape[0])
             y = np.random.randint(map.shape[1])
             if map[x, y] != WALL:
-                dx, dy = [(1, 0), (-1, 0), (0, 1), (0, -1)][np.random.randint(4)]
-                return x, y, dx, dy
+                return x, y
 
-    @staticmethod
-    def find_shortest(map, start, goal):
+    def find_shortest(self, map, start, goal):
+        x, y, d = start
+        gx, gy = goal
+
         # Well ok, this is BFS not Dijkstra, technically speaking
-        start = tuple(start)
-        assert len(start) == 4
-        q = deque()
+
+        que = deque()
+        visited = {}
         parent = {}
         parent_action = {}
 
-        q.append(start)
-        parent[start] = None
-        parent_action[start] = None
+        p = (x, y, d)
+        key = tuple(np.array(p).round(3))
+        que.append(p)
+        visited[key] = True
+        parent[p] = None
+        parent_action[p] = None
+        goal_state = None
 
-        while len(q) > 0:
-            p = q.popleft()
-            x, y, dx, dy = p
+        while len(que) > 0:
+            p = que.popleft()
+            x, y, d = p
+            if int(x) == int(gx) and int(y) == int(gy):
+                goal_state = p
+                break
             for action in range(3):
-                x1, y1, dx1, dy1 = x, y, dx, dy
+                x1, y1, d1 = x, y, d
                 if action == 0:
-                    dx1, dy1 = dy, -dx  # turn left
+                    d1 = d - self.turn_size  # turn left
+                    if d1 < -180.0:
+                        d1 += 360.0
                 if action == 1:
-                    dx1, dy1 = -dy, dx  # turn right
+                    d1 = d + self.turn_size  # turn right
+                    if d1 > 180.0:
+                        d1 -= 360.0
                 if action == 2:
-                    x1, y1 = x + dx, y + dy  # forward
-                    if x1 < 0 or y1 < 0 or x1 >= map.shape[0] or y1 >= map.shape[1] or map[x1, y1] == WALL:
+                    # forward
+                    x1 = x + self.step_size * np.cos(d / 180 * np.pi)
+                    y1 = y + self.step_size * np.sin(d / 180 * np.pi)
+                    if x1 < 0 or y1 < 0 or x1 >= map.shape[0] or y1 >= map.shape[1] or map[int(x1), int(y1)] == WALL:
+                        # TODO: check wall collision
                         x1, y1 = x, y  # wall
-                p1 = (x1, y1, dx1, dy1)
-                if p1 not in parent:
-                    q.append(p1)
+                p1 = (x1, y1, d1)
+                key = tuple(np.array(p1).round(3))
+                if key not in visited:
+                    que.append(p1)
                     parent[p1] = p
                     parent_action[p1] = action
+                    visited[key] = True
+                    assert len(visited) < 1000, 'Runaway Dijkstra'
 
-        if goal in parent:
+        if goal_state is not None:
             path = []
             actions = []
-            p = goal
+            p = goal_state
             while p is not None:
                 path.append(p)
                 actions.append(parent_action[p])
                 p = parent[p]
             path = list(reversed(path))
             actions = list(reversed(actions))[1:]
-            return actions
+            return actions, path
 
         else:
             print('WARN: no path found')
-            return []
+            return [], []
 
 
 class CollectWrapper:
