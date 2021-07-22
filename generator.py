@@ -283,7 +283,7 @@ class MazeDijkstraPolicy:
         dx, dy = obs['agent_dir']
         d = np.arctan2(dy, dx) / np.pi * 180
         map = obs['map_agent']
-        assert map[int(x), int(y)] >= 3, 'Agent should be here'
+        # assert map[int(x), int(y)] >= 3, 'Agent should be here'
 
         if epstep == 0:
             self._goal = None  # new episode
@@ -298,14 +298,14 @@ class MazeDijkstraPolicy:
         while True:
             t = time.time()
             actions, path, nvis = find_shortest(map, (x, y, d), self._goal, self.step_size, self.turn_size)
-            print(f'Pos: {tuple(np.round([x,y,d], 2))}'
-                  f', Goal: {self._goal}'
-                  f', Len: {len(actions)}'
-                  f', Actions: {actions[:1]}'
-                  # f', Path: {path[:1]}'
-                  f', Visited: {nvis}'
-                  f', Time: {int((time.time()-t)*1000)}'
-                  )
+            # print(f'Pos: {tuple(np.round([x,y,d], 2))}'
+            #       f', Goal: {self._goal}'
+            #       f', Len: {len(actions)}'
+            #       f', Actions: {actions[:1]}'
+            #       # f', Path: {path[:1]}'
+            #       f', Visited: {nvis}'
+            #       f', Time: {int((time.time()-t)*1000)}'
+            #       )
             if len(actions) > 0:
                 if np.random.rand() < self.epsilon:
                     self._expected_pos = None
@@ -327,7 +327,8 @@ class MazeDijkstraPolicy:
 
 @njit
 def find_shortest(map, start, goal, step_size=1.0, turn_size=45.0):
-    KP = 1
+    KPREC = 5
+    RADIUS = 0.2
     x, y, d = start
     gx, gy = goal
 
@@ -340,7 +341,7 @@ def find_shortest(map, start, goal, step_size=1.0, turn_size=45.0):
     parent_action = {}
 
     p = (x, y, d)
-    key = (round(x, KP), round(y, KP), round(d, KP))
+    key = (round(x * KPREC) / KPREC, round(y * KPREC) / KPREC, round(d * KPREC) / KPREC)
     que.append(p)
     visited[key] = True
     goal_state = None
@@ -354,23 +355,24 @@ def find_shortest(map, start, goal, step_size=1.0, turn_size=45.0):
             break
         for action in range(3):
             x1, y1, d1 = x, y, d
-            if action == 0:
-                d1 = d - turn_size  # turn left
+            if action == 0:  # turn left
+                d1 = d - turn_size
                 if d1 < -180.0:
                     d1 += 360.0
-            if action == 1:
-                d1 = d + turn_size  # turn right
+            if action == 1:  # turn right
+                d1 = d + turn_size
                 if d1 > 180.0:
                     d1 -= 360.0
-            if action == 2:
-                # forward
+            if action == 2:  # forward
                 x1 = x + step_size * np.cos(d / 180 * np.pi)
                 y1 = y + step_size * np.sin(d / 180 * np.pi)
-                if x1 < 0 or y1 < 0 or x1 >= map.shape[0] or y1 >= map.shape[1] or map[int(x1), int(y1)] == WALL:
-                    # TODO: check wall collision
-                    x1, y1 = x, y  # wall
+                # Check wall collision at 4 corners
+                for x2, y2 in [(x1 - RADIUS, y1 - RADIUS), (x1 + RADIUS, y1 - RADIUS), (x1 - RADIUS, y1 + RADIUS), (x1 + RADIUS, y1 + RADIUS)]:
+                    if x2 < 0 or y2 < 0 or x2 >= map.shape[0] or y2 >= map.shape[1] or map[int(x2), int(y2)] == WALL:
+                        x1, y1 = x, y  # wall
+                        break
             p1 = (x1, y1, d1)
-            key = (round(x1, KP), round(y1, KP), round(d1, KP))
+            key = (round(x1 * KPREC) / KPREC, round(y1 * KPREC) / KPREC, round(d1 * KPREC) / KPREC)
             if key not in visited:
                 que.append(p1)
                 parent[p1] = p
