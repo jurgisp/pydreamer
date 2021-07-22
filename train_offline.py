@@ -291,9 +291,10 @@ def run(conf):
                         eval_iter_full = iter(DataLoader(preprocess(data_eval_full), batch_size=None))
                         evaluate('eval_full', steps, model, eval_iter_full, device, conf.full_eval_batches, conf.full_eval_samples, True, conf)
 
-            print(f"[{steps:06}] timers"
-                  f"  TOTAL: {timer_total.dt_ms:>4}"
-                  f"  data: {timer_data.dt_ms:>4}"
+            if conf.verbose:
+                print(f"[{steps:06}] timers"
+                    f"  TOTAL: {timer_total.dt_ms:>4}"
+                    f"  data: {timer_data.dt_ms:>4}"
                     f"  forward: {timer_forward.dt_ms:>4}"
                     f"  loss: {timer_loss.dt_ms:>4}"
                     f"  backward: {timer_backward.dt_ms:>4}"
