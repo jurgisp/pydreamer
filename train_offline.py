@@ -294,12 +294,12 @@ def run(conf):
             print(f"[{steps:06}] timers"
                   f"  TOTAL: {timer_total.dt_ms:>4}"
                   f"  data: {timer_data.dt_ms:>4}"
-                  f"  forward: {timer_forward.dt_ms:>4}"
-                  f"  loss: {timer_loss.dt_ms:>4}"
-                  f"  backward: {timer_backward.dt_ms:>4}"
-                  f"  gradstep: {timer_gradstep.dt_ms:>4}"
-                  f"  other: {timer_other.dt_ms:>4}"
-                  )
+                    f"  forward: {timer_forward.dt_ms:>4}"
+                    f"  loss: {timer_loss.dt_ms:>4}"
+                    f"  backward: {timer_backward.dt_ms:>4}"
+                    f"  gradstep: {timer_gradstep.dt_ms:>4}"
+                    f"  other: {timer_other.dt_ms:>4}"
+                    )
 
 
 def evaluate(prefix: str,
@@ -335,7 +335,7 @@ def evaluate(prefix: str,
 
             if state is not None:  # Non-first batch
 
-                reset_episodes = reset[0]  # (B,)
+                reset_episodes = reset.any(dim=0)  # (B,)
                 n_reset_episodes = reset_episodes.sum().item()
                 n_episodes += n_reset_episodes
 
