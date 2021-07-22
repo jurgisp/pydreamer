@@ -1,14 +1,16 @@
+from typing import Tuple, Optional, Dict, List
 import argparse
 import numpy as np
 import datetime
 import time
 import pathlib
-from collections import deque
+import collections
+from numba import njit
 import gym
 from envs import MiniGrid
 import mlflow
 
-import tools
+from tools import *
 
 WALL = 2
 
@@ -127,10 +129,10 @@ def main(output_dir,
                 fname = f's{conf.seed}-ep{episodes-1:06}-{n:04}.npz'
 
             if conf.save_to_mlflow:
-                tools.mlflow_log_npz(data, fname, 'episodes', verbose=True)
+                mlflow_log_npz(data, fname, 'episodes', verbose=True)
             else:
                 fname = output_dir / fname
-                tools.save_npz(data, fname)
+                save_npz(data, fname)
 
         # Delete old
 
@@ -290,18 +292,26 @@ class MazeDijkstraPolicy:
             self._goal = self._generate_goal(map)
 
         if self._expected_pos is not None:
-            if not np.isclose(self._expected_pos[:2], [x, y]).all():
+            if not np.isclose(self._expected_pos[:2], [x, y], 1e-3).all():
                 print('WARN: unexpected position - stuck?')
 
         while True:
-            actions, path = self.find_shortest(map, (x, y, d), self._goal)
-            # print(f'Pos: {(x,y,d)}, Goal: ({self._goal}), Len: {len(actions)}, Actions: {actions[:2]}, Path: {path[:2]}')
+            t = time.time()
+            actions, path, nvis = find_shortest(map, (x, y, d), self._goal, self.step_size, self.turn_size)
+            print(f'Pos: {tuple(np.round([x,y,d], 2))}'
+                  f', Goal: {self._goal}'
+                  f', Len: {len(actions)}'
+                  f', Actions: {actions[:1]}'
+                  # f', Path: {path[:1]}'
+                  f', Visited: {nvis}'
+                  f', Time: {int((time.time()-t)*1000)}'
+                  )
             if len(actions) > 0:
                 if np.random.rand() < self.epsilon:
                     self._expected_pos = None
                     return np.random.randint(3)  # random action
                 else:
-                    self._expected_pos = path[1]
+                    self._expected_pos = path[0]
                     return actions[0]  # best action
             else:
                 self._goal = self._generate_goal(map)
@@ -314,72 +324,74 @@ class MazeDijkstraPolicy:
             if map[x, y] != WALL:
                 return x, y
 
-    def find_shortest(self, map, start, goal):
-        x, y, d = start
-        gx, gy = goal
 
-        # Well ok, this is BFS not Dijkstra, technically speaking
+@njit
+def find_shortest(map, start, goal, step_size=1.0, turn_size=45.0):
+    KP = 1
+    x, y, d = start
+    gx, gy = goal
 
-        que = deque()
-        visited = {}
-        parent = {}
-        parent_action = {}
+    # Well ok, this is BFS not Dijkstra, technically speaking
 
-        p = (x, y, d)
-        key = tuple(np.array(p).round(3))
-        que.append(p)
-        visited[key] = True
-        parent[p] = None
-        parent_action[p] = None
-        goal_state = None
+    que = []
+    que_ix = 0
+    visited = {}
+    parent = {}
+    parent_action = {}
 
-        while len(que) > 0:
-            p = que.popleft()
-            x, y, d = p
-            if int(x) == int(gx) and int(y) == int(gy):
-                goal_state = p
-                break
-            for action in range(3):
-                x1, y1, d1 = x, y, d
-                if action == 0:
-                    d1 = d - self.turn_size  # turn left
-                    if d1 < -180.0:
-                        d1 += 360.0
-                if action == 1:
-                    d1 = d + self.turn_size  # turn right
-                    if d1 > 180.0:
-                        d1 -= 360.0
-                if action == 2:
-                    # forward
-                    x1 = x + self.step_size * np.cos(d / 180 * np.pi)
-                    y1 = y + self.step_size * np.sin(d / 180 * np.pi)
-                    if x1 < 0 or y1 < 0 or x1 >= map.shape[0] or y1 >= map.shape[1] or map[int(x1), int(y1)] == WALL:
-                        # TODO: check wall collision
-                        x1, y1 = x, y  # wall
-                p1 = (x1, y1, d1)
-                key = tuple(np.array(p1).round(3))
-                if key not in visited:
-                    que.append(p1)
-                    parent[p1] = p
-                    parent_action[p1] = action
-                    visited[key] = True
-                    assert len(visited) < 1000, 'Runaway Dijkstra'
+    p = (x, y, d)
+    key = (round(x, KP), round(y, KP), round(d, KP))
+    que.append(p)
+    visited[key] = True
+    goal_state = None
 
-        if goal_state is not None:
-            path = []
-            actions = []
-            p = goal_state
-            while p is not None:
-                path.append(p)
-                actions.append(parent_action[p])
-                p = parent[p]
-            path = list(reversed(path))
-            actions = list(reversed(actions))[1:]
-            return actions, path
+    while que_ix < len(que):
+        p = que[que_ix]
+        que_ix += 1
+        x, y, d = p
+        if int(x) == int(gx) and int(y) == int(gy):
+            goal_state = p
+            break
+        for action in range(3):
+            x1, y1, d1 = x, y, d
+            if action == 0:
+                d1 = d - turn_size  # turn left
+                if d1 < -180.0:
+                    d1 += 360.0
+            if action == 1:
+                d1 = d + turn_size  # turn right
+                if d1 > 180.0:
+                    d1 -= 360.0
+            if action == 2:
+                # forward
+                x1 = x + step_size * np.cos(d / 180 * np.pi)
+                y1 = y + step_size * np.sin(d / 180 * np.pi)
+                if x1 < 0 or y1 < 0 or x1 >= map.shape[0] or y1 >= map.shape[1] or map[int(x1), int(y1)] == WALL:
+                    # TODO: check wall collision
+                    x1, y1 = x, y  # wall
+            p1 = (x1, y1, d1)
+            key = (round(x1, KP), round(y1, KP), round(d1, KP))
+            if key not in visited:
+                que.append(p1)
+                parent[p1] = p
+                parent_action[p1] = action
+                visited[key] = True
+                assert len(visited) < 100000, 'Runaway Dijkstra'
 
-        else:
-            print('WARN: no path found')
-            return [], []
+    path = []
+    actions = []
+    if goal_state is not None:
+        p = goal_state
+        while p in parent_action:
+            path.append(p)
+            actions.append(parent_action[p])
+            p = parent[p]
+        path.reverse()
+        actions.reverse()
+    else:
+        print('WARN: no path found')
+
+    return actions, path, len(visited)
 
 
 class CollectWrapper:
