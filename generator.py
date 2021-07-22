@@ -293,7 +293,8 @@ class MazeDijkstraPolicy:
 
         if self._expected_pos is not None:
             if not np.isclose(self._expected_pos[:2], [x, y], 1e-3).all():
-                print('WARN: unexpected position - stuck?')
+                print('WARN: unexpected position - stuck? Generating new goal...')
+                self._goal = self._generate_goal(map)
 
         while True:
             t = time.time()
@@ -451,7 +452,7 @@ if __name__ == '__main__':
     parser.add_argument('--sleep', type=int, default=0)
     parser.add_argument('--save_to_mlflow', action='store_true')
     parser.add_argument('--max_steps', type=int, default=500)
-    parser.add_argument('--episodes_per_npz', type=int, default=5)
+    parser.add_argument('--episodes_per_npz', type=int, default=1)
     args = parser.parse_args()
 
     output_dir = args.output_dir or f"data/{args.env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}"
