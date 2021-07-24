@@ -20,8 +20,8 @@ class GRU2Inputs(nn.Module):
     def init_state(self, batch_size):
         device = next(self._gru.parameters()).device
         return torch.zeros((
-            self._gru.num_layers * self._directions, 
-            batch_size, 
+            self._gru.num_layers * self._directions,
+            batch_size,
             self._gru.hidden_size), device=device)
 
     def forward(self,
@@ -57,6 +57,35 @@ class GRUCell(jit.ScriptModule):
         reset = torch.sigmoid(reset_i + reset_h)
         update = torch.sigmoid(update_i + update_h)
         newval = torch.tanh(newval_i + reset * newval_h)
+
+        h = update * newval + (1 - update) * state
+        return h
+
+
+class NormGRUCell(jit.ScriptModule):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.weight_ih = Parameter(torch.randn(input_size, 3 * hidden_size))
+        self.weight_hh = Parameter(torch.randn(hidden_size, 3 * hidden_size))
+        self.ln_reset_i = nn.LayerNorm(hidden_size)
+        self.ln_update_i = nn.LayerNorm(hidden_size)
+        self.ln_newval_i = nn.LayerNorm(hidden_size)
+        self.ln_reset_h = nn.LayerNorm(hidden_size)
+        self.ln_update_h = nn.LayerNorm(hidden_size)
+        self.ln_newval_h = nn.LayerNorm(hidden_size)
+
+    @jit.script_method
+    def forward(self, input: Tensor, state: Tensor) -> Tensor:
+        gates_i = torch.mm(input, self.weight_ih)
+        gates_h = torch.mm(state, self.weight_hh)
+        reset_i, update_i, newval_i = gates_i.chunk(3, 1)
+        reset_h, update_h, newval_h = gates_h.chunk(3, 1)
+
+        reset = torch.sigmoid(self.ln_reset_i(reset_i) + self.ln_reset_h(reset_h))
+        update = torch.sigmoid(self.ln_update_i(update_i) + self.ln_update_h(update_h))
+        newval = torch.tanh(self.ln_newval_i(newval_i) + reset * self.ln_newval_h(newval_h))
 
         h = update * newval + (1 - update) * state
         return h

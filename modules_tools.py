@@ -67,6 +67,9 @@ def init_weights_tf2(m):
         nn.init.orthogonal_(m.weight_hh.data)
         nn.init.zeros_(m.bias_ih.data)
         nn.init.zeros_(m.bias_hh.data)
+    if type(m) == my.NormGRUCell:
+        nn.init.xavier_uniform_(m.weight_ih.data)
+        nn.init.orthogonal_(m.weight_hh.data)
 
 
 def logavgexp(x: Tensor, dim: int) -> Tensor:
