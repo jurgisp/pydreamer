@@ -4,6 +4,60 @@ conda activate pydreamer
 
 gsutil -m rm -r gs://humanui-mlflow-west4/artifacts/29/*
 
+## Generate MiniWorld-MazeS5NS-dijkstra 
+
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 0
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 1
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 2
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 3
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 4
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 5
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 6
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 7
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 8
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 9
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 10
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 11
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 12
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 13
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 14
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 15
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 16
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 17
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 18
+./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5NS-v0 maze_dijkstra 1500 5_000_000 19
+
+cat << EOF > scripts/_copy.sh
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/0db09a5ac91947f5839d5ad427c6ac14/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/eval  # 10% for eval
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/2dc2b03f66034b0abc5e0ead34054110/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/eval  # 10% for eval
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/6c3cc45c4f6241028604ede4929ed904/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/02a1236656e64c0090914cd5d7a52e52/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/f8378da51a72427585931ce24cfe0dc0/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/f80058ad3bf64d03a648e35ec08d203e/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/1a0297c405014349baef45d11916790f/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/5d28b34a1e394161953f75e70a6d7474/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/771dac17a41c41b5bd8955b34b78cf6b/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/490f9a3efb124aa6848ad4c613ee2dc8/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/0101817631b84237af8fb83d7b93f55d/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/8cd694af2029456691fc24f650a4cca1/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/bd5bf7d807744a27a3fdf67a9dd2241b/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/a4db87af215b4c9eb1761fc766b76c97/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/a0efb08d3c564a41a199fde555a849cc/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/815c152636014317be10381d822ed39b/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/fd06cfc10d2f428bbb6dc14c86a406c3/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/36ed549295be4abe98183d0d71045aaa/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/3dbc006b714b4c7e8ea566c59ba4a58e/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/b3686ea08e4c4913909c857988638ca2/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/7b7b8b60ec0b4f5b9ef33b7fca0562d2/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/2bc71e9c1a414e66b122accb8bfcdf91/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/e7531fcfeb70480aafa139ff087758f3/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/a4a1705aed2a401681bb2a401d35b1ba/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train
+EOF
+scripts/_copy.sh
+
+gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/eval | wc -l
+gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra/train | wc -l
+
 ## Generate MiniWorld-MazeS5GridNS-dijkstra 
 
 ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5GridNS-v0 maze_dijkstra 500 10_000_000 0
@@ -30,7 +84,6 @@ gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/a20b022dfc824f0f92ebb891f
 gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/7eb8cd22f882485eb079c65710ac3504/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNS-dijkstra/train
 gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/eec716a5918a4761bb073210732be085/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5GridNS-dijkstra/train
 EOF
-
 scripts/_copy.sh
 
 
