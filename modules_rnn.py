@@ -1,8 +1,10 @@
 from typing import Tuple, Optional
 import torch
-from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.jit as jit
+from torch import Tensor
+from torch.nn import Parameter
 
 
 class GRU2Inputs(nn.Module):
@@ -33,3 +35,57 @@ class GRU2Inputs(nn.Module):
         output, out_state = self._gru(inp, in_state)
         # NOTE: Different from nn.GRU: detach output state
         return output, out_state.detach()
+
+
+class GRUCell(jit.ScriptModule):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.weight_ih = Parameter(torch.randn(input_size, 3 * hidden_size))
+        self.weight_hh = Parameter(torch.randn(hidden_size, 3 * hidden_size))
+        self.bias_ih = Parameter(torch.randn(3 * hidden_size))
+        self.bias_hh = Parameter(torch.randn(3 * hidden_size))
+
+    @jit.script_method
+    def forward(self, input: Tensor, state: Tensor) -> Tensor:
+        gates_i = torch.mm(input, self.weight_ih) + self.bias_ih
+        gates_h = torch.mm(state, self.weight_hh) + self.bias_hh
+        reset_i, update_i, newval_i = gates_i.chunk(3, 1)
+        reset_h, update_h, newval_h = gates_h.chunk(3, 1)
+
+        reset = torch.sigmoid(reset_i + reset_h)
+        update = torch.sigmoid(update_i + update_h)
+        newval = torch.tanh(newval_i + reset * newval_h)
+
+        h = update * newval + (1 - update) * state
+        return h
+
+
+class LSTMCell(jit.ScriptModule):
+    # Example from https://github.com/pytorch/pytorch/blob/master/benchmarks/fastrnns/custom_lstms.py
+    def __init__(self, input_size, hidden_size):
+        super(LSTMCell, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.weight_ih = Parameter(torch.randn(4 * hidden_size, input_size))
+        self.weight_hh = Parameter(torch.randn(4 * hidden_size, hidden_size))
+        self.bias_ih = Parameter(torch.randn(4 * hidden_size))
+        self.bias_hh = Parameter(torch.randn(4 * hidden_size))
+
+    @jit.script_method
+    def forward(self, input: Tensor, state: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tuple[Tensor, Tensor]]:
+        hx, cx = state
+        gates = (torch.mm(input, self.weight_ih.t()) + self.bias_ih +
+                 torch.mm(hx, self.weight_hh.t()) + self.bias_hh)
+        ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
+
+        ingate = torch.sigmoid(ingate)
+        forgetgate = torch.sigmoid(forgetgate)
+        cellgate = torch.tanh(cellgate)
+        outgate = torch.sigmoid(outgate)
+
+        cy = (forgetgate * cx) + (ingate * cellgate)
+        hy = outgate * torch.tanh(cy)
+
+        return hy, (hy, cy)
