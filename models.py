@@ -226,7 +226,7 @@ class WorldModel(nn.Module):
                            loss_model_image_max=loss_image.max(),
                            loss_model_kl=loss_kl.mean(),
                            loss_model_kl_max=loss_kl.max(),
-                           loss_model_mem=torch.tensor(0.0),
+                        #    loss_model_mem=torch.tensor(0.0),
                            loss_map=loss_map.mean(),
                            entropy_prior=entropy_prior.mean(),
                            entropy_post=entropy_post.mean(),
