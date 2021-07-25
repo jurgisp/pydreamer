@@ -62,21 +62,20 @@ class GRUCell(jit.ScriptModule):
         return h
 
 
-class NormGRUCell(jit.ScriptModule):
+class NormGRUCell(nn.Module):
     def __init__(self, input_size, hidden_size):
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.weight_ih = Parameter(torch.randn(input_size, 3 * hidden_size))
-        self.weight_hh = Parameter(torch.randn(hidden_size, 3 * hidden_size))
+        self.weight_ih = nn.Linear(input_size, 3 * hidden_size, bias=False)
+        self.weight_hh = nn.Linear(hidden_size, 3 * hidden_size, bias=False)
         self.ln_reset = nn.LayerNorm(hidden_size)
         self.ln_update = nn.LayerNorm(hidden_size)
         self.ln_newval = nn.LayerNorm(hidden_size)
 
-    @jit.script_method
     def forward(self, input: Tensor, state: Tensor) -> Tensor:
-        gates_i = torch.mm(input, self.weight_ih)
-        gates_h = torch.mm(state, self.weight_hh)
+        gates_i = self.weight_ih(input)
+        gates_h = self.weight_hh(state)
         reset_i, update_i, newval_i = gates_i.chunk(3, 1)
         reset_h, update_h, newval_h = gates_h.chunk(3, 1)
 
