@@ -378,7 +378,7 @@ def evaluate(prefix: str,
 
             if n_episodes < B:  # until all episodes finish
                 image_pred, image_rec, map_rec = model.predict(*output)
-                npz_datas.append(prepare_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec))
+                npz_datas.append(prepare_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, take_b=1))
 
     metrics_eval = {f'{prefix}/{k}': np.mean(v) for k, v in metrics_eval.items()}
     mlflow.log_metrics(metrics_eval, step=steps)
@@ -404,7 +404,8 @@ def prepare_batch_npz(batch,
                       loss_tensors,
                       image_pred: Optional[D.Distribution],
                       image_rec: Optional[D.Distribution],
-                      map_rec: Optional[D.Distribution]):
+                      map_rec: Optional[D.Distribution],
+                      take_b=999):
     # "Unpreprocess" batch
     data = {}
     for k, v in batch.items():
@@ -438,7 +439,7 @@ def prepare_batch_npz(batch,
         else:
             data['map_rec'] = ((map_rec.mean.cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
 
-    data = {k: v.swapaxes(0, 1) for k, v in data.items()}  # (N,B,...) => (B,N,...)
+    data = {k: v.swapaxes(0, 1)[:take_b] for k, v in data.items()}  # (N,B,...) => (B,N,...)
     return data
 
 
