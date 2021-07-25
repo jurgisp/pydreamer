@@ -69,12 +69,9 @@ class NormGRUCell(jit.ScriptModule):
         self.hidden_size = hidden_size
         self.weight_ih = Parameter(torch.randn(input_size, 3 * hidden_size))
         self.weight_hh = Parameter(torch.randn(hidden_size, 3 * hidden_size))
-        self.ln_reset_i = nn.LayerNorm(hidden_size)
-        self.ln_update_i = nn.LayerNorm(hidden_size)
-        self.ln_newval_i = nn.LayerNorm(hidden_size)
-        self.ln_reset_h = nn.LayerNorm(hidden_size)
-        self.ln_update_h = nn.LayerNorm(hidden_size)
-        self.ln_newval_h = nn.LayerNorm(hidden_size)
+        self.ln_reset = nn.LayerNorm(hidden_size)
+        self.ln_update = nn.LayerNorm(hidden_size)
+        self.ln_newval = nn.LayerNorm(hidden_size)
 
     @jit.script_method
     def forward(self, input: Tensor, state: Tensor) -> Tensor:
@@ -83,10 +80,9 @@ class NormGRUCell(jit.ScriptModule):
         reset_i, update_i, newval_i = gates_i.chunk(3, 1)
         reset_h, update_h, newval_h = gates_h.chunk(3, 1)
 
-        reset = torch.sigmoid(self.ln_reset_i(reset_i) + self.ln_reset_h(reset_h))
-        update = torch.sigmoid(self.ln_update_i(update_i) + self.ln_update_h(update_h))
-        newval = torch.tanh(self.ln_newval_i(newval_i) + reset * self.ln_newval_h(newval_h))
-
+        reset = torch.sigmoid(self.ln_reset(reset_i + reset_h))
+        update = torch.sigmoid(self.ln_update(update_i + update_h))
+        newval = torch.tanh(self.ln_newval(newval_i + reset * newval_h))
         h = update * newval + (1 - update) * state
         return h
 
