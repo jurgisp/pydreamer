@@ -152,10 +152,12 @@ class WorldModel(nn.Module):
         post_d = diag_normal(post)
         if I == 1:
             # Analytic KL loss, standard for VAE
-            loss_kl = D.kl.kl_divergence(post_d, prior_d)  # (N,B,I)
+            loss_kl = loss_kl_metric = D.kl.kl_divergence(post_d, prior_d)  # (N,B,I)
         else:
             # Sampled KL loss, for IWAE
             loss_kl = post_d.log_prob(post_samples) - prior_d.log_prob(post_samples)
+            # Log analytic KL loss for metrics, it's nicer and avoids negative values
+            loss_kl_metric = D.kl.kl_divergence(post_d, prior_d)
 
         # Map
 
@@ -205,7 +207,7 @@ class WorldModel(nn.Module):
 
         with torch.no_grad():
             loss_image = -logavgexp(-loss_image, dim=-1)
-            loss_kl = -logavgexp(-loss_kl, dim=-1)
+            loss_kl = -logavgexp(-loss_kl_metric, dim=-1)
 
             entropy_prior = prior_d.entropy().mean(dim=-1)
             entropy_post = post_d.entropy().mean(dim=-1)
