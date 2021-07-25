@@ -67,7 +67,7 @@ def init_weights_tf2(m):
         nn.init.orthogonal_(m.weight_hh.data)
         nn.init.zeros_(m.bias_ih.data)
         nn.init.zeros_(m.bias_hh.data)
-    if type(m) == my.NormGRUCell:
+    if type(m) == my.NormGRUCell or type(m) == my.NormGRUCellLateReset:
         nn.init.xavier_uniform_(m.weight_ih.weight.data)
         nn.init.orthogonal_(m.weight_hh.weight.data)
 

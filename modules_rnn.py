@@ -86,6 +86,27 @@ class NormGRUCell(nn.Module):
         return h
 
 
+class NormGRUCellLateReset(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.weight_ih = nn.Linear(input_size, 3 * hidden_size, bias=False)
+        self.weight_hh = nn.Linear(hidden_size, 3 * hidden_size, bias=False)
+        self.lnorm = nn.LayerNorm(3 * hidden_size)
+        self._update_bias = -1
+
+    def forward(self, input: Tensor, state: Tensor) -> Tensor:
+        gates = self.weight_ih(input) + self.weight_hh(state)
+        gates = self.lnorm(gates)
+        reset, update, newval = gates.chunk(3, 1)
+
+        reset = torch.sigmoid(reset)
+        update = torch.sigmoid(update + self._update_bias)
+        newval = torch.tanh(reset * newval)  # late reset, diff from normal GRU
+        h = update * newval + (1 - update) * state
+        return h
+
 class LSTMCell(jit.ScriptModule):
     # Example from https://github.com/pytorch/pytorch/blob/master/benchmarks/fastrnns/custom_lstms.py
     def __init__(self, input_size, hidden_size):
