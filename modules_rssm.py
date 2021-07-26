@@ -99,11 +99,11 @@ class RSSMCell(nn.Module):
         self._in_norm = nn.LayerNorm(hidden_dim)
         # self._g_mlp = nn.Linear(global_dim, hidden_dim, bias=False)
 
-        self._gru = my.NormGRUCellLateReset(hidden_dim, deter_dim // gru_layers)
+        self._gru = nn.GRUCell(hidden_dim, deter_dim // gru_layers)
         self._gru_layers = gru_layers
         if gru_layers > 1:
             assert gru_layers == 2
-            self._gru2 = my.NormGRUCellLateReset(deter_dim // gru_layers, deter_dim // gru_layers)
+            self._gru2 = nn.GRUCell(deter_dim // gru_layers, deter_dim // gru_layers)
 
         self._prior_mlp_h = nn.Linear(deter_dim, hidden_dim)
         self._prior_norm = nn.LayerNorm(hidden_dim)
