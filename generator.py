@@ -33,12 +33,12 @@ def main(output_dir,
         env = MiniGrid(env_name, max_steps=conf.max_steps, seed=conf.seed)
 
     elif env_name.startswith('MiniWorld-'):
-        import gym_miniworld
-        from gym_miniworld.wrappers import DictWrapper, MapWrapper, AgentPosWrapper
+        import gym_miniworld.wrappers as wrap
         env = env_raw = gym.make(env_name, max_steps=conf.max_steps)
-        env = DictWrapper(env)
-        env = MapWrapper(env)
-        env = AgentPosWrapper(env)
+        env = wrap.DictWrapper(env)
+        env = wrap.MapWrapper(env)
+        env = wrap.PixelMapWrapper(env)
+        env = wrap.AgentPosWrapper(env)
 
     else:
         env = gym.make(env_name, max_steps=conf.max_steps)

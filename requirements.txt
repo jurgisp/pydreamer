@@ -1,5 +1,4 @@
 torch
-numba
 gym
 
 # Logging
@@ -11,6 +10,10 @@ pathy
 bokeh
 tensorboard
 torch-tb-profiler
+
+# Generator
+numba
+scikit-image
 
 # Environments
 # git+https://github.com/jurgisp/gym-minigrid.git@e979bc77a9377346a6a0311a257e8bbb218e611c#egg=gym-minigrid
