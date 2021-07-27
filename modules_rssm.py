@@ -38,7 +38,7 @@ class RSSMCore(nn.Module):
         embeds = expand(embed).unbind(0)     # (N,B,...) => List[(BI,...)]
         actions = expand(action).unbind(0)
         reset_masks = expand(~reset.unsqueeze(2)).unbind(0)
-        noises = noises.reshape(n, b * I, -1).unbind(0)  # List[(BI,S)]
+        noises = noises.reshape(n, b * I, -1).unbind(0)  # type: ignore  # List[(BI,S)]  
 
         priors = []
         posts = []
@@ -99,11 +99,7 @@ class RSSMCell(nn.Module):
         self._in_norm = nn.LayerNorm(hidden_dim)
         # self._g_mlp = nn.Linear(global_dim, hidden_dim, bias=False)
 
-        self._gru = nn.GRUCell(hidden_dim, deter_dim // gru_layers)
-        self._gru_layers = gru_layers
-        if gru_layers > 1:
-            assert gru_layers == 2
-            self._gru2 = nn.GRUCell(deter_dim // gru_layers, deter_dim // gru_layers)
+        self._gru = my.GRUCellStack(hidden_dim, deter_dim, gru_layers, nn.GRUCell)
 
         self._prior_mlp_h = nn.Linear(deter_dim, hidden_dim)
         self._prior_norm = nn.LayerNorm(hidden_dim)
@@ -138,13 +134,7 @@ class RSSMCell(nn.Module):
         x = self._z_mlp(in_z) + self._a_mlp(action)  # (B,H)
         x = self._in_norm(x)
         za = F.elu(x)
-        if self._gru_layers == 1:
-            h = self._gru(za, in_h)                                             # (B, D)
-        else:
-            in_h1, in_h2 = in_h.chunk(2, -1)
-            h1 = self._gru(za, in_h1)
-            h2 = self._gru2(h1, in_h2)
-            h = torch.cat((h1, h2), -1)
+        h = self._gru(za, in_h)                                             # (B, D)
 
         x = self._post_mlp_h(h) + self._post_mlp_e(embed)
         x = self._post_norm(x)
@@ -170,13 +160,7 @@ class RSSMCell(nn.Module):
         x = self._z_mlp(in_z) + self._a_mlp(action)  # (B,H)
         x = self._in_norm(x)
         za = F.elu(x)
-        if self._gru_layers == 1:
-            h = self._gru(za, in_h)                  # (B, D)
-        else:
-            in_h1, in_h2 = in_h.chunk(2, -1)
-            h1 = self._gru(za, in_h1)
-            h2 = self._gru2(h1, in_h2)
-            h = torch.cat((h1, h2), -1)
+        h = self._gru(za, in_h)                  # (B, D)
 
         x = self._prior_mlp_h(h)
         x = self._prior_norm(x)

@@ -247,12 +247,12 @@ def run(conf):
                     if steps % conf.log_interval == 0:
                         metrics = {k: np.mean(v) for k, v in metrics.items()}
                         metrics.update({k + '_max': np.max(v) for k, v in metrics_max.items()})
-                        metrics['_step'] = steps
+                        metrics['_step'] = steps  # type: ignore
                         metrics['_loss'] = metrics['loss']
 
                         t = time.time()
                         fps = (steps - last_steps) / (t - last_time)
-                        metrics['fps'] = fps
+                        metrics['fps'] = fps  # type: ignore
                         last_time, last_steps = t, steps
 
                         print(f"[{steps:06}]"

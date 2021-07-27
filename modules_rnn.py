@@ -37,7 +37,31 @@ class GRU2Inputs(nn.Module):
         return output, out_state.detach()
 
 
+class GRUCellStack(nn.Module):
+    """Multi-layer stack of GRU cells"""
+
+    def __init__(self, input_size, hidden_size, num_layers, cell=nn.GRUCell):
+        super().__init__()
+        self.num_layers = num_layers
+        layer_size = hidden_size // num_layers
+        assert layer_size * num_layers == hidden_size, "Must be divisible"
+        layers = [cell(input_size, layer_size)] 
+        layers.extend([cell(layer_size, layer_size) for _ in range(num_layers - 1)])
+        self.layers = nn.ModuleList(layers)
+
+    def forward(self, input: Tensor, state: Tensor) -> Tensor:
+        input_states = state.chunk(self.num_layers, -1)
+        output_states = []
+        x = input
+        for i in range(self.num_layers):
+            x = self.layers[i](x, input_states[i])
+            output_states.append(x)
+        return torch.cat(output_states, -1)
+
+
 class GRUCell(jit.ScriptModule):
+    """Reproduced regular nn.GRUCell, for reference"""
+
     def __init__(self, input_size, hidden_size):
         super().__init__()
         self.input_size = input_size
@@ -53,11 +77,9 @@ class GRUCell(jit.ScriptModule):
         gates_h = torch.mm(state, self.weight_hh) + self.bias_hh
         reset_i, update_i, newval_i = gates_i.chunk(3, 1)
         reset_h, update_h, newval_h = gates_h.chunk(3, 1)
-
         reset = torch.sigmoid(reset_i + reset_h)
         update = torch.sigmoid(update_i + update_h)
         newval = torch.tanh(newval_i + reset * newval_h)
-
         h = update * newval + (1 - update) * state
         return h
 
@@ -106,6 +128,7 @@ class NormGRUCellLateReset(nn.Module):
         newval = torch.tanh(reset * newval)  # late reset, diff from normal GRU
         h = update * newval + (1 - update) * state
         return h
+
 
 class LSTMCell(jit.ScriptModule):
     # Example from https://github.com/pytorch/pytorch/blob/master/benchmarks/fastrnns/custom_lstms.py
