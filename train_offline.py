@@ -344,7 +344,9 @@ def evaluate(prefix: str,
 
                 if n_reset_episodes > 0 and loss_tensors is not None:
                     logprob_map_last = (loss_tensors['loss_map'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
+                    acc_map_last = (loss_tensors['acc_map'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
                     metrics_eval['logprob_map_last'].append(logprob_map_last.item())
+                    metrics_eval['acc_map_last'].append(acc_map_last.item())
                     if 'logprob_img' in loss_tensors:
                         logprob_img_last = (loss_tensors['logprob_img'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
                         metrics_eval['logprob_img_last'].append(logprob_img_last.item())

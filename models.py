@@ -212,9 +212,12 @@ class WorldModel(nn.Module):
             entropy_prior = prior_d.entropy().mean(dim=-1)
             entropy_post = post_d.entropy().mean(dim=-1)
 
+            acc_map = self._map_model.accuracy(map_rec, map)    # (N,B)
+
             log_tensors = dict(loss_kl=loss_kl.detach(),
                                loss_image=loss_image.detach(),
                                loss_map=loss_map.detach(),
+                               acc_map=acc_map,
                                entropy_prior=entropy_prior,
                                entropy_post=entropy_post,
                                )
@@ -228,13 +231,11 @@ class WorldModel(nn.Module):
                            loss_model_image_max=loss_image.max(),
                            loss_model_kl=loss_kl.mean(),
                            loss_model_kl_max=loss_kl.max(),
-                        #    loss_model_mem=torch.tensor(0.0),
                            loss_map=loss_map.mean(),
+                           acc_map=acc_map.mean(),
                            entropy_prior=entropy_prior.mean(),
                            entropy_post=entropy_post.mean(),
                            )
-            # if reset.sum() > 0:
-            #     metrics.update(entropy_prior_start=(entropy_prior * reset).sum() / reset.sum())
 
         return loss, metrics, log_tensors
 

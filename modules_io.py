@@ -127,11 +127,11 @@ class DenseDecoder(nn.Module):
         return y
 
     def loss(self,
-             output,  # (NB,C,H,W)
-             target   # float(NB,C,H,W) or int(NB,H,W)
+             output,  # (*,C,H,W)
+             target   # float(*,C,H,W) or int(*,H,W)
              ):
         if output.shape == target.shape:
-            target = target.argmax(dim=-3)  # float(NB,C,H,W) => int(NB,H,W)
+            target = target.argmax(dim=-3)  # float(*,C,H,W) => int(*,H,W)
         output, bd = flatten_batch(output, 3)
         target, _ = flatten_batch(target, 2)
 
@@ -142,8 +142,24 @@ class DenseDecoder(nn.Module):
             prob = (1.0 - self._min_prob) * prob + self._min_prob * (1.0 / prob.size(1))  # mix with uniform prob
             loss = F.nll_loss(prob.log(), target, reduction='none')
 
-        loss = loss.sum(dim=[-1, -2])  # (NB,H,W) => (NB)
+        loss = loss.sum(dim=[-1, -2])  # (*,H,W) => (*)
         return unflatten_batch(loss, bd)
+
+    def accuracy(self,
+                 output,  # (*,I,C,H,W)
+                 target   # float(*,I,C,H,W) or int(*,I,H,W)
+                 ):
+        if output.shape == target.shape:
+            target = target.argmax(dim=-3)  # float(*,I,C,H,W) => int(*,I,H,W)
+        output, bd = flatten_batch(output, 4)
+        target, _ = flatten_batch(target, 3)
+
+        output = -logavgexp(-output, dim=-4)  # (*,I,C,H,W) => (*,C,H,W)
+        target = target.select(-3, 0)  # int(*,I,H,W) => int(*,H,W)
+
+        acc = output.argmax(dim=-3) == target
+        acc = acc.to(torch.float).mean(dim=[-1, -2])
+        return unflatten_batch(acc, bd)
 
     def to_distr(self, output: Tensor) -> D.Distribution:
         assert len(output.shape) == 6
@@ -153,7 +169,6 @@ class DenseDecoder(nn.Module):
         # Aggregate prob=avg(prob_i)
         logits_agg = torch.logsumexp(logits, dim=0)  # (I,N,B,H,W,C) => (N,B,H,W,C)
         return D.Categorical(logits=logits_agg)
-
 
 
 class CondVAEHead(nn.Module):
@@ -226,6 +241,12 @@ class DirectHead(nn.Module):
              ):
         return self._decoder.loss(obs_pred, obs_target)  # TODO: make VAE head -compatible
 
+    def accuracy(self,
+                 obs_pred,          # forward() output
+                 obs_target,
+                 ):
+        return self._decoder.accuracy(obs_pred, obs_target)
+
 
 class NoHead(nn.Module):
 
@@ -238,4 +259,3 @@ class NoHead(nn.Module):
 
     def loss(self, obs, obs_target):
         return torch.tensor(0.0, device=obs.device), {}
-
