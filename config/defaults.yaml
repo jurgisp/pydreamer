@@ -47,6 +47,7 @@ defaults:
   stoch_dim: 32
   hidden_dim: 256
   gru_layers: 1
+  gru_type: gru
   image_encoder: dense
   image_encoder_layers: 3
   image_decoder: dense

@@ -12,9 +12,9 @@ import modules_rnn as my
 
 class RSSMCore(nn.Module):
 
-    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers):
+    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers, gru_type):
         super().__init__()
-        self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers)
+        self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers, gru_type)
 
     def forward(self,
                 embed: Tensor,       # tensor(N, B, E)
@@ -88,7 +88,7 @@ class RSSMCore(nn.Module):
 
 class RSSMCell(nn.Module):
 
-    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers=1):
+    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers, gru_type):
         super().__init__()
         self._stoch_dim = stoch_dim
         self._deter_dim = deter_dim
@@ -99,7 +99,7 @@ class RSSMCell(nn.Module):
         self._in_norm = nn.LayerNorm(hidden_dim)
         # self._g_mlp = nn.Linear(global_dim, hidden_dim, bias=False)
 
-        self._gru = my.GRUCellStack(hidden_dim, deter_dim, gru_layers, nn.GRUCell)
+        self._gru = my.GRUCellStack(hidden_dim, deter_dim, gru_layers, gru_type)
 
         self._prior_mlp_h = nn.Linear(deter_dim, hidden_dim)
         self._prior_norm = nn.LayerNorm(hidden_dim)

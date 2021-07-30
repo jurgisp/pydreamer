@@ -118,7 +118,8 @@ def run(conf):
             kl_weight=conf.kl_weight,
             map_grad=conf.map_grad,
             embed_rnn=conf.embed_rnn != 'none',
-            gru_layers=conf.gru_layers
+            gru_layers=conf.gru_layers,
+            gru_type=conf.gru_type
         )
     elif conf.model == 'map_rnn':
         model = MapPredictModel(
