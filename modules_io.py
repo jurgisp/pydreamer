@@ -64,6 +64,13 @@ class ConvDecoder(nn.Module):
         loss = torch.square(output - target).sum(dim=[-1, -2, -3])  # MSE
         return unflatten_batch(loss, bd)
 
+    def accuracy(self, output, target):
+        output, bd = flatten_batch(output, 4)  # (*,I,C,H,W)
+        target, _ = flatten_batch(target, 4)
+        loss = torch.square(output - target).sum(dim=[-1, -2, -3]).mean(dim=-1)  
+        loss = loss * 0.0  # TODO
+        return unflatten_batch(loss, bd)
+
     def to_distr(self, output: Tensor) -> D.Distribution:
         assert len(output.shape) == 6  # (N,B,I,C,H,W)
         x = output.mean(dim=2)  # (N,B,I,C,H,W) => (N,B,C,H,W)

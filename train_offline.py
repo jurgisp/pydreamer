@@ -82,12 +82,17 @@ def run(conf):
             latent_dim=conf.map_stoch_dim
         )
     elif conf.map_model == 'direct':
-        map_model = DirectHead(
-            decoder=DenseDecoder(in_dim=state_dim + 4,  # TODO: 4 = map_coords
-                                 out_shape=(conf.map_channels, conf.map_size, conf.map_size),
-                                 hidden_dim=conf.map_hidden_dim,
-                                 hidden_layers=conf.map_hidden_layers),
-        )
+        if conf.map_decoder == 'cnn':
+            map_model = DirectHead(
+                decoder=ConvDecoder(in_dim=state_dim + 4,  # 4 = map_coords
+                                    out_channels=conf.map_channels))  # type: ignore
+
+        else:
+            map_model = DirectHead(
+                decoder=DenseDecoder(in_dim=state_dim + 4,  # 4 = map_coords
+                                     out_shape=(conf.map_channels, conf.map_size, conf.map_size),
+                                     hidden_dim=conf.map_hidden_dim,
+                                     hidden_layers=conf.map_hidden_layers))
     else:
         map_model = NoHead(out_shape=(conf.map_channels, conf.map_size, conf.map_size))
 
@@ -294,14 +299,14 @@ def run(conf):
 
             if conf.verbose:
                 print(f"[{steps:06}] timers"
-                    f"  TOTAL: {timer_total.dt_ms:>4}"
-                    f"  data: {timer_data.dt_ms:>4}"
-                    f"  forward: {timer_forward.dt_ms:>4}"
-                    f"  loss: {timer_loss.dt_ms:>4}"
-                    f"  backward: {timer_backward.dt_ms:>4}"
-                    f"  gradstep: {timer_gradstep.dt_ms:>4}"
-                    f"  other: {timer_other.dt_ms:>4}"
-                    )
+                      f"  TOTAL: {timer_total.dt_ms:>4}"
+                      f"  data: {timer_data.dt_ms:>4}"
+                      f"  forward: {timer_forward.dt_ms:>4}"
+                      f"  loss: {timer_loss.dt_ms:>4}"
+                      f"  backward: {timer_backward.dt_ms:>4}"
+                      f"  gradstep: {timer_gradstep.dt_ms:>4}"
+                      f"  other: {timer_other.dt_ms:>4}"
+                      )
 
 
 def evaluate(prefix: str,

@@ -55,6 +55,7 @@ defaults:
   image_decoder_layers: 2
   map_stoch_dim: 30
   map_model: direct
+  map_decoder: dense
   map_hidden_layers: 4
   map_hidden_dim: 1024
   map_grad: False
