@@ -12,10 +12,13 @@ def to_onehot(x: np.ndarray, n_categories) -> np.ndarray:
     return x
 
 def to_image(x: np.ndarray) -> np.ndarray:
-    assert x.dtype == np.uint8
-    x = x.astype(np.float32)
+    if x.dtype == np.uint8:
+        x = x.astype(np.float32)
+        x = x / 255.0 - 0.5
+    else:
+        assert 0.0 <= x[0,0,0,0,0] and x[0,0,0,0,0] <= 1.0
+        x = x.astype(np.float32)
     x = x.transpose(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
-    x = x / 255.0 - 0.5
     return x
 
 

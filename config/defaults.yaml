@@ -20,6 +20,7 @@ defaults:
   map_key: map
   map_size: 11
   map_channels: 4
+  map_categorical: True
   action_dim: 7
 
   # Training
@@ -85,6 +86,7 @@ minigrid:
   map_key: map
   map_size: 11
   map_channels: 4
+  map_categorical: True
   action_dim: 7
 
   # Model
@@ -107,6 +109,7 @@ minigrid_top: # Top-down observations instead of agent-centric
   map_key: map
   map_size: 11
   map_channels: 8
+  map_categorical: True
   action_dim: 7
 
   # Model
@@ -129,6 +132,7 @@ miniworld:
   map_key: map
   map_size: 9
   map_channels: 4
+  map_categorical: True
   action_dim: 3
 
   # Model

@@ -41,7 +41,7 @@ def run(conf):
     data_eval_full = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.full_eval_batch_size, skip_first=False)
     preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
                                     image_key=conf.image_key,
-                                    map_categorical=conf.map_channels,
+                                    map_categorical=conf.map_channels if conf.map_categorical else None,
                                     map_key=conf.map_key,
                                     amp=conf.device.startswith('cuda') and conf.amp)
 
