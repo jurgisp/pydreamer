@@ -70,6 +70,9 @@ class OfflineDataSequential(IterableDataset):
             data['image'] = data['image_t'].transpose(3, 0, 1, 2)  # HWCN => NHWC
             del data['image_t']
 
+        if 'map_centered' in data and data['map_centered'].dtype == np.float64:
+            data['map_centered'] = (data['map_centered'] * 255).clip(0, 255).astype(np.uint8)
+
         n = data['image'].shape[0]
         if not 'reset' in data:
             data['reset'] = np.zeros(n, bool)
