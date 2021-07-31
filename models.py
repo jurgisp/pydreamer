@@ -19,7 +19,7 @@ class WorldModel(nn.Module):
                  deter_dim=200,
                  stoch_dim=30,
                  hidden_dim=200,
-                 kl_weight=1.0,
+                 image_weight=1.0,
                  map_grad=False,
                  map_weight=0.1,  # Only matters if map_grad
                  embed_rnn=False,
@@ -35,7 +35,7 @@ class WorldModel(nn.Module):
         self._deter_dim = deter_dim
         self._stoch_dim = stoch_dim
         self._global_dim = mem_model.global_dim
-        self._kl_weight = kl_weight
+        self._image_weight = image_weight
         self._map_grad = map_grad
         self._map_weight = map_weight
         self._embed_rnn = embed_rnn
@@ -191,19 +191,19 @@ class WorldModel(nn.Module):
         #
 
         # with torch.no_grad():  # This stop gradient is important for correctness
-        #     weights = F.softmax(-(loss_image + loss_kl), dim=-1)    # should we apply kl_weight here?
+        #     weights = F.softmax(-(loss_image + loss_kl), dim=-1)    # should we apply image_weight here?
         #     weights_map = F.softmax(-loss_map, dim=-1)
         # dloss_image = (weights * loss_image).sum(dim=-1)  # (N,B,I) => (N,B)
         # dloss_kl = (weights * loss_kl).sum(dim=-1)
         # dloss_map = (weights_map * loss_map).sum(dim=-1)
 
-        # dloss = (dloss_image.mean()
-        #          + self._kl_weight * dloss_kl.mean()
+        # dloss = (self._image_weight * dloss_image.mean()
+        #          + dloss_kl.mean()
         #          + self._map_weight * dloss_map.mean())
 
         # Metrics
 
-        loss_model = -logavgexp(-(self._kl_weight * loss_kl + loss_image), dim=-1)  # not the same as (loss_kl+loss_image)
+        loss_model = -logavgexp(-(loss_kl + self._image_weight * loss_image), dim=-1)
         loss_map = -logavgexp(-loss_map, dim=-1)
         loss = loss_model.mean() + self._map_weight * loss_map.mean()
 

@@ -115,7 +115,7 @@ def run(conf):
             deter_dim=conf.deter_dim,
             stoch_dim=conf.stoch_dim,
             hidden_dim=conf.hidden_dim,
-            kl_weight=conf.kl_weight,
+            image_weight=conf.image_weight,
             map_grad=conf.map_grad,
             embed_rnn=conf.embed_rnn != 'none',
             gru_layers=conf.gru_layers,
