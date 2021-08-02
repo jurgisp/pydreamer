@@ -31,11 +31,6 @@ def unflatten_batch(x: Tensor, batch_dim: Size) -> Tensor:
     return x
 
 
-def cat(x1, x2):
-    # (..., A), (..., B) => (..., A+B)
-    return torch.cat((x1, x2), dim=-1)
-
-
 def diag_normal(x: Tensor, min_std=0.1, max_std=2.0):
     # DreamerV2:
     # std = {

@@ -71,7 +71,7 @@ class ConvDecoder(nn.Module):
         map_coord, _ = flatten_batch(map_coord, 1)  # (*,4)
         output = torch.mean(output, dim=-4)  # (*,I,C,H,W) => (*,C,H,W)
         target = target.select(-4, 0)  # int(*,I,H,W) => int(*,H,W)
-        acc = envs.worldgrid_map_accuracy(output, target, map_coord[:,0:2], map_coord[:,2:4])  # TODO: env-specific
+        acc = envs.worldgrid_map_accuracy(output, target, map_coord[:, 0:2], map_coord[:, 2:4])  # TODO: env-specific
         return unflatten_batch(acc, bd)
 
     def to_distr(self, output: Tensor) -> D.Distribution:
@@ -182,10 +182,10 @@ class DenseDecoder(nn.Module):
         return D.Categorical(logits=logits_agg)
 
 
-class CondVAEHead(nn.Module):
+class VAEHead(nn.Module):
     # Conditioned VAE
 
-    def __init__(self, encoder, decoder, state_dim=230, hidden_dim=200, latent_dim=30):
+    def __init__(self, encoder: ConvEncoder, decoder: ConvDecoder, state_dim=230, hidden_dim=200, latent_dim=30):
         super().__init__()
         self._encoder = encoder
         self._decoder = decoder
@@ -200,26 +200,15 @@ class CondVAEHead(nn.Module):
                                        nn.Linear(hidden_dim, 2 * latent_dim))
 
     def forward(self,
-                obs,       # tensor(N, B, C, H, W)
                 state,     # tensor(N, B, D+S+G)
+                obs,       # tensor(N, B, C, H, W)
                 ):
-        states_in = state
-
-        n = obs.size(0)
-        embed = self._encoder(flatten(obs))
-        state = flatten(state)
-
+        embed = self._encoder.forward(obs)
         prior = self._prior_mlp(state)              # (N*B, 2*Z)
-        post = self._post_mlp(cat(state, embed))    # (N*B, 2*Z)
+        post = self._post_mlp(torch.cat([state, embed], -1))    # (N*B, 2*Z)
         sample = diag_normal(post).rsample()                                    # (N*B, Z)
-        obs_rec = self._decoder(cat(state, sample))
-
-        return (
-            unflatten(prior, n),         # tensor(N, B, 2*Z)
-            unflatten(post, n),          # tensor(N, B, 2*Z)
-            unflatten(obs_rec, n),       # tensor(N, B, C, H, W)
-            states_in
-        )
+        obs_rec = self._decoder(torch.cat([state, sample], -1))
+        return obs_rec, (prior, post, state)
 
     def loss(self,
              prior, post, obs_rec, states,       # forward() output
@@ -241,10 +230,10 @@ class DirectHead(nn.Module):
         self._decoder = decoder
 
     def forward(self,
-                # obs,       # tensor(B, C, H, W)
                 state,     # tensor(B, D+S+G)
+                obs,       # tensor(B, C, H, W)
                 ):
-        return self._decoder(state)  # TODO: make VAE head -compatible
+        return self._decoder.forward(state)  # TODO: make VAE head -compatible
 
     def loss(self,
              obs_pred,          # forward() output

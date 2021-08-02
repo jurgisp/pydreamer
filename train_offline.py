@@ -70,26 +70,39 @@ def run(conf):
 
     # Map decoder
 
+    n_map_coords = 4
     if conf.map_model == 'vae':
-        map_model = CondVAEHead(
-            encoder=DenseEncoder(in_dim=conf.map_size * conf.map_size * conf.map_channels,
-                                 out_dim=conf.embed_dim,
-                                 hidden_layers=3),
-            decoder=DenseDecoder(in_dim=state_dim + conf.map_stoch_dim,
-                                 out_shape=(conf.map_channels, conf.map_size, conf.map_size),
-                                 hidden_layers=4),
-            state_dim=state_dim,
-            latent_dim=conf.map_stoch_dim
-        )
+        if conf.map_decoder == 'cnn':
+            map_model = VAEHead(
+                encoder=ConvEncoder(in_channels=conf.map_channels,
+                                    out_dim=conf.embed_dim),
+                decoder=ConvDecoder(in_dim=state_dim + n_map_coords + conf.map_stoch_dim,
+                                    out_channels=conf.map_channels),
+                state_dim=state_dim + n_map_coords,
+                latent_dim=conf.map_stoch_dim,
+                hidden_dim=conf.hidden_dim
+            )
+        else:
+            raise NotImplementedError
+            # map_model = VAEHead(
+            #     encoder=DenseEncoder(in_dim=conf.map_size * conf.map_size * conf.map_channels,
+            #                         out_dim=conf.embed_dim,
+            #                         hidden_layers=3),
+            #     decoder=DenseDecoder(in_dim=state_dim + conf.map_stoch_dim,
+            #                         out_shape=(conf.map_channels, conf.map_size, conf.map_size),
+            #                         hidden_layers=4),
+            #     state_dim=state_dim,
+            #     latent_dim=conf.map_stoch_dim
+            # )
     elif conf.map_model == 'direct':
         if conf.map_decoder == 'cnn':
             map_model = DirectHead(
-                decoder=ConvDecoder(in_dim=state_dim + 4,  # 4 = map_coords
+                decoder=ConvDecoder(in_dim=state_dim + n_map_coords,
                                     out_channels=conf.map_channels))  # type: ignore
 
         else:
             map_model = DirectHead(
-                decoder=DenseDecoder(in_dim=state_dim + 4,  # 4 = map_coords
+                decoder=DenseDecoder(in_dim=state_dim + n_map_coords,
                                      out_shape=(conf.map_channels, conf.map_size, conf.map_size),
                                      hidden_dim=conf.map_hidden_dim,
                                      hidden_layers=conf.map_hidden_layers))
@@ -200,7 +213,7 @@ def run(conf):
                     with autocast(enabled=conf.amp):
 
                         state = states.get(wid) or model.init_state(image.size(1) * conf.iwae_samples)
-                        output = model.forward(image, action, reset, map_coord, state, I=conf.iwae_samples)
+                        output = model.forward(image, action, reset, map, map_coord, state, I=conf.iwae_samples)
                         if conf.keep_state:
                             states[wid] = output[-1]
 
@@ -361,7 +374,7 @@ def evaluate(prefix: str,
 
                 if n_reset_episodes == 0:
                     with autocast(enabled=conf.amp):
-                        output = model.forward(0 * image[:5], action[:5], reset[:5], map_coord[:5], state, I=eval_samples, imagine=True, do_image_pred=True)
+                        output = model.forward(0 * image[:5], action[:5], reset[:5], map[:5], map_coord[:5], state, I=eval_samples, imagine=True, do_image_pred=True)
                         _, _, loss_tensors = model.loss(*output, image[:5], map[:5], reset[:5], map_coord[:5])  # type: ignore
                         if 'logprob_img' in loss_tensors:
                             metrics_eval['logprob_img_1step'].append(loss_tensors['logprob_img'][0].mean().item())
@@ -373,7 +386,7 @@ def evaluate(prefix: str,
             with autocast(enabled=conf.amp):
                 if state is None or not keep_state:
                     state = model.init_state(image.size(1) * eval_samples)
-                output = model.forward(image, action, reset, map_coord, state, I=eval_samples, do_image_pred=True)
+                output = model.forward(image, action, reset, map, map_coord, state, I=eval_samples, do_image_pred=True)
                 state = output[-1]
                 _, loss_metrics, loss_tensors = model.loss(*output, image, map, reset, map_coord)  # type: ignore
 
