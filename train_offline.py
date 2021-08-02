@@ -209,7 +209,7 @@ def run(conf):
                 with timer_loss:
                     with autocast(enabled=conf.amp):
 
-                        loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)
+                        loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset, map_coord)
 
                 # Backward
 
@@ -267,7 +267,7 @@ def run(conf):
                               f"  loss_model_image: {metrics.get('loss_model_image', 0):.3f}"
                               f"  loss_map: {metrics['loss_map']:.3f}"
                               f"  entropy_prior: {metrics.get('entropy_prior',0):.3f}"
-                              f"  entropy_prior_start: {metrics.get('entropy_prior_start',0):.3f}"
+                              f"  acc_map: {metrics.get('acc_map',0):.3f}"
                               f"  fps: {metrics['fps']:.3f}"
                               )
                         mlflow.log_metrics(metrics, step=steps)
@@ -362,7 +362,7 @@ def evaluate(prefix: str,
                 if n_reset_episodes == 0:
                     with autocast(enabled=conf.amp):
                         output = model.forward(0 * image[:5], action[:5], reset[:5], map_coord[:5], state, I=eval_samples, imagine=True, do_image_pred=True)
-                        _, _, loss_tensors = model.loss(*output, image[:5], map[:5], reset[:5])  # type: ignore
+                        _, _, loss_tensors = model.loss(*output, image[:5], map[:5], reset[:5], map_coord[:5])  # type: ignore
                         if 'logprob_img' in loss_tensors:
                             metrics_eval['logprob_img_1step'].append(loss_tensors['logprob_img'][0].mean().item())
                             metrics_eval['logprob_img_2step'].append(loss_tensors['logprob_img'][1].mean().item())
@@ -375,7 +375,7 @@ def evaluate(prefix: str,
                     state = model.init_state(image.size(1) * eval_samples)
                 output = model.forward(image, action, reset, map_coord, state, I=eval_samples, do_image_pred=True)
                 state = output[-1]
-                _, loss_metrics, loss_tensors = model.loss(*output, image, map, reset)  # type: ignore
+                _, loss_metrics, loss_tensors = model.loss(*output, image, map, reset, map_coord)  # type: ignore
 
             metrics_eval['logprob_map'].append(loss_tensors['loss_map'].mean().item())  # Backwards-compat, same as loss_map
             metrics_eval['logprob_img'].append(loss_tensors.get('logprob_img', tensor(0.0)).mean().item())

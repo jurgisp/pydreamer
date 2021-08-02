@@ -137,6 +137,7 @@ class WorldModel(nn.Module):
              image,                                      # tensor(N, B, C, H, W)
              map,                                        # tensor(N, B, MH, MW)
              reset,
+             map_coord
              ):
         N, B, I = image_rec.shape[:3]
 
@@ -214,7 +215,7 @@ class WorldModel(nn.Module):
             entropy_prior = prior_d.entropy().mean(dim=-1)
             entropy_post = post_d.entropy().mean(dim=-1)
 
-            acc_map = self._map_model.accuracy(map_rec, map)    # (N,B)
+            acc_map = self._map_model.accuracy(map_rec, map, map_coord)    # (N,B)
 
             log_tensors = dict(loss_kl=loss_kl.detach(),
                                loss_image=loss_image.detach(),
@@ -234,7 +235,7 @@ class WorldModel(nn.Module):
                            loss_model_kl=loss_kl.mean(),
                            loss_model_kl_max=loss_kl.max(),
                            loss_map=loss_map.mean(),
-                           acc_map=acc_map.mean(),
+                           acc_map= torch.nansum(acc_map) / (~torch.isnan(acc_map)).sum(),  # = acc_map.nanmean()
                            entropy_prior=entropy_prior.mean(),
                            entropy_post=entropy_post.mean(),
                            )

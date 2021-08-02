@@ -2,6 +2,7 @@ import numpy as np
 import gym
 import gym_minigrid
 import gym_minigrid.envs
+import torch
 
 
 class MiniGrid:
@@ -203,3 +204,52 @@ class MiniGrid:
 
     def close(self):
         pass
+
+
+def worldgrid_map_accuracy(output, target, agent_pos, agent_dir):
+    val_path = np.array([103, 103, 105]) / 255.0 - 0.5
+    val_wall = np.array([64, 209, 255]) / 255.0 - 0.5
+
+    def diff_val(x, val):
+        x = x.clone()  # (B,C,H,W)
+        x[:, 0, :, :] -= val[0]
+        x[:, 1, :, :] -= val[1]
+        x[:, 2, :, :] -= val[2]
+        return torch.square(x).sum(dim=1)
+
+    B = output.shape[0]
+    ax = agent_pos[:, 0]
+    ay = agent_pos[:, 1]
+    dx = agent_dir[:, 0]
+    dy = agent_dir[:, 1]
+    idx = torch.arange(0, B, 1, device=target.device)
+
+    target_diff_path = diff_val(target, val_path)
+    target_diff_wall = diff_val(target, val_wall)
+    output_diff_path = diff_val(output, val_path)
+    output_diff_wall = diff_val(output, val_wall)
+    target_wall = target_diff_wall < target_diff_path
+    output_wall = output_diff_wall < output_diff_path
+    correct = output_wall == target_wall
+
+    check_mask = torch.zeros_like(target_wall)
+    for iy in range(9):
+        for ix in range(9):
+            # (x,y) - global coords
+            # (ax,ay) - agent coords
+            # (dx,dy) - agent direction vector
+            # (mx,my) - agent-centric map coords
+            # (mx-mx0)/res = -dy(x-ax) + dx(y-ay)
+            # (my-my0)/res = -dx(x-ax) - dy(y-ay)
+            x = (ix + 0.5) / 4.5 - 1.0
+            y = (iy + 0.5) / 4.5 - 1.0
+            mx = torch.round(31.5 + 32 * (- dy * (x - ax) + dx * (y - ay)) / 2.0).to(torch.long)
+            my = torch.round(31.5 + 32 * (- dx * (x - ax) - dy * (y - ay)) / 2.0).to(torch.long)
+            mask = (mx >= 0) & (mx < 64) & (my >= 0) & (my < 64)
+            check_mask[idx[mask], my[mask], mx[mask]] = True
+
+    acc = (correct & check_mask).sum(dim=[1, 2]) / check_mask.sum(dim=[1, 2])
+    mask = ((-1e-3 < dy) & (dy < 1e-3)) | ((-1e-3 < dx) & (dx < 1e-3))  # calculate only at right angles
+    acc[~mask] = np.nan
+
+    return acc

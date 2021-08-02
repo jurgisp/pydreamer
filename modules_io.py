@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.distributions as D
 
 from modules_tools import *
+import envs
 
 
 class ConvEncoder(nn.Module):
@@ -64,12 +65,14 @@ class ConvDecoder(nn.Module):
         loss = torch.square(output - target).sum(dim=[-1, -2, -3])  # MSE
         return unflatten_batch(loss, bd)
 
-    def accuracy(self, output, target):
+    def accuracy(self, output, target, map_coord):
         output, bd = flatten_batch(output, 4)  # (*,I,C,H,W)
-        target, _ = flatten_batch(target, 4)
-        loss = torch.square(output - target).sum(dim=[-1, -2, -3]).mean(dim=-1)  
-        loss = loss * 0.0  # TODO
-        return unflatten_batch(loss, bd)
+        target, _ = flatten_batch(target, 4)   # (*,I,C,H,W)
+        map_coord, _ = flatten_batch(map_coord, 1)  # (*,4)
+        output = torch.mean(output, dim=-4)  # (*,I,C,H,W) => (*,C,H,W)
+        target = target.select(-4, 0)  # int(*,I,H,W) => int(*,H,W)
+        acc = envs.worldgrid_map_accuracy(output, target, map_coord[:,0:2], map_coord[:,2:4])  # TODO: env-specific
+        return unflatten_batch(acc, bd)
 
     def to_distr(self, output: Tensor) -> D.Distribution:
         assert len(output.shape) == 6  # (N,B,I,C,H,W)
@@ -154,7 +157,8 @@ class DenseDecoder(nn.Module):
 
     def accuracy(self,
                  output,  # (*,I,C,H,W)
-                 target   # float(*,I,C,H,W) or int(*,I,H,W)
+                 target,   # float(*,I,C,H,W) or int(*,I,H,W)
+                 map_coord
                  ):
         if output.shape == target.shape:
             target = target.argmax(dim=-3)  # float(*,I,C,H,W) => int(*,I,H,W)
@@ -251,8 +255,9 @@ class DirectHead(nn.Module):
     def accuracy(self,
                  obs_pred,          # forward() output
                  obs_target,
+                 map_coord,
                  ):
-        return self._decoder.accuracy(obs_pred, obs_target)
+        return self._decoder.accuracy(obs_pred, obs_target, map_coord)
 
 
 class NoHead(nn.Module):
