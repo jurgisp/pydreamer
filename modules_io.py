@@ -199,28 +199,32 @@ class VAEHead(nn.Module):
                                        nn.ELU(),
                                        nn.Linear(hidden_dim, 2 * latent_dim))
 
-    def forward(self,
-                state,     # tensor(N, B, D+S+G)
-                obs,       # tensor(N, B, C, H, W)
-                ):
+    def forward(self, state, obs):
         embed = self._encoder.forward(obs)
-        prior = self._prior_mlp(state)              # (N*B, 2*Z)
-        post = self._post_mlp(torch.cat([state, embed], -1))    # (N*B, 2*Z)
-        sample = diag_normal(post).rsample()                                    # (N*B, Z)
+        prior = self._prior_mlp(state)
+        post = self._post_mlp(torch.cat([state, embed], -1))
+        sample = diag_normal(post).rsample()
         obs_rec = self._decoder(torch.cat([state, sample], -1))
-        return obs_rec, (prior, post, state)
+        return obs_rec, prior, post
 
     def loss(self,
-             prior, post, obs_rec, states,       # forward() output
-             obs_target,                         # tensor(N, B, C, H, W)
+             obs_rec, prior, post,           # forward() output
+             obs_target,                     # tensor(*, C, H, W)
              ):
         loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
         loss_rec = self._decoder.loss(obs_rec, obs_target)
         assert loss_kl.shape == loss_rec.shape
-        loss_kl, loss_rec = loss_kl.mean(), loss_rec.mean()  # (N, B) => ()
         loss = loss_kl + loss_rec
-        metrics = dict(loss_kl=loss_kl.detach(), loss_rec=loss_rec.detach())
-        return loss, metrics
+        return loss  # (N, B, I)
+
+    def accuracy(self,
+                 obs_rec, prior, post,          # forward() output
+                 obs_target, map_coord,
+                 ):
+        return self._decoder.accuracy(obs_rec, obs_target, map_coord)  # TODO: from obs_pred, not obs_rec
+        
+    def to_distr(self, obs_rec, prior, post):
+        return self._decoder.to_distr(obs_rec)
 
 
 class DirectHead(nn.Module):
@@ -229,24 +233,18 @@ class DirectHead(nn.Module):
         super().__init__()
         self._decoder = decoder
 
-    def forward(self,
-                state,     # tensor(B, D+S+G)
-                obs,       # tensor(B, C, H, W)
-                ):
-        return self._decoder.forward(state)  # TODO: make VAE head -compatible
+    def forward(self, state, obs):
+        obs_pred = self._decoder.forward(state)
+        return (obs_pred, )
 
-    def loss(self,
-             obs_pred,          # forward() output
-             obs_target,        # tensor(N, B, C, H, W)
-             ):
-        return self._decoder.loss(obs_pred, obs_target)  # TODO: make VAE head -compatible
+    def loss(self, obs_pred, obs_target):
+        return self._decoder.loss(obs_pred, obs_target)
 
-    def accuracy(self,
-                 obs_pred,          # forward() output
-                 obs_target,
-                 map_coord,
-                 ):
+    def accuracy(self, obs_pred, obs_target, map_coord):
         return self._decoder.accuracy(obs_pred, obs_target, map_coord)
+
+    def to_distr(self, obs_pred):
+        return self._decoder.to_distr(obs_pred)
 
 
 class NoHead(nn.Module):

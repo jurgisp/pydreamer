@@ -102,7 +102,7 @@ class WorldModel(nn.Module):
         map_features = torch.cat((features, map_coord), dim=-1)
         if not self._map_grad:
             map_features = map_features.detach()
-        map_rec = self._map_model.forward(map_features, map)
+        map_out = self._map_model.forward(map_features, map)
 
         image_pred = None
         if do_image_pred:
@@ -115,19 +115,19 @@ class WorldModel(nn.Module):
             post,                        # (N,B,I,2S)
             post_samples,                # (N,B,I,S)
             image_rec,                   # (N,B,I,C,H,W)
-            map_rec,                     # (N,B,I,C,M,M)
+            map_out,                     # (N,B,I,C,M,M)
             image_pred,                  # Optional[(N,B,I,C,H,W)]
             out_state,
         )
 
     def predict(self,
-                prior, post, post_samples, image_rec, map_rec, image_pred, out_state,     # forward() output
+                prior, post, post_samples, image_rec, map_out, image_pred, out_state,     # forward() output
                 ):
         # Return distributions
         if image_pred is not None:
             image_pred = self._decoder_image.to_distr(image_pred)
         image_rec = self._decoder_image.to_distr(image_rec)
-        map_rec = self._map_model._decoder.to_distr(map_rec)
+        map_rec = self._map_model.to_distr(*map_out)
         return (
             image_pred,    # categorical(N,B,H,W,C)
             image_rec,     # categorical(N,B,H,W,C)
@@ -135,7 +135,7 @@ class WorldModel(nn.Module):
         )
 
     def loss(self,
-             prior, post, post_samples, image_rec, map_rec, image_pred, out_state,     # forward() output
+             prior, post, post_samples, image_rec, map_out, image_pred, out_state,     # forward() output
              image,                                      # tensor(N, B, C, H, W)
              map,                                        # tensor(N, B, MH, MW)
              reset,
@@ -166,8 +166,8 @@ class WorldModel(nn.Module):
 
         # Map
 
-        map = map.unsqueeze(2).expand(map_rec.shape)
-        loss_map = self._map_model.loss(map_rec, map)    # (N,B,I)
+        map = map.unsqueeze(2).expand(N, B, I, *map.shape[2:])
+        loss_map = self._map_model.loss(*map_out, map)    # (N,B,I)
         # metrics_map = {k.replace('loss_', 'loss_map_'): v for k, v in metrics_map.items()}  # loss_kl => loss_map_kl
 
         # IWAE averaging
@@ -217,7 +217,7 @@ class WorldModel(nn.Module):
             entropy_prior = prior_d.entropy().mean(dim=-1)
             entropy_post = post_d.entropy().mean(dim=-1)
 
-            acc_map = self._map_model.accuracy(map_rec, map, map_coord)    # (N,B)
+            acc_map = self._map_model.accuracy(*map_out, map, map_coord)    # (N,B)
 
             log_tensors = dict(loss_kl=loss_kl.detach(),
                                loss_image=loss_image.detach(),
