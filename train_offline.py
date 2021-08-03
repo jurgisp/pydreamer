@@ -139,14 +139,14 @@ def run(conf):
             gru_layers=conf.gru_layers,
             gru_type=conf.gru_type
         )
-    elif conf.model == 'map_rnn':
-        model = MapPredictModel(
-            encoder=encoder,
-            decoder=decoder,
-            map_model=map_model,
-            action_dim=conf.action_dim,
-            state_dim=state_dim,
-        )  # type: ignore
+    # elif conf.model == 'map_rnn':
+    #     model = MapPredictModel(
+    #         encoder=encoder,
+    #         decoder=decoder,
+    #         map_model=map_model,
+    #         action_dim=conf.action_dim,
+    #         state_dim=state_dim,
+    #     )  # type: ignore
     else:
         assert False, conf.model
 

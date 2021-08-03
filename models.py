@@ -167,7 +167,7 @@ class WorldModel(nn.Module):
         # Map
 
         map = map.unsqueeze(2).expand(N, B, I, *map.shape[2:])
-        loss_map = self._map_model.loss(*map_out, map)    # (N,B,I)
+        loss_map = self._map_model.loss(*map_out, map)    # type: ignore
         # metrics_map = {k.replace('loss_', 'loss_map_'): v for k, v in metrics_map.items()}  # loss_kl => loss_map_kl
 
         # IWAE averaging
@@ -238,7 +238,7 @@ class WorldModel(nn.Module):
                            entropy_post=entropy_post.mean(),
                            )
 
-            acc_map = self._map_model.accuracy(*map_out, map, map_coord)    # (N,B)
+            acc_map = self._map_model.accuracy(*map_out, map, map_coord)    # type: ignore
             if acc_map is not None:
                 log_tensors.update(acc_map=acc_map)
                 metrics.update(acc_map=torch.nansum(acc_map) / (~torch.isnan(acc_map)).sum())  # = acc_map.nanmean())
