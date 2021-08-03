@@ -245,80 +245,80 @@ class WorldModel(nn.Module):
         return loss, metrics, log_tensors
 
 
-class MapPredictModel(nn.Module):
+# class MapPredictModel(nn.Module):
 
-    def __init__(self, encoder, decoder, map_model, state_dim=200, action_dim=7, map_weight=1.0):
-        super().__init__()
-        self._encoder = encoder
-        self._decoder_image = decoder
-        self._map_model: DirectHead = map_model
-        self._state_dim = state_dim
-        self._map_weight = map_weight
-        self._core = GRU2Inputs(encoder.out_dim, action_dim, mlp_dim=encoder.out_dim, state_dim=state_dim)
-        self._input_rnn = None
-        for m in self.modules():
-            init_weights_tf2(m)
+#     def __init__(self, encoder, decoder, map_model, state_dim=200, action_dim=7, map_weight=1.0):
+#         super().__init__()
+#         self._encoder = encoder
+#         self._decoder_image = decoder
+#         self._map_model: DirectHead = map_model
+#         self._state_dim = state_dim
+#         self._map_weight = map_weight
+#         self._core = GRU2Inputs(encoder.out_dim, action_dim, mlp_dim=encoder.out_dim, state_dim=state_dim)
+#         self._input_rnn = None
+#         for m in self.modules():
+#             init_weights_tf2(m)
 
-    def init_state(self, batch_size):
-        return self._core.init_state(batch_size)
+#     def init_state(self, batch_size):
+#         return self._core.init_state(batch_size)
 
-    def forward(self,
-                image: Tensor,     # tensor(N, B, C, H, W)
-                action: Tensor,    # tensor(N, B, A)
-                reset: Tensor,     # tensor(N, B)
-                map: Tensor,       # tensor(N, B, C, MH, MW)
-                in_state: Tensor,
-                I: int = 1,
-                imagine=False,     # If True, will imagine sequence, not using observations to form posterior
-                do_image_pred=False,
-                ):
+#     def forward(self,
+#                 image: Tensor,     # tensor(N, B, C, H, W)
+#                 action: Tensor,    # tensor(N, B, A)
+#                 reset: Tensor,     # tensor(N, B)
+#                 map: Tensor,       # tensor(N, B, C, MH, MW)
+#                 in_state: Tensor,
+#                 I: int = 1,
+#                 imagine=False,     # If True, will imagine sequence, not using observations to form posterior
+#                 do_image_pred=False,
+#                 ):
 
-        embed = self._encoder(image)
+#         embed = self._encoder(image)
 
-        features, out_state = self._core.forward(embed, action, in_state)  # TODO: should apply reset
+#         features, out_state = self._core.forward(embed, action, in_state)  # TODO: should apply reset
 
-        image_rec = self._decoder_image(features)
-        map_out = self._map_model.forward(features)  # NOT detached
+#         image_rec = self._decoder_image(features)
+#         map_out = self._map_model.forward(features)  # NOT detached
 
-        return (
-            image_rec,                   # tensor(N, B, C, H, W)
-            map_out,                     # tuple, map.forward() output
-            out_state,
-        )
+#         return (
+#             image_rec,                   # tensor(N, B, C, H, W)
+#             map_out,                     # tuple, map.forward() output
+#             out_state,
+#         )
 
-    def predict(self,
-                image_rec, map_rec, out_state,     # forward() output
-                ):
-        # Return distributions
-        image_pred = None
-        image_rec = self._decoder_image.to_distr(image_rec.unsqueeze(2))
-        map_rec = self._map_model._decoder.to_distr(map_rec.unsqueeze(2))
-        return (
-            image_pred,    # categorical(N,B,H,W,C)
-            image_rec,     # categorical(N,B,H,W,C)
-            map_rec,       # categorical(N,B,HM,WM,C)
-        )
+#     def predict(self,
+#                 image_rec, map_rec, out_state,     # forward() output
+#                 ):
+#         # Return distributions
+#         image_pred = None
+#         image_rec = self._decoder_image.to_distr(image_rec.unsqueeze(2))
+#         map_rec = self._map_model._decoder.to_distr(map_rec.unsqueeze(2))
+#         return (
+#             image_pred,    # categorical(N,B,H,W,C)
+#             image_rec,     # categorical(N,B,H,W,C)
+#             map_rec,       # categorical(N,B,HM,WM,C)
+#         )
 
-    def loss(self,
-             image_rec, map_out, out_state,     # forward() output
-             image,                                      # tensor(N, B, C, H, W)
-             map,                                        # tensor(N, B, MH, MW)
-             ):
-        loss_image = self._decoder_image.loss(image_rec, image)
-        loss_map = self._map_model.loss(map_out, map)
+#     def loss(self,
+#              image_rec, map_out, out_state,     # forward() output
+#              image,                                      # tensor(N, B, C, H, W)
+#              map,                                        # tensor(N, B, MH, MW)
+#              ):
+#         loss_image = self._decoder_image.loss(image_rec, image)
+#         loss_map = self._map_model.loss(map_out, map)
 
-        log_tensors = dict(loss_image=loss_image.detach(),
-                           loss_map=loss_map.detach())
+#         log_tensors = dict(loss_image=loss_image.detach(),
+#                            loss_map=loss_map.detach())
 
-        loss_image = loss_image.mean()
-        loss_map = loss_map.mean()
-        loss = loss_image + self._map_weight * loss_map
+#         loss_image = loss_image.mean()
+#         loss_map = loss_map.mean()
+#         loss = loss_image + self._map_weight * loss_map
 
-        metrics = dict(loss=loss.detach(),
-                       loss_model_image=loss_image.detach(),
-                       loss_model=loss_image.detach(),
-                       loss_map=loss_map.detach(),
-                       #    **metrics_map
-                       )
+#         metrics = dict(loss=loss.detach(),
+#                        loss_model_image=loss_image.detach(),
+#                        loss_model=loss_image.detach(),
+#                        loss_map=loss_map.detach(),
+#                        #    **metrics_map
+#                        )
 
-        return loss, metrics, log_tensors
+#         return loss, metrics, log_tensors
