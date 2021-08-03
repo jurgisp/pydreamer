@@ -199,16 +199,21 @@ class VAEHead(nn.Module):
                                        nn.ELU(),
                                        nn.Linear(hidden_dim, 2 * latent_dim))
 
-    def forward(self, state, obs):
+    def forward(self, state, obs, do_image_pred=False):
         embed = self._encoder.forward(obs)
         prior = self._prior_mlp(state)
         post = self._post_mlp(torch.cat([state, embed], -1))
         sample = diag_normal(post).rsample()
         obs_rec = self._decoder(torch.cat([state, sample], -1))
-        return obs_rec, prior, post
+        if do_image_pred:
+            prior_sample = diag_normal(prior).sample()
+            obs_pred = self._decoder(torch.cat([state, prior_sample], -1))
+        else:
+            obs_pred = None
+        return obs_rec, prior, post, obs_pred
 
     def loss(self,
-             obs_rec, prior, post,           # forward() output
+             obs_rec, prior, post, obs_pred, # forward() output
              obs_target,                     # tensor(*, C, H, W)
              ):
         loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
@@ -218,13 +223,19 @@ class VAEHead(nn.Module):
         return loss  # (N, B, I)
 
     def accuracy(self,
-                 obs_rec, prior, post,          # forward() output
+                 obs_rec, prior, post, obs_pred,  # forward() output
                  obs_target, map_coord,
                  ):
-        return self._decoder.accuracy(obs_rec, obs_target, map_coord)  # TODO: from obs_pred, not obs_rec
+        if obs_pred is not None:
+            return self._decoder.accuracy(obs_pred, obs_target, map_coord)
+        else:
+            return None
         
-    def to_distr(self, obs_rec, prior, post):
-        return self._decoder.to_distr(obs_rec)
+    def to_distr(self, obs_rec, prior, post, obs_pred):
+        if obs_pred is not None:
+            return self._decoder.to_distr(obs_pred)
+        else:
+            return self._decoder.to_distr(obs_rec)
 
 
 class DirectHead(nn.Module):
@@ -233,7 +244,7 @@ class DirectHead(nn.Module):
         super().__init__()
         self._decoder = decoder
 
-    def forward(self, state, obs):
+    def forward(self, state, obs, do_image_pred=False):
         obs_pred = self._decoder.forward(state)
         return (obs_pred, )
 

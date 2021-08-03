@@ -102,7 +102,7 @@ class WorldModel(nn.Module):
         map_features = torch.cat((features, map_coord), dim=-1)
         if not self._map_grad:
             map_features = map_features.detach()
-        map_out = self._map_model.forward(map_features, map)
+        map_out = self._map_model.forward(map_features, map, do_image_pred=do_image_pred)
 
         image_pred = None
         if do_image_pred:
@@ -213,19 +213,16 @@ class WorldModel(nn.Module):
         with torch.no_grad():
             loss_image = -logavgexp(-loss_image, dim=-1)
             loss_kl = -logavgexp(-loss_kl_metric, dim=-1)
-
             entropy_prior = prior_d.entropy().mean(dim=-1)
             entropy_post = post_d.entropy().mean(dim=-1)
-
-            acc_map = self._map_model.accuracy(*map_out, map, map_coord)    # (N,B)
 
             log_tensors = dict(loss_kl=loss_kl.detach(),
                                loss_image=loss_image.detach(),
                                loss_map=loss_map.detach(),
-                               acc_map=acc_map,
                                entropy_prior=entropy_prior,
                                entropy_post=entropy_post,
                                )
+
             if logprob_img is not None:
                 logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
                 log_tensors.update(logprob_img=logprob_img)
@@ -237,10 +234,14 @@ class WorldModel(nn.Module):
                            loss_model_kl=loss_kl.mean(),
                            loss_model_kl_max=loss_kl.max(),
                            loss_map=loss_map.mean(),
-                           acc_map= torch.nansum(acc_map) / (~torch.isnan(acc_map)).sum(),  # = acc_map.nanmean()
                            entropy_prior=entropy_prior.mean(),
                            entropy_post=entropy_post.mean(),
                            )
+
+            acc_map = self._map_model.accuracy(*map_out, map, map_coord)    # (N,B)
+            if acc_map is not None:
+                log_tensors.update(acc_map=acc_map)
+                metrics.update(acc_map=torch.nansum(acc_map) / (~torch.isnan(acc_map)).sum())  # = acc_map.nanmean())
 
         return loss, metrics, log_tensors
 
