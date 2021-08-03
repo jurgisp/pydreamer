@@ -166,49 +166,28 @@ class WorldModel(nn.Module):
 
         # Map
 
-        map = map.unsqueeze(2).expand(N, B, I, *map.shape[2:])
-        loss_map = self._map_model.loss(*map_out, map)    # type: ignore
-        # metrics_map = {k.replace('loss_', 'loss_map_'): v for k, v in metrics_map.items()}  # loss_kl => loss_map_kl
+        map = map.unsqueeze(2).expand(N, B, I, *map.shape[2:])  # TODO: include in map_out. or even merge forward+loss => train_step
+        loss_map, metrics_map = self._map_model.loss(*map_out, map, map_coord)    # type: ignore
 
-        # IWAE averaging
+        # Total loss
 
-        # loss = log (p1 + p2)/2
-        #      = log (exp(l1) + exp(l2)) / 2
-        #      = log (exp(l1) + exp(l2)) - log 2
-        # d loss = ( exp(l1) d l1 + exp(l2) d l2 ) / (exp(l1)+exp(l2))
-        # d loss / d w = exp(l1)/(exp(l1)+exp(l2)) dl1/dw + ...
+        loss_model = -logavgexp(-(loss_kl + self._image_weight * loss_image), dim=-1)
+        loss_map = -logavgexp(-loss_map, dim=-1)
+        loss = loss_model.mean() + self._map_weight * loss_map.mean()
 
-        # How is loss calculated, vs logprob, why are they different?
-        #
-        # loss  = logavgexp_i ( log p_{i}
-        #       = logavgexp_i ( sum_x ( log p_{ix}
-        #       = logavgexp_i ( sum_x ( delta_{c=O(x)} ( log p_{ixc}
-        #       = logavgexp_i ( sum_x ( delta_{c=O(x)} ( log softmax_c(y_{ixc})
-        #       = logavgexp_i ( sum_x ( delta_{c=O(x)} ( y_{ixc} - logsumexp_c(y_{ixc})
-        #
-        # logprob (old incorrect way)
-        #         = sum_x ( log p_{x}
-        #         = sum_x ( delta_{c=O(x)} ( log p_{xc}
-        #         = sum_x ( delta_{c=O(x)} ( logavgexp_i ( log p_{ixc}
-        #         = sum_x ( delta_{c=O(x)} ( logavgexp_i ( y_{ixc} - logsumexp_c(y_{ixc})
-        #
+        # IWAE according to paper
 
-        # with torch.no_grad():  # This stop gradient is important for correctness
-        #     weights = F.softmax(-(loss_image + loss_kl), dim=-1)    # should we apply image_weight here?
+        # with torch.no_grad():
+        #     weights = F.softmax(-(loss_image + loss_kl), dim=-1)
         #     weights_map = F.softmax(-loss_map, dim=-1)
-        # dloss_image = (weights * loss_image).sum(dim=-1)  # (N,B,I) => (N,B)
+        # dloss_image = (weights * loss_image).sum(dim=-1)
         # dloss_kl = (weights * loss_kl).sum(dim=-1)
         # dloss_map = (weights_map * loss_map).sum(dim=-1)
-
         # dloss = (self._image_weight * dloss_image.mean()
         #          + dloss_kl.mean()
         #          + self._map_weight * dloss_map.mean())
 
         # Metrics
-
-        loss_model = -logavgexp(-(loss_kl + self._image_weight * loss_image), dim=-1)
-        loss_map = -logavgexp(-loss_map, dim=-1)
-        loss = loss_model.mean() + self._map_weight * loss_map.mean()
 
         with torch.no_grad():
             loss_image = -logavgexp(-loss_image, dim=-1)
@@ -223,10 +202,6 @@ class WorldModel(nn.Module):
                                entropy_post=entropy_post,
                                )
 
-            if logprob_img is not None:
-                logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
-                log_tensors.update(logprob_img=logprob_img)
-
             metrics = dict(loss=loss.detach(),
                            loss_model=loss_model.mean(),
                            loss_model_image=loss_image.mean(),
@@ -238,10 +213,11 @@ class WorldModel(nn.Module):
                            entropy_post=entropy_post.mean(),
                            )
 
-            acc_map = self._map_model.accuracy(*map_out, map, map_coord)    # type: ignore
-            if acc_map is not None:
-                log_tensors.update(acc_map=acc_map)
-                metrics.update(acc_map=torch.nansum(acc_map) / (~torch.isnan(acc_map)).sum())  # = acc_map.nanmean())
+            if logprob_img is not None:
+                logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
+                log_tensors.update(logprob_img=logprob_img)
+
+            metrics.update(**metrics_map)
 
         return loss, metrics, log_tensors
 

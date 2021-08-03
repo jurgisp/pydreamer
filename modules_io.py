@@ -72,7 +72,9 @@ class ConvDecoder(nn.Module):
         output = torch.mean(output, dim=-4)  # (*,I,C,H,W) => (*,C,H,W)
         target = target.select(-4, 0)  # int(*,I,H,W) => int(*,H,W)
         acc = envs.worldgrid_map_accuracy(output, target, map_coord[:, 0:2], map_coord[:, 2:4])  # TODO: env-specific
-        return unflatten_batch(acc, bd)
+        acc = unflatten_batch(acc, bd)
+        acc = torch.nansum(acc) / (~torch.isnan(acc)).sum()  # mean
+        return acc
 
     def to_distr(self, output: Tensor) -> D.Distribution:
         assert len(output.shape) == 6  # (N,B,I,C,H,W)
@@ -170,7 +172,9 @@ class DenseDecoder(nn.Module):
 
         acc = output.argmax(dim=-3) == target
         acc = acc.to(torch.float).mean(dim=[-1, -2])
-        return unflatten_batch(acc, bd)
+        acc = unflatten_batch(acc, bd)
+        acc = acc.mean()
+        return acc
 
     def to_distr(self, output: Tensor) -> D.Distribution:
         assert len(output.shape) == 6
@@ -214,22 +218,20 @@ class VAEHead(nn.Module):
 
     def loss(self,
              obs_rec, prior, post, obs_pred, # forward() output
-             obs_target,                     # tensor(*, C, H, W)
+             obs_target, map_coord,
              ):
         loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
         loss_rec = self._decoder.loss(obs_rec, obs_target)
         assert loss_kl.shape == loss_rec.shape
-        loss = loss_kl + loss_rec
-        return loss  # (N, B, I)
+        loss = loss_kl + loss_rec  # (N, B, I)
 
-    def accuracy(self,
-                 obs_rec, prior, post, obs_pred,  # forward() output
-                 obs_target, map_coord,
-                 ):
-        if obs_pred is not None:
-            return self._decoder.accuracy(obs_pred, obs_target, map_coord)
-        else:
-            return None
+        metrics = {}
+        with torch.no_grad():
+            if obs_pred is not None:
+                acc_map = self._decoder.accuracy(obs_pred, obs_target, map_coord)
+                metrics.update(acc_map=acc_map)
+            
+        return loss, metrics
         
     def to_distr(self, obs_rec, prior, post, obs_pred):
         if obs_pred is not None:
@@ -248,11 +250,15 @@ class DirectHead(nn.Module):
         obs_pred = self._decoder.forward(state)
         return (obs_pred, )
 
-    def loss(self, obs_pred, obs_target):
-        return self._decoder.loss(obs_pred, obs_target)
+    def loss(self, obs_pred, obs_target, map_coord):
+        loss = self._decoder.loss(obs_pred, obs_target)  # (N,B,I)
 
-    def accuracy(self, obs_pred, obs_target, map_coord):
-        return self._decoder.accuracy(obs_pred, obs_target, map_coord)
+        metrics = {}
+        with torch.no_grad():
+            acc_map = self._decoder.accuracy(obs_pred, obs_target, map_coord)
+            metrics.update(acc_map=acc_map)
+
+        return loss, metrics
 
     def to_distr(self, obs_pred):
         return self._decoder.to_distr(obs_pred)
