@@ -217,22 +217,33 @@ class VAEHead(nn.Module):
         return obs_rec, prior, post, obs_pred
 
     def loss(self,
-             obs_rec, prior, post, obs_pred, # forward() output
+             obs_rec, prior, post, obs_pred,  # forward() output
              obs_target, map_coord,
              ):
-        loss_kl = D.kl.kl_divergence(diag_normal(post), diag_normal(prior))
+        prior_d = diag_normal(prior)
+        post_d = diag_normal(post)
+        loss_kl = D.kl.kl_divergence(post_d, prior_d)
         loss_rec = self._decoder.loss(obs_rec, obs_target)
         assert loss_kl.shape == loss_rec.shape
         loss = loss_kl + loss_rec  # (N, B, I)
 
         metrics = {}
         with torch.no_grad():
+            loss_rec = -logavgexp(-loss_rec, dim=-1)
+            loss_kl = -logavgexp(-loss_kl, dim=-1)
+            entropy_prior = prior_d.entropy().mean(dim=-1)
+            entropy_post = post_d.entropy().mean(dim=-1)
+            metrics.update(loss_map_rec=loss_rec.mean(),
+                           loss_map_kl=loss_kl.mean(),
+                           entropy_map_prior=entropy_prior.mean(),
+                           entropy_map_post=entropy_post.mean(),
+                           )
             if obs_pred is not None:
                 acc_map = self._decoder.accuracy(obs_pred, obs_target, map_coord)
                 metrics.update(acc_map=acc_map)
-            
+
         return loss, metrics
-        
+
     def to_distr(self, obs_rec, prior, post, obs_pred):
         if obs_pred is not None:
             return self._decoder.to_distr(obs_pred)
