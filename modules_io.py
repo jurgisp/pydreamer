@@ -35,14 +35,31 @@ class ConvEncoder(nn.Module):
 
 class ConvDecoder(nn.Module):
 
-    def __init__(self, in_dim, out_channels=3, activation=nn.ELU):
+    def __init__(self, in_dim, out_channels=3, mlp_layers=0, activation=nn.ELU):
         super().__init__()
         self.in_dim = in_dim
         kernels = (5, 5, 6, 6)
         stride = 2
+        if mlp_layers == 0:
+            layers = [
+                nn.Linear(in_dim, 1024),  # No activation here in DreamerV2
+            ]
+        else:
+            hidden_dim = 1024
+            layers = [
+                nn.Linear(in_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
+                activation()
+            ]
+            for _ in range(mlp_layers - 1):
+                layers += [
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.LayerNorm(hidden_dim),
+                    activation()]
+
         self._model = nn.Sequential(
             # FC
-            nn.Linear(in_dim, 1024),  # No activation here in DreamerV2
+            *layers,
             nn.Unflatten(-1, (1024, 1, 1)),  # type: ignore
             # Deconv
             nn.ConvTranspose2d(1024, 128, kernels[0], stride),

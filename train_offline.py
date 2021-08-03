@@ -77,6 +77,7 @@ def run(conf):
                 encoder=ConvEncoder(in_channels=conf.map_channels,
                                     out_dim=conf.embed_dim),
                 decoder=ConvDecoder(in_dim=state_dim + n_map_coords + conf.map_stoch_dim,
+                                    mlp_layers=2,
                                     out_channels=conf.map_channels),
                 state_dim=state_dim + n_map_coords,
                 latent_dim=conf.map_stoch_dim,
@@ -98,6 +99,7 @@ def run(conf):
         if conf.map_decoder == 'cnn':
             map_model = DirectHead(
                 decoder=ConvDecoder(in_dim=state_dim + n_map_coords,
+                                    mlp_layers=2,
                                     out_channels=conf.map_channels))  # type: ignore
 
         else:
