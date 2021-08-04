@@ -61,6 +61,7 @@ def main(output_dir,
     steps, episodes = 0, 0
     datas = []
     visited_stats = []
+    first_save = True
 
     while steps < conf.num_steps:
 
@@ -87,7 +88,7 @@ def main(output_dir,
 
         fps = epsteps / (time.time() - timer + 1e-6)
         if episodes == 0:
-            print('Data sample: ', {k: v.shape for k, v in data.items()})
+            print('Episode data sample: ', {k: v.shape for k, v in data.items()})
 
         print(f"[{steps:08}/{conf.num_steps:08}] "
               f"Episode {episodes} recorded:"
@@ -101,16 +102,17 @@ def main(output_dir,
 
         episodes += 1
         datas.append(data)
+        datas_episodes = len(datas)
+        datas_steps = sum(len(d['reset']) for d in datas)
 
-        if len(datas) == conf.episodes_per_npz:
+        if datas_steps >= conf.steps_per_npz:
 
-            # Concatenate 10 episodes
+            # Concatenate episodes
 
             data = {}
             for key in datas[0]:
                 data[key] = np.concatenate([b[key] for b in datas], axis=0)
             datas = []
-            assert data['reset'].sum() == conf.episodes_per_npz
 
             # NHWC => HWCN for better compression
 
@@ -119,14 +121,14 @@ def main(output_dir,
 
             # Save to npz
 
-            if episodes == conf.episodes_per_npz:
-                print('Data sample: ', {k: v.shape for k, v in data.items()})
+            if first_save:
+                print('Saved data sample: ', {k: v.shape for k, v in data.items()})
+                first_save = False
 
-            n = data['reset'].shape[0] - 1
-            if conf.episodes_per_npz > 1:
-                fname = f's{conf.seed}-ep{episodes-conf.episodes_per_npz:06}_{episodes-1:06}-{n:04}.npz'
+            if datas_episodes > 1:
+                fname = f's{conf.seed}-ep{episodes-datas_episodes:06}_{episodes-1:06}-{datas_steps:04}.npz'
             else:
-                fname = f's{conf.seed}-ep{episodes-1:06}-{n:04}.npz'
+                fname = f's{conf.seed}-ep{episodes-1:06}-{datas_steps:04}.npz'
 
             if conf.save_to_mlflow:
                 mlflow_log_npz(data, fname, 'episodes', verbose=True)
@@ -452,7 +454,7 @@ if __name__ == '__main__':
     parser.add_argument('--sleep', type=int, default=0)
     parser.add_argument('--save_to_mlflow', action='store_true')
     parser.add_argument('--max_steps', type=int, default=500)
-    parser.add_argument('--episodes_per_npz', type=int, default=1)
+    parser.add_argument('--steps_per_npz', type=int, default=2000)
     args = parser.parse_args()
 
     output_dir = args.output_dir or f"data/{args.env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}"
