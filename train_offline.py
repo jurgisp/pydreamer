@@ -176,13 +176,11 @@ def run(conf):
     metrics = defaultdict(list)
     metrics_max = defaultdict(list)
 
-    timer_total = Timer('total', conf.verbose)
-    timer_data = Timer('data', conf.verbose)
-    timer_forward = Timer('forward', conf.verbose)
-    timer_loss = Timer('loss', conf.verbose)
-    timer_backward = Timer('backward', conf.verbose)
-    timer_gradstep = Timer('gradstep', conf.verbose)
-    timer_other = Timer('other', conf.verbose)
+    timers = {}
+    def timer(name):
+        if name not in timers:
+            timers[name] = Timer('total', False)
+        return timers[name]
 
     states = {}  # by worker
     data_iter = iter(DataLoader(WorkerInfoPreprocess(preprocess(data)),
@@ -195,12 +193,12 @@ def run(conf):
 
     with get_profiler(conf) as profiler:
         while True:
-            with timer_total:
+            with timer('total'):
                 profiler.step()
 
                 # Make batch
 
-                with timer_data:
+                with timer('data'):
 
                     batch, wid = next(data_iter)
                     image = batch['image'].to(device)
@@ -211,7 +209,7 @@ def run(conf):
 
                 # Predict
 
-                with timer_forward:
+                with timer('forward'):
                     with autocast(enabled=conf.amp):
 
                         state = states.get(wid) or model.init_state(image.size(1) * conf.iwae_samples)
@@ -221,21 +219,21 @@ def run(conf):
 
                 # Loss
 
-                with timer_loss:
+                with timer('loss'):
                     with autocast(enabled=conf.amp):
 
                         loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset, map_coord)
 
                 # Backward
 
-                with timer_backward:
+                with timer('backward'):
 
                     optimizer.zero_grad()
                     scaler.scale(loss).backward()  # loss.backward()
 
                 # Grad step
 
-                with timer_gradstep:  # CUDA wait happens here
+                with timer('gradstep'):  # CUDA wait happens here
 
                     scaler.unscale_(optimizer)
                     grad_norm_model = nn.utils.clip_grad_norm_(model.parameters_model(), conf.grad_clip)
@@ -244,7 +242,7 @@ def run(conf):
                     scaler.step(optimizer)
                     scaler.update()
 
-                with timer_other:
+                with timer('other'):
 
                     # Metrics
 
@@ -312,15 +310,18 @@ def run(conf):
                         eval_iter_full = iter(DataLoader(preprocess(data_eval_full), batch_size=None))
                         evaluate('eval_full', steps, model, eval_iter_full, device, conf.full_eval_batches, conf.full_eval_samples, True, conf)
 
+            for k, v in timers.items():
+                metrics[f'timer_{k}'].append(v.dt_ms)
+
             if conf.verbose:
                 print(f"[{steps:06}] timers"
-                      f"  TOTAL: {timer_total.dt_ms:>4}"
-                      f"  data: {timer_data.dt_ms:>4}"
-                      f"  forward: {timer_forward.dt_ms:>4}"
-                      f"  loss: {timer_loss.dt_ms:>4}"
-                      f"  backward: {timer_backward.dt_ms:>4}"
-                      f"  gradstep: {timer_gradstep.dt_ms:>4}"
-                      f"  other: {timer_other.dt_ms:>4}"
+                      f"  TOTAL: {timer('total').dt_ms:>4}"
+                      f"  data: {timer('data').dt_ms:>4}"
+                      f"  forward: {timer('forward').dt_ms:>4}"
+                      f"  loss: {timer('loss').dt_ms:>4}"
+                      f"  backward: {timer('backward').dt_ms:>4}"
+                      f"  gradstep: {timer('gradstep').dt_ms:>4}"
+                      f"  other: {timer('other').dt_ms:>4}"
                       )
 
 
