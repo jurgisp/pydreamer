@@ -256,7 +256,8 @@ def run(conf):
 
                     steps += 1
                     for k, v in loss_metrics.items():
-                        metrics[k].append(v.item())
+                        if not np.isnan(v.item()):
+                            metrics[k].append(v.item())
                     for k, v in grad_metrics.items():
                         if np.isfinite(v.item()):  # It's ok for grad norm to be inf, when using amp
                             metrics[k].append(v.item())
@@ -348,7 +349,7 @@ def evaluate(prefix: str,
     state = None
     loss_tensors = None
     npz_datas = []
-    n_episodes = 0
+    n_finished_episodes = 0
 
     for i_batch in range(eval_batches):
         with torch.no_grad():
@@ -366,34 +367,28 @@ def evaluate(prefix: str,
             if i_batch == 0:
                 print(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
 
-            if state is not None:  # Non-first batch
+            reset_episodes = reset.any(dim=0)  # (B,)
+            n_reset_episodes = reset_episodes.sum().item()
+            if i_batch > 0:
+                n_finished_episodes += n_reset_episodes
 
-                reset_episodes = reset.any(dim=0)  # (B,)
-                n_reset_episodes = reset_episodes.sum().item()
-                n_episodes += n_reset_episodes
+            # Log _last predictions from the last batch of previous episode
 
-                # Log _last predictions from the last batch of previous episode
+            if n_reset_episodes > 0 and loss_tensors is not None:
+                logprob_map_last = (loss_tensors['loss_map'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
+                metrics_eval['logprob_map_last'].append(logprob_map_last.item())
 
-                if n_reset_episodes > 0 and loss_tensors is not None:
-                    logprob_map_last = (loss_tensors['loss_map'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
-                    # acc_map_last = (loss_tensors['acc_map'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
-                    metrics_eval['logprob_map_last'].append(logprob_map_last.item())
-                    # metrics_eval['acc_map_last'].append(acc_map_last.item())
+            # Forward (prior) & unseen logprob
+
+            if n_reset_episodes == 0:
+                with autocast(enabled=conf.amp):
+                    output = model.forward(0 * image[:5], 0 * reward[:5], 0 * terminal[:5], action[:5], reset[:5], map[:5], map_coord[:5],
+                                            state, I=eval_samples, imagine=True, do_image_pred=True)
+                    _, _, loss_tensors = model.loss(*output, image[:5], reward[:5], terminal[:5], map[:5], reset[:5], map_coord[:5])  # type: ignore
                     if 'logprob_img' in loss_tensors:
-                        logprob_img_last = (loss_tensors['logprob_img'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
-                        metrics_eval['logprob_img_last'].append(logprob_img_last.item())
-
-                # Forward (prior) & unseen logprob
-
-                if n_reset_episodes == 0:
-                    with autocast(enabled=conf.amp):
-                        output = model.forward(0 * image[:5], 0 * reward[:5], 0 * terminal[:5], action[:5], reset[:5], map[:5], map_coord[:5],
-                                               state, I=eval_samples, imagine=True, do_image_pred=True)
-                        _, _, loss_tensors = model.loss(*output, image[:5], reward[:5], terminal[:5], map[:5], reset[:5], map_coord[:5])  # type: ignore
-                        if 'logprob_img' in loss_tensors:
-                            metrics_eval['logprob_img_1step'].append(loss_tensors['logprob_img'][0].mean().item())
-                            metrics_eval['logprob_img_2step'].append(loss_tensors['logprob_img'][1].mean().item())
-                        # image_pred, image_rec, map_rec = model.predict(*output)  # TODO: log 5-step prediction sequence
+                        metrics_eval['logprob_img_1step'].append(loss_tensors['logprob_img'][0].mean().item())
+                        metrics_eval['logprob_img_2step'].append(loss_tensors['logprob_img'][1].mean().item())
+                    # image_pred, image_rec, map_rec = model.predict(*output)  # TODO: log 5-step prediction sequence
 
             # Forward (posterior) & loss
 
@@ -403,15 +398,13 @@ def evaluate(prefix: str,
                 output = model.forward(image, reward, terminal, action, reset, map, map_coord, state, I=eval_samples, do_image_pred=True)
                 state = output[-1]
                 _, loss_metrics, loss_tensors = model.loss(*output, image, reward, terminal, map, reset, map_coord)  # type: ignore
-
-            metrics_eval['logprob_map'].append(loss_tensors['loss_map'].mean().item())  # Backwards-compat, same as loss_map
-            metrics_eval['logprob_img'].append(loss_tensors.get('logprob_img', tensor(0.0)).mean().item())
-            for k, v in loss_metrics.items():
-                metrics_eval[k].append(v.item())
+                for k, v in loss_metrics.items():
+                    if not np.isnan(v.item()):
+                        metrics_eval[k].append(v.item())
 
             # Log one episode batch
 
-            if n_episodes < B:  # until all episodes finish
+            if n_finished_episodes < B:  # until all episodes finish
                 image_pred, image_rec, map_rec = model.predict(*output)
                 npz_datas.append(prepare_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, take_b=1))
 
@@ -421,7 +414,7 @@ def evaluate(prefix: str,
     npz_data = {k: np.concatenate([d[k] for d in npz_datas], 1) for k in npz_datas[0]}
     tools.mlflow_log_npz(npz_data, f'{steps:07}.npz', subdir=f'd2_wm_predict_{prefix}', verbose=True)
 
-    print(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_episodes} episodes')
+    print(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_finished_episodes} episodes')
 
 
 def log_batch_npz(batch,

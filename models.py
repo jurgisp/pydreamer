@@ -255,14 +255,36 @@ class WorldModel(nn.Module):
                            loss_map=loss_map.mean(),
                            entropy_prior=entropy_prior.mean(),
                            entropy_post=entropy_post.mean(),
+                           **metrics_map
                            )
+
+            # Predictions from prior
 
             if image_pred is not None:
                 logprob_img = self._decoder_image.loss(image_pred, image)
                 logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
                 log_tensors.update(logprob_img=logprob_img)
+                metrics.update(logprob_img=logprob_img.mean())
 
-            metrics.update(**metrics_map)
+            if reward_pred is not None:
+                logprob_reward = self._decoder_reward.loss(reward_pred, reward)
+                logprob_reward = -logavgexp(-logprob_reward, dim=-1)
+                log_tensors.update(logprob_reward=logprob_reward)
+                metrics.update(logprob_reward=logprob_reward.mean())
+
+                reward_1 = (reward.select(-1, 0) == 1)  # mask where reward is 1
+                logprob_reward_1 = (logprob_reward * reward_1).sum() / reward_1.sum()
+                metrics.update(logprob_reward_1=logprob_reward_1)
+
+            if terminal_pred is not None:
+                logprob_terminal = self._decoder_terminal.loss(terminal_pred, terminal)
+                logprob_terminal = -logavgexp(-logprob_terminal, dim=-1)
+                log_tensors.update(logprob_terminal=logprob_terminal)
+                metrics.update(logprob_terminal=logprob_terminal.mean())
+
+                terminal_1 = (terminal.select(-1, 0) == 1)  # mask where terminal is 1
+                logprob_terminal_1 = (logprob_terminal * terminal_1).sum() / terminal_1.sum()
+                metrics.update(logprob_terminal_1=logprob_terminal_1)
 
         return loss, metrics, log_tensors
 
