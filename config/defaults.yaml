@@ -8,7 +8,7 @@ defaults:
   log_interval: 500
   save_interval: 5000
   eval_interval: 5000
-  data_workers: 4  # Need 2 for performance, but more is better - more variety between batches
+  data_workers: 6  # need 6 to not bottleneck on unzipping npz, 4 is not enough
   enable_profiler: True
   verbose: False
 

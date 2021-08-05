@@ -63,7 +63,7 @@ spec:
               nvidia.com/gpu: 1
             requests:
               memory: 4000Mi
-              cpu: 6000m
+              cpu: 12000m
               nvidia.com/gpu: 1
           securityContext:
             capabilities:
