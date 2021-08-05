@@ -4,6 +4,41 @@ conda activate pydreamer
 
 gsutil -m rm -r gs://humanui-mlflow-west4/artifacts/29/*
 
+## Generate MiniWorld-MazeS5A4S-dijkstra
+
+for i in {0..19}; do
+    echo $i
+    ./kubernetes/run_generator_xvfb.sh dreamer2_episodes MiniWorld-MazeS5A4S-v0 maze_dijkstra 1500 5_000_000 $i
+done					
+
+cat << EOF > scripts/_tmp_copy.sh
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/343051f92785426a90c37e2908f5dba0/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/eval  # 10% for eval
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/92fc5ac6dd2642d395b8b3cdf34feb2d/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/eval  # 10% for eval
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/59908cc1ead44635b97eaaab54947b0e/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/0a9146d3b2904411904634c43434db62/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/2fe2b760adae44b287ab1e407e57a037/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/4c41d14209ff49aeb9d20c8ca0420c58/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/7a450ba170e44ede9c0e23e5437bc261/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/aeb0badbc1f34aa9a507c2c6fe78ee6c/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/bcdcdbcfabeb446188f9cf809bedd88b/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/d588bb2966554db882463cd82a889720/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/b0e4e5acf28a4f8daecea8bf58385f4f/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/4335ef144797427689c7bb9344dcd3ee/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/d3a9c12f05a346cbb0319c66e765be6e/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/05d37cc9a2194718b82b47945b123f15/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/f5dd3a4bc34f4cafb6cfa2bfee634b7e/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/6654af93ab80421fb71f6a8d5073581f/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/2fadee9381704b92a2e1c099119f7730/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/038e5b299b3746e9a28da3d4983906de/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+gsutil -m mv -r gs://humanui-mlflow-west4/artifacts/29/e9e3456d9ba54273858e64c747dccd55/artifacts/episodes/* gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train
+EOF
+scripts/_tmp_copy.sh
+
+
+gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/eval | wc -l
+gsutil ls gs://humanui-mlflow-episodes/MiniWorld-MazeS5A4S-dijkstra/train | wc -l
+
+
 ## Generate MiniWorld-MazeS5NS-dijkstra-pixmap
 
 for i in {0..19}; do
