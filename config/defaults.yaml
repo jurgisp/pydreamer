@@ -44,7 +44,7 @@ defaults:
   model: world
   embed_dim: 1024
   embed_rnn: none
-  deter_dim: 1024
+  deter_dim: 2048
   stoch_dim: 32
   hidden_dim: 256
   gru_layers: 1
