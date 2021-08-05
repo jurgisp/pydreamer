@@ -133,6 +133,7 @@ class DenseDecoder(nn.Module):
     def __init__(self, in_dim, out_shape=(33, 7, 7), activation=nn.ELU, hidden_dim=400, hidden_layers=2, min_prob=0):
         super().__init__()
         self.in_dim = in_dim
+        self.out_shape = out_shape
         layers = []
         layers += [
             nn.Linear(in_dim, hidden_dim),
@@ -161,8 +162,9 @@ class DenseDecoder(nn.Module):
              ):
         if output.shape == target.shape:
             target = target.argmax(dim=-3)  # float(*,C,H,W) => int(*,H,W)
-        output, bd = flatten_batch(output, 3)
-        target, _ = flatten_batch(target, 2)
+        assert target.dtype == torch.int64, 'Target should be categorical'
+        output, bd = flatten_batch(output, len(self.out_shape))     # (*,C,H,W) => (B,C,H,W)
+        target, _ = flatten_batch(target, len(self.out_shape) - 1)  # (*,H,W) => (B,H,W)
 
         if self._min_prob == 0:
             loss = F.nll_loss(F.log_softmax(output, 1), target, reduction='none')  # = F.cross_entropy()
@@ -171,7 +173,9 @@ class DenseDecoder(nn.Module):
             prob = (1.0 - self._min_prob) * prob + self._min_prob * (1.0 / prob.size(1))  # mix with uniform prob
             loss = F.nll_loss(prob.log(), target, reduction='none')
 
-        loss = loss.sum(dim=[-1, -2])  # (*,H,W) => (*)
+        if len(self.out_shape) == 3:
+            loss = loss.sum(dim=[-1, -2])  # (*,H,W) => (*)
+        assert len(loss.shape) == 1
         return unflatten_batch(loss, bd)
 
     def accuracy(self,

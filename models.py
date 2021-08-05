@@ -14,7 +14,13 @@ from modules_io import *
 
 class WorldModel(nn.Module):
 
-    def __init__(self, encoder, decoder, map_model, mem_model,
+    def __init__(self,
+                 encoder,
+                 decoder_image,
+                 decoder_reward,
+                 decoder_terminal,
+                 map_model,
+                 mem_model,
                  action_dim=7,
                  deter_dim=200,
                  stoch_dim=30,
@@ -29,7 +35,9 @@ class WorldModel(nn.Module):
                  ):
         super().__init__()
         self._encoder: DenseEncoder = encoder
-        self._decoder_image: DenseDecoder = decoder
+        self._decoder_image: ConvDecoder = decoder_image
+        self._decoder_reward: DenseDecoder = decoder_reward
+        self._decoder_terminal: DenseDecoder = decoder_terminal
         self._map_model: DirectHead = map_model
         self._mem_model = mem_model
         self._deter_dim = deter_dim
@@ -69,6 +77,8 @@ class WorldModel(nn.Module):
 
     def forward(self,
                 image: Tensor,     # tensor(N, B, C, H, W)
+                reward: Tensor,
+                terminal: Tensor,
                 action: Tensor,    # tensor(N, B, A)
                 reset: Tensor,     # tensor(N, B)
                 map: Tensor,
@@ -83,19 +93,42 @@ class WorldModel(nn.Module):
         noises = torch.normal(torch.zeros((n, b, I, self._stoch_dim)),
                               torch.ones((n, b, I, self._stoch_dim))).to(image.device)  # Belongs to RSSM but need to do here for perf
 
-        embed = self._encoder.forward(image)  # (N,B,E)
+        # Encoder
 
+        # WIP: input reward, terminal
+
+        embed = self._encoder.forward(image)  # (N,B,E)
         if self._input_rnn:
-            # TODO: should apply reset
             embed_rnn, _ = self._input_rnn.forward(embed, action)  # (N,B,2E)
             embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E)
+
+        # Memory
 
         # mem_out, mem_sample, mem_state = (None,), None, None
         # mem_out = self._mem_model(embed, action, reset, in_mem_state)
         # mem_sample, mem_state = mem_out[0], mem_out[-1]
 
+        # RSSM
+
         prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, None, noises, I=I, imagine=imagine)
+
+        # Decoder
+
         image_rec = self._decoder_image.forward(features)
+        reward_rec = self._decoder_reward.forward(features)
+        terminal_rec = self._decoder_terminal.forward(features)
+
+        # Predictions
+
+        image_pred, reward_pred, terminal_pred = None, None, None
+        if do_image_pred:
+            prior_samples = diag_normal(prior).sample()
+            features_prior = self._core.feature_replace_z(features, prior_samples)
+            image_pred = self._decoder_image(features_prior)
+            reward_pred = self._decoder_reward(features_prior)
+            terminal_pred = self._decoder_terminal(features_prior)
+
+        # Map
 
         map_coord = map_coord.unsqueeze(2).expand(n, b, I, -1)
         map = map.unsqueeze(2).expand(n, b, I, *map.shape[2:])
@@ -104,24 +137,22 @@ class WorldModel(nn.Module):
             map_features = map_features.detach()
         map_out = self._map_model.forward(map_features, map, do_image_pred=do_image_pred)
 
-        image_pred = None
-        if do_image_pred:
-            prior_samples = diag_normal(prior).sample()
-            features_prior = self._core.feature_replace_z(features, prior_samples)
-            image_pred = self._decoder_image(features_prior)
-
         return (
             prior,                       # (N,B,I,2S)
             post,                        # (N,B,I,2S)
             post_samples,                # (N,B,I,S)
             image_rec,                   # (N,B,I,C,H,W)
+            reward_rec,
+            terminal_rec,
             map_out,                     # (N,B,I,C,M,M)
             image_pred,                  # Optional[(N,B,I,C,H,W)]
+            reward_pred,
+            terminal_pred,
             out_state,
         )
 
     def predict(self,
-                prior, post, post_samples, image_rec, map_out, image_pred, out_state,     # forward() output
+                prior, post, post_samples, image_rec, reward_rec, terminal_rec, map_out, image_pred, reward_pred, terminal_pred, out_state,     # forward() output
                 ):
         # Return distributions
         if image_pred is not None:
@@ -135,21 +166,24 @@ class WorldModel(nn.Module):
         )
 
     def loss(self,
-             prior, post, post_samples, image_rec, map_out, image_pred, out_state,     # forward() output
-             image,                                      # tensor(N, B, C, H, W)
+             prior, post, post_samples, image_rec, reward_rec, terminal_rec, map_out, image_pred, reward_pred, terminal_pred, out_state,     # forward() output
+             image, reward, terminal,
              map,                                        # tensor(N, B, MH, MW)
              reset,
              map_coord
              ):
         N, B, I = image_rec.shape[:3]
+        image = image.unsqueeze(2).expand(N, B, I, *image.shape[2:])
+        reward = reward.unsqueeze(2).expand(N, B, I, *reward.shape[2:])
+        terminal = terminal.unsqueeze(2).expand(N, B, I, *terminal.shape[2:])
 
-        # Image
+        # Reconstruction
 
-        image = image.unsqueeze(2).expand(image_rec.shape)
         loss_image = self._decoder_image.loss(image_rec, image)  # (N,B,I)
-        logprob_img = None
-        if image_pred is not None:
-            logprob_img = self._decoder_image.loss(image_pred, image)
+        loss_reward = self._decoder_reward.loss(reward_rec, reward)  # (N,B,I)
+        loss_terminal = self._decoder_terminal.loss(terminal_rec, terminal)  # (N,B,I)
+
+        # WIP: loss_reward, loss_terminal
 
         # KL
 
@@ -171,7 +205,13 @@ class WorldModel(nn.Module):
 
         # Total loss
 
-        loss_model = -logavgexp(-(loss_kl + self._image_weight * loss_image), dim=-1)
+        assert loss_kl.shape == loss_image.shape == loss_reward.shape == loss_terminal.shape
+        loss_model = -logavgexp(-(
+            loss_kl
+            + self._image_weight * loss_image
+            + loss_reward
+            + loss_terminal
+        ), dim=-1)
         loss_map = -logavgexp(-loss_map, dim=-1)
         loss = loss_model.mean() + self._map_weight * loss_map.mean()
 
@@ -191,6 +231,8 @@ class WorldModel(nn.Module):
 
         with torch.no_grad():
             loss_image = -logavgexp(-loss_image, dim=-1)
+            loss_reward = -logavgexp(-loss_reward, dim=-1)
+            loss_terminal = -logavgexp(-loss_terminal, dim=-1)
             loss_kl = -logavgexp(-loss_kl_metric, dim=-1)
             entropy_prior = prior_d.entropy().mean(dim=-1)
             entropy_post = post_d.entropy().mean(dim=-1)
@@ -206,6 +248,8 @@ class WorldModel(nn.Module):
                            loss_model=loss_model.mean(),
                            loss_model_image=loss_image.mean(),
                            loss_model_image_max=loss_image.max(),
+                           loss_model_reward=loss_reward.mean(),
+                           loss_model_terminal=loss_terminal.mean(),
                            loss_model_kl=loss_kl.mean(),
                            loss_model_kl_max=loss_kl.max(),
                            loss_map=loss_map.mean(),
@@ -213,7 +257,8 @@ class WorldModel(nn.Module):
                            entropy_post=entropy_post.mean(),
                            )
 
-            if logprob_img is not None:
+            if image_pred is not None:
+                logprob_img = self._decoder_image.loss(image_pred, image)
                 logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
                 log_tensors.update(logprob_img=logprob_img)
 

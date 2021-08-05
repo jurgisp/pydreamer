@@ -65,45 +65,48 @@ class MinigridPreprocess:
         return TransformedDataset(dataset, self.apply)
 
     def apply(self, batch: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
-        # Input:
-        #   batch['image']:     np.array(N, B, 7, 7)
-        #   batch['action']:    np.array(N, B, 7)
-        #   batch['reset']:     np.array(N, B)
-        # Output:
-        #   image:  torch.tensor(N, B, 33, 7, 7)
-        #   action: torch.tensor(N, B, 7)
-        #   reset:  torch.tensor(N, B)
-        #   map:    torch.tensor(N, B, 7, 7)
-
         if self._first:
             print('Data batch: ', {k: v.shape for k, v in batch.items()})
             self._first = False
 
-        batch['image'] = batch[self._image_key]  # Use something else (e.g. map_masked) as image
-        batch['map'] = batch[self._map_key]
+        # image
 
+        batch['image'] = batch[self._image_key]  # Use something else (e.g. map_masked) as image
         if self._image_categorical:
             batch['image'] = to_onehot(batch['image'], self._image_categorical)
         else:
             batch['image'] = to_image(batch['image'])
 
+        # map
+
+        batch['map'] = batch[self._map_key]
         if self._map_categorical:
             batch['map'] = to_onehot(batch['map'], self._map_categorical)
         else:
             batch['map'] = to_image(batch['map'])
 
+        # action
+
         assert len(batch['action'].shape) == 3  # should be already one-hot
-        batch['action'] = batch['action'].astype(np.float32) 
+        batch['action'] = batch['action'].astype(np.float32)
+
+        # reward, terminal
+
+        batch['reward'] = batch['reward'].astype(bool).astype(np.int64)  # assume reward 0 or 1
+        batch['terminal'] = batch['terminal'].astype(np.int64)
+
+        # map_coord
 
         if 'agent_pos' in batch and 'agent_dir' in batch:
             agent_pos = batch['agent_pos'] / 4.5 - 1.0  # TODO: make generic for any size
             agent_dir = batch['agent_dir']
             batch['map_coord'] = np.concatenate([agent_pos, agent_dir], axis=-1).astype(np.float32)
+
+        # => float16
             
         if self._amp:
             batch['image'] = batch['image'].astype(np.float16)
             batch['map'] = batch['map'].astype(np.float16)
             batch['action'] = batch['action'].astype(np.float16)
             batch['map_coord'] = batch['map_coord'].astype(np.float16)
-
         return batch

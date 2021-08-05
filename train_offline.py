@@ -60,13 +60,16 @@ def run(conf):
     # Decoder
 
     if conf.image_decoder == 'cnn':
-        decoder = ConvDecoder(in_dim=state_dim,
-                              out_channels=conf.image_channels)
+        decoder_image = ConvDecoder(in_dim=state_dim,
+                                    out_channels=conf.image_channels)
     else:
-        decoder = DenseDecoder(in_dim=state_dim,
-                               out_shape=(conf.image_channels, conf.image_size, conf.image_size),
-                               hidden_layers=conf.image_decoder_layers,
-                               min_prob=conf.image_decoder_min_prob)
+        decoder_image = DenseDecoder(in_dim=state_dim,
+                                     out_shape=(conf.image_channels, conf.image_size, conf.image_size),
+                                     hidden_layers=conf.image_decoder_layers,
+                                     min_prob=conf.image_decoder_min_prob)
+
+    decoder_reward = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.reward_decoder_layers)
+    decoder_terminal = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.terminal_decoder_layers)
 
     # Map decoder
 
@@ -128,7 +131,9 @@ def run(conf):
     if conf.model == 'world':
         model: WorldModel = WorldModel(
             encoder=encoder,
-            decoder=decoder,
+            decoder_image=decoder_image,
+            decoder_reward=decoder_reward,
+            decoder_terminal=decoder_terminal,
             map_model=map_model,
             mem_model=mem_model,
             action_dim=conf.action_dim,
@@ -177,6 +182,7 @@ def run(conf):
     metrics_max = defaultdict(list)
 
     timers = {}
+
     def timer(name):
         if name not in timers:
             timers[name] = Timer('total', False)
@@ -202,6 +208,8 @@ def run(conf):
 
                     batch, wid = next(data_iter)
                     image = batch['image'].to(device)
+                    reward = batch['reward'].to(device)
+                    terminal = batch['terminal'].to(device)
                     action = batch['action'].to(device)
                     reset = batch['reset'].to(device)
                     map = batch['map'].to(device)
@@ -213,7 +221,7 @@ def run(conf):
                     with autocast(enabled=conf.amp):
 
                         state = states.get(wid) or model.init_state(image.size(1) * conf.iwae_samples)
-                        output = model.forward(image, action, reset, map, map_coord, state, I=conf.iwae_samples)
+                        output = model.forward(image, reward, terminal, action, reset, map, map_coord, state, I=conf.iwae_samples)
                         if conf.keep_state:
                             states[wid] = output[-1]
 
@@ -222,7 +230,7 @@ def run(conf):
                 with timer('loss'):
                     with autocast(enabled=conf.amp):
 
-                        loss, loss_metrics, loss_tensors = model.loss(*output, image, map, reset, map_coord)
+                        loss, loss_metrics, loss_tensors = model.loss(*output, image, reward, terminal, map, reset, map_coord)
 
                 # Backward
 
@@ -347,6 +355,8 @@ def evaluate(prefix: str,
 
             batch = next(data_iterator)
             image = batch['image'].to(device)
+            reward = batch['reward'].to(device)
+            terminal = batch['terminal'].to(device)
             action = batch['action'].to(device)
             reset = batch['reset'].to(device)
             map = batch['map'].to(device)
@@ -377,8 +387,9 @@ def evaluate(prefix: str,
 
                 if n_reset_episodes == 0:
                     with autocast(enabled=conf.amp):
-                        output = model.forward(0 * image[:5], action[:5], reset[:5], map[:5], map_coord[:5], state, I=eval_samples, imagine=True, do_image_pred=True)
-                        _, _, loss_tensors = model.loss(*output, image[:5], map[:5], reset[:5], map_coord[:5])  # type: ignore
+                        output = model.forward(0 * image[:5], 0 * reward[:5], 0 * terminal[:5], action[:5], reset[:5], map[:5], map_coord[:5],
+                                               state, I=eval_samples, imagine=True, do_image_pred=True)
+                        _, _, loss_tensors = model.loss(*output, image[:5], reward[:5], terminal[:5], map[:5], reset[:5], map_coord[:5])  # type: ignore
                         if 'logprob_img' in loss_tensors:
                             metrics_eval['logprob_img_1step'].append(loss_tensors['logprob_img'][0].mean().item())
                             metrics_eval['logprob_img_2step'].append(loss_tensors['logprob_img'][1].mean().item())
@@ -389,9 +400,9 @@ def evaluate(prefix: str,
             with autocast(enabled=conf.amp):
                 if state is None or not keep_state:
                     state = model.init_state(image.size(1) * eval_samples)
-                output = model.forward(image, action, reset, map, map_coord, state, I=eval_samples, do_image_pred=True)
+                output = model.forward(image, reward, terminal, action, reset, map, map_coord, state, I=eval_samples, do_image_pred=True)
                 state = output[-1]
-                _, loss_metrics, loss_tensors = model.loss(*output, image, map, reset, map_coord)  # type: ignore
+                _, loss_metrics, loss_tensors = model.loss(*output, image, reward, terminal, map, reset, map_coord)  # type: ignore
 
             metrics_eval['logprob_map'].append(loss_tensors['loss_map'].mean().item())  # Backwards-compat, same as loss_map
             metrics_eval['logprob_img'].append(loss_tensors.get('logprob_img', tensor(0.0)).mean().item())

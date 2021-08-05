@@ -53,6 +53,8 @@ defaults:
   image_encoder_layers: 3
   image_decoder: dense
   image_decoder_layers: 2
+  reward_decoder_layers: 3
+  terminal_decoder_layers: 3
   map_stoch_dim: 64
   map_model: direct
   map_decoder: dense

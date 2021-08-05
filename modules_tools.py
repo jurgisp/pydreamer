@@ -20,9 +20,14 @@ def unflatten(x: Tensor, n: int) -> Tensor:
 
 def flatten_batch(x: Tensor, nonbatch_dims=1) -> Tuple[Tensor, Size]:
     # (b1,b2,..., X) => (B, X)
-    batch_dim = x.shape[:-nonbatch_dims]
-    x = torch.reshape(x, (-1,) + x.shape[-nonbatch_dims:])
-    return x, batch_dim
+    if nonbatch_dims > 0:
+        batch_dim = x.shape[:-nonbatch_dims]
+        x = torch.reshape(x, (-1,) + x.shape[-nonbatch_dims:])
+        return x, batch_dim
+    else:
+        batch_dim = x.shape
+        x = torch.reshape(x, (-1,))
+        return x, batch_dim
 
 
 def unflatten_batch(x: Tensor, batch_dim: Size) -> Tensor:
