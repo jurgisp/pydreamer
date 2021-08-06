@@ -53,17 +53,17 @@ class Dreamer(nn.Module):
         else:
             map_model = NoHead(out_shape=(conf.map_channels, conf.map_size, conf.map_size))
 
+        self.map_model: DirectHead = map_model  # type: ignore
+
         # World model
 
         self.wm = WorldModel(
             conf,
-            map_model=map_model,
             action_dim=conf.action_dim,
             deter_dim=conf.deter_dim,
             stoch_dim=conf.stoch_dim,
             hidden_dim=conf.hidden_dim,
             image_weight=conf.image_weight,
-            map_grad=conf.map_grad,
             embed_rnn=conf.embed_rnn != 'none',
             gru_layers=conf.gru_layers,
             gru_type=conf.gru_type
@@ -83,30 +83,54 @@ class Dreamer(nn.Module):
               do_image_pred=False,
               do_output_tensors=False
               ):
-        output = self.wm.forward(image, reward, terminal, action, reset, map, map_coord, in_state, I, imagine, do_image_pred)
+        N, B = image.shape[:2]
+
+        # Forward (world model)
+
+        output = self.wm.forward(image, reward, terminal, action, reset, in_state, I, imagine, do_image_pred)
+        features = output[0]
         out_state = output[-1]
-        loss, loss_metrics, loss_tensors = self.wm.loss(*output, image, reward, terminal, map, reset, map_coord)
+
+        # Forward (map)
+
+        map_coord = map_coord.unsqueeze(2).expand(N, B, I, -1)
+        map = map.unsqueeze(2).expand(N, B, I, *map.shape[2:])
+        map_features = torch.cat((features, map_coord), dim=-1)
+        map_features = map_features.detach()
+        map_out = self.map_model.forward(map_features, map, do_image_pred=do_image_pred)
+
+        # Loss
+
+        loss_model, metrics, loss_tensors = self.wm.loss(*output, image, reward, terminal, reset)
+
+        loss_map, metrics_map, loss_tensors_map = self.map_model.loss(*map_out, map, map_coord)    # type: ignore
+        metrics.update(**metrics_map)
+        loss_tensors.update(**loss_tensors_map)
+
+        loss = loss_model + 0.1 * loss_map  # 0.1 only matters if no stop gradient
+
+        # Predict
+
         if do_output_tensors:
             with torch.no_grad():
-                image_pred, image_rec, map_rec = self.wm.predict(*output)
+                image_pred, image_rec = self.wm.predict(*output)
+                map_rec = self.map_model.to_distr(*map_out)
                 out_tensors = (image_pred, image_rec, map_rec)
         else:
             out_tensors = None
-        return loss, loss_metrics, loss_tensors, out_state, out_tensors
+
+        return loss, metrics, loss_tensors, out_state, out_tensors
 
 
 class WorldModel(nn.Module):
 
     def __init__(self,
                  conf,
-                 map_model,
                  action_dim=7,
                  deter_dim=200,
                  stoch_dim=30,
                  hidden_dim=200,
                  image_weight=1.0,
-                 map_grad=False,
-                 map_weight=0.1,  # Only matters if map_grad
                  embed_rnn=False,
                  embed_rnn_dim=512,
                  gru_layers=1,
@@ -117,10 +141,7 @@ class WorldModel(nn.Module):
         self._stoch_dim = stoch_dim
         self._global_dim = 0
         self._image_weight = image_weight
-        self._map_grad = map_grad
-        self._map_weight = map_weight
         self._embed_rnn = embed_rnn
-        self._map_model: DirectHead = map_model
         self._mem_model = NoMemory()
 
         # Encoder
@@ -188,20 +209,12 @@ class WorldModel(nn.Module):
     def init_state(self, batch_size: int) -> Tuple[Any, Any]:
         return self._core.init_state(batch_size)
 
-    def parameters_model(self):
-        return chain(self._core.parameters(), self._encoder.parameters(), self._decoder_image.parameters())
-
-    def parameters_map(self):
-        return self._map_model.parameters()
-
     def forward(self,
                 image: Tensor,     # tensor(N, B, C, H, W)
                 reward: Tensor,
                 terminal: Tensor,
                 action: Tensor,    # tensor(N, B, A)
                 reset: Tensor,     # tensor(N, B)
-                map: Tensor,
-                map_coord: Tensor,       # tensor(N, B, 4)
                 in_state: Any,
                 I: int = 1,
                 imagine=False,     # If True, will imagine sequence, not using observations to form posterior
@@ -213,8 +226,6 @@ class WorldModel(nn.Module):
                               torch.ones((n, b, I, self._stoch_dim))).to(image.device)  # Belongs to RSSM but need to do here for perf
 
         # Encoder
-
-        # WIP: input reward, terminal
 
         embed = self._encoder.forward(image)  # (N,B,E)
         if self._input_rnn:
@@ -247,23 +258,14 @@ class WorldModel(nn.Module):
             reward_pred = self._decoder_reward(features_prior)
             terminal_pred = self._decoder_terminal(features_prior)
 
-        # Map
-
-        map_coord = map_coord.unsqueeze(2).expand(n, b, I, -1)
-        map = map.unsqueeze(2).expand(n, b, I, *map.shape[2:])
-        map_features = torch.cat((features, map_coord), dim=-1)
-        if not self._map_grad:
-            map_features = map_features.detach()
-        map_out = self._map_model.forward(map_features, map, do_image_pred=do_image_pred)
-
         return (
+            features,
             prior,                       # (N,B,I,2S)
             post,                        # (N,B,I,2S)
             post_samples,                # (N,B,I,S)
             image_rec,                   # (N,B,I,C,H,W)
             reward_rec,
             terminal_rec,
-            map_out,                     # (N,B,I,C,M,M)
             image_pred,                  # Optional[(N,B,I,C,H,W)]
             reward_pred,
             terminal_pred,
@@ -271,25 +273,20 @@ class WorldModel(nn.Module):
         )
 
     def predict(self,
-                prior, post, post_samples, image_rec, reward_rec, terminal_rec, map_out, image_pred, reward_pred, terminal_pred, out_state,     # forward() output
+                features, prior, post, post_samples, image_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, out_state,     # forward() output
                 ):
-        # Return distributions
         if image_pred is not None:
             image_pred = self._decoder_image.to_distr(image_pred)
         image_rec = self._decoder_image.to_distr(image_rec)
-        map_rec = self._map_model.to_distr(*map_out)
         return (
             image_pred,    # categorical(N,B,H,W,C)
             image_rec,     # categorical(N,B,H,W,C)
-            map_rec,       # categorical(N,B,HM,WM,C)
         )
 
     def loss(self,
-             prior, post, post_samples, image_rec, reward_rec, terminal_rec, map_out, image_pred, reward_pred, terminal_pred, out_state,     # forward() output
+             features, prior, post, post_samples, image_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, out_state,     # forward() output
              image, reward, terminal,
-             map,                                        # tensor(N, B, MH, MW)
              reset,
-             map_coord
              ):
         N, B, I = image_rec.shape[:3]
         image = image.unsqueeze(2).expand(N, B, I, *image.shape[2:])
@@ -301,8 +298,6 @@ class WorldModel(nn.Module):
         loss_image = self._decoder_image.loss(image_rec, image)  # (N,B,I)
         loss_reward = self._decoder_reward.loss(reward_rec, reward)  # (N,B,I)
         loss_terminal = self._decoder_terminal.loss(terminal_rec, terminal)  # (N,B,I)
-
-        # WIP: loss_reward, loss_terminal
 
         # KL
 
@@ -317,11 +312,6 @@ class WorldModel(nn.Module):
             # Log analytic KL loss for metrics, it's nicer and avoids negative values
             loss_kl_metric = D.kl.kl_divergence(post_d, prior_d)
 
-        # Map
-
-        map = map.unsqueeze(2).expand(N, B, I, *map.shape[2:])  # TODO: include in map_out. or even merge forward+loss => train_step
-        loss_map, metrics_map = self._map_model.loss(*map_out, map, map_coord)    # type: ignore
-
         # Total loss
 
         assert loss_kl.shape == loss_image.shape == loss_reward.shape == loss_terminal.shape
@@ -331,20 +321,13 @@ class WorldModel(nn.Module):
             + loss_reward
             + loss_terminal
         ), dim=-1)
-        loss_map = -logavgexp(-loss_map, dim=-1)
-        loss = loss_model.mean() + self._map_weight * loss_map.mean()
+        loss = loss_model.mean()
 
         # IWAE according to paper
 
         # with torch.no_grad():
         #     weights = F.softmax(-(loss_image + loss_kl), dim=-1)
-        #     weights_map = F.softmax(-loss_map, dim=-1)
-        # dloss_image = (weights * loss_image).sum(dim=-1)
-        # dloss_kl = (weights * loss_kl).sum(dim=-1)
-        # dloss_map = (weights_map * loss_map).sum(dim=-1)
-        # dloss = (self._image_weight * dloss_image.mean()
-        #          + dloss_kl.mean()
-        #          + self._map_weight * dloss_map.mean())
+        # dloss = (weights * (loss_image + loss_kl)).sum(dim=-1).mean()
 
         # Metrics
 
@@ -358,7 +341,6 @@ class WorldModel(nn.Module):
 
             log_tensors = dict(loss_kl=loss_kl.detach(),
                                loss_image=loss_image.detach(),
-                               loss_map=loss_map.detach(),
                                entropy_prior=entropy_prior,
                                entropy_post=entropy_post,
                                )
@@ -371,10 +353,8 @@ class WorldModel(nn.Module):
                            loss_model_terminal=loss_terminal.mean(),
                            loss_model_kl=loss_kl.mean(),
                            loss_model_kl_max=loss_kl.max(),
-                           loss_map=loss_map.mean(),
                            entropy_prior=entropy_prior.mean(),
                            entropy_post=entropy_post.mean(),
-                           **metrics_map
                            )
 
             # Predictions from prior
@@ -485,3 +465,106 @@ class WorldModel(nn.Module):
 #                        )
 
 #         return loss, metrics, log_tensors
+
+
+class DirectHead(nn.Module):
+
+    def __init__(self, decoder: DenseDecoder):
+        super().__init__()
+        self._decoder = decoder
+
+    def forward(self, state, obs, do_image_pred=False):
+        obs_pred = self._decoder.forward(state)
+        return (obs_pred, )
+
+    def loss(self, obs_pred, obs_target, map_coord):
+        loss = self._decoder.loss(obs_pred, obs_target)  # (N,B,I)
+        loss = -logavgexp(-loss, dim=-1)  # (N,B,I) => (N,B)
+        with torch.no_grad():
+            acc_map = self._decoder.accuracy(obs_pred, obs_target, map_coord)
+            tensors = dict(loss_map=loss.detach())
+            metrics = dict(loss_map=loss.mean(), acc_map=acc_map)
+        return loss.mean(), metrics, tensors
+
+    def to_distr(self, obs_pred):
+        return self._decoder.to_distr(obs_pred)
+
+
+class VAEHead(nn.Module):
+    # Conditioned VAE
+
+    def __init__(self, encoder: ConvEncoder, decoder: ConvDecoder, state_dim=230, hidden_dim=200, latent_dim=30):
+        super().__init__()
+        self._encoder = encoder
+        self._decoder = decoder
+        assert decoder.in_dim == state_dim + latent_dim
+
+        self._prior_mlp = nn.Sequential(nn.Linear(state_dim, hidden_dim),
+                                        nn.ELU(),
+                                        nn.Linear(hidden_dim, 2 * latent_dim))
+
+        self._post_mlp = nn.Sequential(nn.Linear(state_dim + encoder.out_dim, hidden_dim),
+                                       nn.ELU(),
+                                       nn.Linear(hidden_dim, 2 * latent_dim))
+
+    def forward(self, state, obs, do_image_pred=False):
+        embed = self._encoder.forward(obs)
+        prior = self._prior_mlp(state)
+        post = self._post_mlp(torch.cat([state, embed], -1))
+        sample = diag_normal(post).rsample()
+        obs_rec = self._decoder(torch.cat([state, sample], -1))
+        if do_image_pred:
+            prior_sample = diag_normal(prior).sample()
+            obs_pred = self._decoder(torch.cat([state, prior_sample], -1))
+        else:
+            obs_pred = None
+        return obs_rec, prior, post, obs_pred
+
+    def loss(self,
+             obs_rec, prior, post, obs_pred,  # forward() output
+             obs_target, map_coord,
+             ):
+        prior_d = diag_normal(prior)
+        post_d = diag_normal(post)
+        loss_kl = D.kl.kl_divergence(post_d, prior_d)
+        loss_rec = self._decoder.loss(obs_rec, obs_target)
+        assert loss_kl.shape == loss_rec.shape
+        loss = loss_kl + loss_rec  # (N,B,I)
+        loss = -logavgexp(-loss, dim=-1)  # (N,B,I) => (N,B)
+
+        with torch.no_grad():
+            loss_rec = -logavgexp(-loss_rec, dim=-1)
+            loss_kl = -logavgexp(-loss_kl, dim=-1)
+            entropy_prior = prior_d.entropy().mean(dim=-1)
+            entropy_post = post_d.entropy().mean(dim=-1)
+            tensors = dict(loss_map=loss.detach())
+            metrics = dict(loss_map=loss.mean(),
+                           loss_map_rec=loss_rec.mean(),
+                           loss_map_kl=loss_kl.mean(),
+                           entropy_map_prior=entropy_prior.mean(),
+                           entropy_map_post=entropy_post.mean(),
+                           )
+            if obs_pred is not None:
+                acc_map = self._decoder.accuracy(obs_pred, obs_target, map_coord)
+                metrics.update(acc_map=acc_map)
+
+        return loss.mean(), metrics, tensors
+
+    def to_distr(self, obs_rec, prior, post, obs_pred):
+        if obs_pred is not None:
+            return self._decoder.to_distr(obs_pred)
+        else:
+            return self._decoder.to_distr(obs_rec)
+
+
+class NoHead(nn.Module):
+
+    def __init__(self, out_shape):
+        super().__init__()
+        self.out_shape = out_shape  # (C,MH,MW)
+
+    def forward(self, obs, state):
+        return (obs,)
+
+    def loss(self, obs, obs_target):
+        return torch.tensor(0.0, device=obs.device), {}, {}

@@ -60,7 +60,6 @@ defaults:
   map_decoder: dense
   map_hidden_layers: 4
   map_hidden_dim: 1024
-  map_grad: False
   mem_model: none
   mem_loss_type:
   global_dim: 0

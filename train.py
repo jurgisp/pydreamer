@@ -58,7 +58,7 @@ def run(conf):
     #     )  # type: ignore
 
     print(f'Model: {param_count(model)} parameters')
-    for submodel in [model.wm._encoder, model.wm._decoder_image, model.wm._core, model.wm._input_rnn, model.wm._map_model]:
+    for submodel in [model.wm._encoder, model.wm._decoder_image, model.wm._core, model.wm._input_rnn, model.map_model]:
         if submodel is not None:
             print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
     # print(model)
@@ -139,8 +139,8 @@ def run(conf):
                 with timer('gradstep'):  # CUDA wait happens here
 
                     scaler.unscale_(optimizer)
-                    grad_norm_model = nn.utils.clip_grad_norm_(model.wm.parameters_model(), conf.grad_clip)
-                    grad_norm_map = nn.utils.clip_grad_norm_(model.wm.parameters_map(), conf.grad_clip)
+                    grad_norm_model = nn.utils.clip_grad_norm_(model.wm.parameters(), conf.grad_clip)
+                    grad_norm_map = nn.utils.clip_grad_norm_(model.map_model.parameters(), conf.grad_clip)
                     grad_metrics = {'grad_norm': grad_norm_model, 'grad_norm_map': grad_norm_map}
                     scaler.step(optimizer)
                     scaler.update()
@@ -201,9 +201,11 @@ def run(conf):
                         print('Stopping')
                         break
 
-                    # Evaluate
+                # Evaluate
 
+                with timer('eval'):
                     if conf.eval_interval and steps % conf.eval_interval == 0:
+
                         # Same batch as train
                         eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
                         evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.iwae_samples, conf.keep_state, conf)
@@ -222,6 +224,7 @@ def run(conf):
                       f"  forward: {timer('forward').dt_ms:>4}"
                       f"  backward: {timer('backward').dt_ms:>4}"
                       f"  gradstep: {timer('gradstep').dt_ms:>4}"
+                      f"  eval: {timer('eval').dt_ms:>4}"
                       f"  other: {timer('other').dt_ms:>4}"
                       )
 
@@ -276,7 +279,7 @@ def evaluate(prefix: str,
                 with autocast(enabled=conf.amp):
 
                     _, _, loss_tensors_im, _, out_tensors_im = \
-                        model.train(0 * image[:5], 0 * reward[:5], 0 * terminal[:5], action[:5], reset[:5], map[:5], map_coord[:5], state,
+                        model.train(0 * image[:15], 0 * reward[:15], 0 * terminal[:15], action[:15], reset[:15], map[:15], map_coord[:15], state,
                                     I=eval_samples,
                                     imagine=True,
                                     do_image_pred=True,
