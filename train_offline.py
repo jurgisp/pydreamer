@@ -20,9 +20,7 @@ from tools import Timer, mlflow_start_or_resume, param_count, NoProfiler
 from data import OfflineDataSequential
 from preprocessing import MinigridPreprocess, WorkerInfoPreprocess
 from models import *
-from modules_io import *
-from modules_mem import *
-from modules_tools import *
+
 
 torch.distributions.Distribution.set_default_validate_args(False)
 torch.backends.cudnn.benchmark = True  # type: ignore
@@ -45,107 +43,11 @@ def run(conf):
                                     map_key=conf.map_key,
                                     amp=conf.device.startswith('cuda') and conf.amp)
 
-    state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim
-
-    # Encoder
-
-    if conf.image_encoder == 'cnn':
-        encoder = ConvEncoder(in_channels=conf.image_channels,
-                              out_dim=conf.embed_dim)
-    else:
-        encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * conf.image_channels,
-                               out_dim=conf.embed_dim,
-                               hidden_layers=conf.image_encoder_layers)
-
-    # Decoder
-
-    if conf.image_decoder == 'cnn':
-        decoder_image = ConvDecoder(in_dim=state_dim,
-                                    out_channels=conf.image_channels)
-    else:
-        decoder_image = DenseDecoder(in_dim=state_dim,
-                                     out_shape=(conf.image_channels, conf.image_size, conf.image_size),
-                                     hidden_layers=conf.image_decoder_layers,
-                                     min_prob=conf.image_decoder_min_prob)
-
-    decoder_reward = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.reward_decoder_layers)
-    decoder_terminal = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.terminal_decoder_layers)
-
-    # Map decoder
-
-    n_map_coords = 4
-    if conf.map_model == 'vae':
-        if conf.map_decoder == 'cnn':
-            map_model = VAEHead(
-                encoder=ConvEncoder(in_channels=conf.map_channels,
-                                    out_dim=conf.embed_dim),
-                decoder=ConvDecoder(in_dim=state_dim + n_map_coords + conf.map_stoch_dim,
-                                    mlp_layers=2,
-                                    out_channels=conf.map_channels),
-                state_dim=state_dim + n_map_coords,
-                latent_dim=conf.map_stoch_dim,
-                hidden_dim=conf.hidden_dim
-            )
-        else:
-            raise NotImplementedError
-            # map_model = VAEHead(
-            #     encoder=DenseEncoder(in_dim=conf.map_size * conf.map_size * conf.map_channels,
-            #                         out_dim=conf.embed_dim,
-            #                         hidden_layers=3),
-            #     decoder=DenseDecoder(in_dim=state_dim + conf.map_stoch_dim,
-            #                         out_shape=(conf.map_channels, conf.map_size, conf.map_size),
-            #                         hidden_layers=4),
-            #     state_dim=state_dim,
-            #     latent_dim=conf.map_stoch_dim
-            # )
-    elif conf.map_model == 'direct':
-        if conf.map_decoder == 'cnn':
-            map_model = DirectHead(
-                decoder=ConvDecoder(in_dim=state_dim + n_map_coords,
-                                    mlp_layers=2,
-                                    out_channels=conf.map_channels))  # type: ignore
-
-        else:
-            map_model = DirectHead(
-                decoder=DenseDecoder(in_dim=state_dim + n_map_coords,
-                                     out_shape=(conf.map_channels, conf.map_size, conf.map_size),
-                                     hidden_dim=conf.map_hidden_dim,
-                                     hidden_layers=conf.map_hidden_layers))
-    else:
-        map_model = NoHead(out_shape=(conf.map_channels, conf.map_size, conf.map_size))
-
-    # Memory model
-
-    if conf.mem_model == 'global_state':
-        mem_model = GlobalStateMem(embed_dim=conf.embed_dim,
-                                   action_dim=conf.action_dim,
-                                   mem_dim=conf.deter_dim,
-                                   stoch_dim=conf.global_dim,
-                                   hidden_dim=conf.hidden_dim,
-                                   loss_type=conf.mem_loss_type)
-    else:
-        mem_model = NoMemory()
-
     # MODEL
 
-    if conf.model == 'world':
-        model: WorldModel = WorldModel(
-            encoder=encoder,
-            decoder_image=decoder_image,
-            decoder_reward=decoder_reward,
-            decoder_terminal=decoder_terminal,
-            map_model=map_model,
-            mem_model=mem_model,
-            action_dim=conf.action_dim,
-            deter_dim=conf.deter_dim,
-            stoch_dim=conf.stoch_dim,
-            hidden_dim=conf.hidden_dim,
-            image_weight=conf.image_weight,
-            map_grad=conf.map_grad,
-            embed_rnn=conf.embed_rnn != 'none',
-            gru_layers=conf.gru_layers,
-            gru_type=conf.gru_type
-        )
+    model = Dreamer(conf)
+    model.to(device)
+
     # elif conf.model == 'map_rnn':
     #     model = MapPredictModel(
     #         encoder=encoder,
@@ -154,13 +56,9 @@ def run(conf):
     #         action_dim=conf.action_dim,
     #         state_dim=state_dim,
     #     )  # type: ignore
-    else:
-        assert False, conf.model
-
-    model.to(device)
 
     print(f'Model: {param_count(model)} parameters')
-    for submodel in [model._encoder, model._decoder_image, model._core, model._input_rnn, map_model, mem_model]:
+    for submodel in [model.wm._encoder, model.wm._decoder_image, model.wm._core, model.wm._input_rnn, model.wm._map_model]:
         if submodel is not None:
             print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
     # print(model)
@@ -201,6 +99,7 @@ def run(conf):
         while True:
             with timer('total'):
                 profiler.step()
+                steps += 1
 
                 # Make batch
 
@@ -215,22 +114,18 @@ def run(conf):
                     map = batch['map'].to(device)
                     map_coord = batch['map_coord'].to(device)
 
-                # Predict
+                # Forward
 
                 with timer('forward'):
                     with autocast(enabled=conf.amp):
 
-                        state = states.get(wid) or model.init_state(image.size(1) * conf.iwae_samples)
-                        output = model.forward(image, reward, terminal, action, reset, map, map_coord, state, I=conf.iwae_samples)
+                        state = states.get(wid) or model.wm.init_state(image.size(1) * conf.iwae_samples)
+                        loss, loss_metrics, loss_tensors, new_state, out_tensors = \
+                            model.train(image, reward, terminal, action, reset, map, map_coord, state,
+                                        I=conf.iwae_samples,
+                                        do_output_tensors=steps % conf.log_interval == 1)
                         if conf.keep_state:
-                            states[wid] = output[-1]
-
-                # Loss
-
-                with timer('loss'):
-                    with autocast(enabled=conf.amp):
-
-                        loss, loss_metrics, loss_tensors = model.loss(*output, image, reward, terminal, map, reset, map_coord)
+                            states[wid] = new_state
 
                 # Backward
 
@@ -244,8 +139,8 @@ def run(conf):
                 with timer('gradstep'):  # CUDA wait happens here
 
                     scaler.unscale_(optimizer)
-                    grad_norm_model = nn.utils.clip_grad_norm_(model.parameters_model(), conf.grad_clip)
-                    grad_norm_map = nn.utils.clip_grad_norm_(model.parameters_map(), conf.grad_clip)
+                    grad_norm_model = nn.utils.clip_grad_norm_(model.wm.parameters_model(), conf.grad_clip)
+                    grad_norm_map = nn.utils.clip_grad_norm_(model.wm.parameters_map(), conf.grad_clip)
                     grad_metrics = {'grad_norm': grad_norm_model, 'grad_norm_map': grad_norm_map}
                     scaler.step(optimizer)
                     scaler.update()
@@ -254,7 +149,6 @@ def run(conf):
 
                     # Metrics
 
-                    steps += 1
                     for k, v in loss_metrics.items():
                         if not np.isnan(v.item()):
                             metrics[k].append(v.item())
@@ -265,10 +159,9 @@ def run(conf):
 
                     # Log sample
 
-                    if steps % conf.log_interval == 1:
-                        with torch.no_grad():
-                            image_pred, image_rec, map_rec = model.predict(*output)
-                        log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, f'{steps:07}.npz')
+                    if out_tensors is not None:
+                        image_pred, image_rec, map_rec = out_tensors
+                        log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, f'{steps:07}.npz', verbose=conf.verbose)
 
                     # Log metrics
 
@@ -327,7 +220,6 @@ def run(conf):
                       f"  TOTAL: {timer('total').dt_ms:>4}"
                       f"  data: {timer('data').dt_ms:>4}"
                       f"  forward: {timer('forward').dt_ms:>4}"
-                      f"  loss: {timer('loss').dt_ms:>4}"
                       f"  backward: {timer('backward').dt_ms:>4}"
                       f"  gradstep: {timer('gradstep').dt_ms:>4}"
                       f"  other: {timer('other').dt_ms:>4}"
@@ -336,7 +228,7 @@ def run(conf):
 
 def evaluate(prefix: str,
              steps: int,
-             model: WorldModel,
+             model: Dreamer,
              data_iterator: Iterator,
              device,
              eval_batches: int,
@@ -382,31 +274,41 @@ def evaluate(prefix: str,
 
             if n_reset_episodes == 0:
                 with autocast(enabled=conf.amp):
-                    output = model.forward(0 * image[:5], 0 * reward[:5], 0 * terminal[:5], action[:5], reset[:5], map[:5], map_coord[:5],
-                                            state, I=eval_samples, imagine=True, do_image_pred=True)
-                    _, _, loss_tensors = model.loss(*output, image[:5], reward[:5], terminal[:5], map[:5], reset[:5], map_coord[:5])  # type: ignore
-                    if 'logprob_img' in loss_tensors:
-                        metrics_eval['logprob_img_1step'].append(loss_tensors['logprob_img'][0].mean().item())
-                        metrics_eval['logprob_img_2step'].append(loss_tensors['logprob_img'][1].mean().item())
-                    # image_pred, image_rec, map_rec = model.predict(*output)  # TODO: log 5-step prediction sequence
+
+                    _, _, loss_tensors_im, _, out_tensors_im = \
+                        model.train(0 * image[:5], 0 * reward[:5], 0 * terminal[:5], action[:5], reset[:5], map[:5], map_coord[:5], state,
+                                    I=eval_samples,
+                                    imagine=True,
+                                    do_image_pred=True,
+                                    do_output_tensors=i_batch == 1)  # just one batch
+
+                    if 'logprob_img' in loss_tensors_im:
+                        metrics_eval['logprob_img_1step'].append(loss_tensors_im['logprob_img'][0].mean().item())
+                        metrics_eval['logprob_img_2step'].append(loss_tensors_im['logprob_img'][1].mean().item())
+
+                    if out_tensors_im is not None:
+                        log_batch_npz(batch, loss_tensors_im, *out_tensors_im, f'{steps:07}.npz', subdir=f'd2_wm_predict_{prefix}_im', verbose=True)
 
             # Forward (posterior) & loss
 
             with autocast(enabled=conf.amp):
                 if state is None or not keep_state:
-                    state = model.init_state(image.size(1) * eval_samples)
-                output = model.forward(image, reward, terminal, action, reset, map, map_coord, state, I=eval_samples, do_image_pred=True)
-                state = output[-1]
-                _, loss_metrics, loss_tensors = model.loss(*output, image, reward, terminal, map, reset, map_coord)  # type: ignore
+                    state = model.wm.init_state(image.size(1) * eval_samples)
+
+                _, loss_metrics, loss_tensors, state, out_tensors = \
+                    model.train(image, reward, terminal, action, reset, map, map_coord, state,
+                                I=eval_samples,
+                                do_image_pred=True,
+                                do_output_tensors=n_finished_episodes < B)  # TODO: this logic is wrong
+
                 for k, v in loss_metrics.items():
                     if not np.isnan(v.item()):
                         metrics_eval[k].append(v.item())
 
             # Log one episode batch
 
-            if n_finished_episodes < B:  # until all episodes finish
-                image_pred, image_rec, map_rec = model.predict(*output)
-                npz_datas.append(prepare_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, take_b=1))
+            if out_tensors:
+                npz_datas.append(prepare_batch_npz(batch, loss_tensors, *out_tensors, take_b=1))
 
     metrics_eval = {f'{prefix}/{k}': np.mean(v) for k, v in metrics_eval.items()}
     mlflow.log_metrics(metrics_eval, step=steps)
@@ -423,9 +325,10 @@ def log_batch_npz(batch,
                   image_rec: Optional[D.Distribution],
                   map_rec: Optional[D.Distribution],
                   filename: str,
-                  subdir='d2_wm_predict'):
+                  subdir='d2_wm_predict',
+                  verbose=False):
     data = prepare_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec)
-    tools.mlflow_log_npz(data, filename, subdir, verbose=False)
+    tools.mlflow_log_npz(data, filename, subdir, verbose=verbose)
 
 
 def prepare_batch_npz(batch,

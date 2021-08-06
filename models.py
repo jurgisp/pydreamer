@@ -10,6 +10,138 @@ from modules_tools import *
 from modules_rssm import *
 from modules_rnn import *
 from modules_io import *
+from modules_mem import *
+
+
+class Dreamer(nn.Module):
+
+    def __init__(self, conf):
+        super().__init__()
+
+        # Encoder
+
+        if conf.image_encoder == 'cnn':
+            encoder = ConvEncoder(in_channels=conf.image_channels,
+                                  out_dim=conf.embed_dim)
+        else:
+            encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * conf.image_channels,
+                                   out_dim=conf.embed_dim,
+                                   hidden_layers=conf.image_encoder_layers)
+
+        # Decoder
+
+        state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim
+        if conf.image_decoder == 'cnn':
+            decoder_image = ConvDecoder(in_dim=state_dim,
+                                        out_channels=conf.image_channels)
+        else:
+            decoder_image = DenseDecoder(in_dim=state_dim,
+                                         out_shape=(conf.image_channels, conf.image_size, conf.image_size),
+                                         hidden_layers=conf.image_decoder_layers,
+                                         min_prob=conf.image_decoder_min_prob)
+
+        decoder_reward = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.reward_decoder_layers)
+        decoder_terminal = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.terminal_decoder_layers)
+
+        # Map decoder
+
+        n_map_coords = 4
+        if conf.map_model == 'vae':
+            if conf.map_decoder == 'cnn':
+                map_model = VAEHead(
+                    encoder=ConvEncoder(in_channels=conf.map_channels,
+                                        out_dim=conf.embed_dim),
+                    decoder=ConvDecoder(in_dim=state_dim + n_map_coords + conf.map_stoch_dim,
+                                        mlp_layers=2,
+                                        out_channels=conf.map_channels),
+                    state_dim=state_dim + n_map_coords,
+                    latent_dim=conf.map_stoch_dim,
+                    hidden_dim=conf.hidden_dim
+                )
+            else:
+                raise NotImplementedError
+                # map_model = VAEHead(
+                #     encoder=DenseEncoder(in_dim=conf.map_size * conf.map_size * conf.map_channels,
+                #                         out_dim=conf.embed_dim,
+                #                         hidden_layers=3),
+                #     decoder=DenseDecoder(in_dim=state_dim + conf.map_stoch_dim,
+                #                         out_shape=(conf.map_channels, conf.map_size, conf.map_size),
+                #                         hidden_layers=4),
+                #     state_dim=state_dim,
+                #     latent_dim=conf.map_stoch_dim
+                # )
+        elif conf.map_model == 'direct':
+            if conf.map_decoder == 'cnn':
+                map_model = DirectHead(
+                    decoder=ConvDecoder(in_dim=state_dim + n_map_coords,
+                                        mlp_layers=2,
+                                        out_channels=conf.map_channels))  # type: ignore
+
+            else:
+                map_model = DirectHead(
+                    decoder=DenseDecoder(in_dim=state_dim + n_map_coords,
+                                         out_shape=(conf.map_channels, conf.map_size, conf.map_size),
+                                         hidden_dim=conf.map_hidden_dim,
+                                         hidden_layers=conf.map_hidden_layers))
+        else:
+            map_model = NoHead(out_shape=(conf.map_channels, conf.map_size, conf.map_size))
+
+        # Memory model
+
+        # if conf.mem_model == 'global_state':
+        #     mem_model = GlobalStateMem(embed_dim=conf.embed_dim,
+        #                             action_dim=conf.action_dim,
+        #                             mem_dim=conf.deter_dim,
+        #                             stoch_dim=conf.global_dim,
+        #                             hidden_dim=conf.hidden_dim,
+        #                             loss_type=conf.mem_loss_type)
+        # else:
+        #     mem_model = NoMemory()
+
+        # World model
+
+        self.wm = WorldModel(
+            encoder=encoder,
+            decoder_image=decoder_image,
+            decoder_reward=decoder_reward,
+            decoder_terminal=decoder_terminal,
+            map_model=map_model,
+            mem_model=NoMemory(),
+            action_dim=conf.action_dim,
+            deter_dim=conf.deter_dim,
+            stoch_dim=conf.stoch_dim,
+            hidden_dim=conf.hidden_dim,
+            image_weight=conf.image_weight,
+            map_grad=conf.map_grad,
+            embed_rnn=conf.embed_rnn != 'none',
+            gru_layers=conf.gru_layers,
+            gru_type=conf.gru_type
+        )
+
+    def train(self,
+              image: Tensor,     # tensor(N, B, C, H, W)
+              reward: Tensor,
+              terminal: Tensor,
+              action: Tensor,    # tensor(N, B, A)
+              reset: Tensor,     # tensor(N, B)
+              map: Tensor,
+              map_coord: Tensor,       # tensor(N, B, 4)
+              in_state: Any,
+              I: int = 1,
+              imagine=False,     # If True, will imagine sequence, not using observations to form posterior
+              do_image_pred=False,
+              do_output_tensors=False
+              ):
+        output = self.wm.forward(image, reward, terminal, action, reset, map, map_coord, in_state, I, imagine, do_image_pred)
+        out_state = output[-1]
+        loss, loss_metrics, loss_tensors = self.wm.loss(*output, image, reward, terminal, map, reset, map_coord)
+        if do_output_tensors:
+            with torch.no_grad():
+                image_pred, image_rec, map_rec = self.wm.predict(*output)
+                out_tensors = (image_pred, image_rec, map_rec)
+        else:
+            out_tensors = None
+        return loss, loss_metrics, loss_tensors, out_state, out_tensors
 
 
 class WorldModel(nn.Module):
