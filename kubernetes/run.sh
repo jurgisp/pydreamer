@@ -49,7 +49,7 @@ spec:
           command:
             - python3
           args:
-            - train_offline.py
+            - train.py
             - --configs
             - defaults
             - $CONFIG

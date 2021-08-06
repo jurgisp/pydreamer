@@ -7,7 +7,7 @@ gsutil -m cp gs://humanui-mlflow-west4/artifacts/29/4225b9398bc14a4fb484af5c9455
 
 # Run 
 
-python train_offline.py --configs defaults miniworld --input_dir ./data/train --eval_dir ./data/eval --data_workers 2
+python train.py --configs defaults miniworld --input_dir ./data/train --eval_dir ./data/eval --data_workers 2
 
 # Profiles
 
