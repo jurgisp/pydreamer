@@ -18,95 +18,46 @@ class Dreamer(nn.Module):
     def __init__(self, conf):
         super().__init__()
 
-        # Encoder
-
-        if conf.image_encoder == 'cnn':
-            encoder = ConvEncoder(in_channels=conf.image_channels,
-                                  out_dim=conf.embed_dim)
-        else:
-            encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * conf.image_channels,
-                                   out_dim=conf.embed_dim,
-                                   hidden_layers=conf.image_encoder_layers)
-
-        # Decoder
-
-        state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim
-        if conf.image_decoder == 'cnn':
-            decoder_image = ConvDecoder(in_dim=state_dim,
-                                        out_channels=conf.image_channels)
-        else:
-            decoder_image = DenseDecoder(in_dim=state_dim,
-                                         out_shape=(conf.image_channels, conf.image_size, conf.image_size),
-                                         hidden_layers=conf.image_decoder_layers,
-                                         min_prob=conf.image_decoder_min_prob)
-
-        decoder_reward = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.reward_decoder_layers)
-        decoder_terminal = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.terminal_decoder_layers)
-
         # Map decoder
 
         n_map_coords = 4
+        state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim + n_map_coords
         if conf.map_model == 'vae':
             if conf.map_decoder == 'cnn':
                 map_model = VAEHead(
                     encoder=ConvEncoder(in_channels=conf.map_channels,
                                         out_dim=conf.embed_dim),
-                    decoder=ConvDecoder(in_dim=state_dim + n_map_coords + conf.map_stoch_dim,
+                    decoder=ConvDecoder(in_dim=state_dim + conf.map_stoch_dim,
                                         mlp_layers=2,
                                         out_channels=conf.map_channels),
-                    state_dim=state_dim + n_map_coords,
+                    state_dim=state_dim,
                     latent_dim=conf.map_stoch_dim,
                     hidden_dim=conf.hidden_dim
                 )
             else:
                 raise NotImplementedError
-                # map_model = VAEHead(
-                #     encoder=DenseEncoder(in_dim=conf.map_size * conf.map_size * conf.map_channels,
-                #                         out_dim=conf.embed_dim,
-                #                         hidden_layers=3),
-                #     decoder=DenseDecoder(in_dim=state_dim + conf.map_stoch_dim,
-                #                         out_shape=(conf.map_channels, conf.map_size, conf.map_size),
-                #                         hidden_layers=4),
-                #     state_dim=state_dim,
-                #     latent_dim=conf.map_stoch_dim
-                # )
+
         elif conf.map_model == 'direct':
             if conf.map_decoder == 'cnn':
                 map_model = DirectHead(
-                    decoder=ConvDecoder(in_dim=state_dim + n_map_coords,
+                    decoder=ConvDecoder(in_dim=state_dim,
                                         mlp_layers=2,
                                         out_channels=conf.map_channels))  # type: ignore
 
             else:
                 map_model = DirectHead(
-                    decoder=DenseDecoder(in_dim=state_dim + n_map_coords,
+                    decoder=DenseDecoder(in_dim=state_dim,
                                          out_shape=(conf.map_channels, conf.map_size, conf.map_size),
                                          hidden_dim=conf.map_hidden_dim,
                                          hidden_layers=conf.map_hidden_layers))
         else:
             map_model = NoHead(out_shape=(conf.map_channels, conf.map_size, conf.map_size))
 
-        # Memory model
-
-        # if conf.mem_model == 'global_state':
-        #     mem_model = GlobalStateMem(embed_dim=conf.embed_dim,
-        #                             action_dim=conf.action_dim,
-        #                             mem_dim=conf.deter_dim,
-        #                             stoch_dim=conf.global_dim,
-        #                             hidden_dim=conf.hidden_dim,
-        #                             loss_type=conf.mem_loss_type)
-        # else:
-        #     mem_model = NoMemory()
-
         # World model
 
         self.wm = WorldModel(
-            encoder=encoder,
-            decoder_image=decoder_image,
-            decoder_reward=decoder_reward,
-            decoder_terminal=decoder_terminal,
+            conf,
             map_model=map_model,
-            mem_model=NoMemory(),
             action_dim=conf.action_dim,
             deter_dim=conf.deter_dim,
             stoch_dim=conf.stoch_dim,
@@ -147,12 +98,8 @@ class Dreamer(nn.Module):
 class WorldModel(nn.Module):
 
     def __init__(self,
-                 encoder,
-                 decoder_image,
-                 decoder_reward,
-                 decoder_terminal,
+                 conf,
                  map_model,
-                 mem_model,
                  action_dim=7,
                  deter_dim=200,
                  stoch_dim=30,
@@ -166,20 +113,65 @@ class WorldModel(nn.Module):
                  gru_type='gru'
                  ):
         super().__init__()
-        self._encoder: DenseEncoder = encoder
-        self._decoder_image: ConvDecoder = decoder_image
-        self._decoder_reward: DenseDecoder = decoder_reward
-        self._decoder_terminal: DenseDecoder = decoder_terminal
-        self._map_model: DirectHead = map_model
-        self._mem_model = mem_model
         self._deter_dim = deter_dim
         self._stoch_dim = stoch_dim
-        self._global_dim = mem_model.global_dim
+        self._global_dim = 0
         self._image_weight = image_weight
         self._map_grad = map_grad
         self._map_weight = map_weight
         self._embed_rnn = embed_rnn
-        self._core = RSSMCore(embed_dim=encoder.out_dim + 2 * embed_rnn_dim if embed_rnn else encoder.out_dim,
+        self._map_model: DirectHead = map_model
+        self._mem_model = NoMemory()
+
+        # Encoder
+
+        if conf.image_encoder == 'cnn':
+            self._encoder = ConvEncoder(in_channels=conf.image_channels,
+                                        out_dim=conf.embed_dim)
+        else:
+            self._encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * conf.image_channels,
+                                         out_dim=conf.embed_dim,
+                                         hidden_layers=conf.image_encoder_layers)
+
+        if self._embed_rnn:
+            self._input_rnn = GRU2Inputs(input1_dim=self._encoder.out_dim,
+                                         input2_dim=action_dim,
+                                         mlp_dim=embed_rnn_dim,
+                                         state_dim=embed_rnn_dim,
+                                         bidirectional=True)
+        else:
+            self._input_rnn = None
+
+        # Decoders
+
+        state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim
+        if conf.image_decoder == 'cnn':
+            self._decoder_image = ConvDecoder(in_dim=state_dim,
+                                              out_channels=conf.image_channels)
+        else:
+            self._decoder_image = DenseDecoder(in_dim=state_dim,
+                                               out_shape=(conf.image_channels, conf.image_size, conf.image_size),
+                                               hidden_layers=conf.image_decoder_layers,
+                                               min_prob=conf.image_decoder_min_prob)
+
+        self._decoder_reward = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.reward_decoder_layers)
+        self._decoder_terminal = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.terminal_decoder_layers)
+
+        # Memory model
+
+        # if conf.mem_model == 'global_state':
+        #     mem_model = GlobalStateMem(embed_dim=conf.embed_dim,
+        #                             action_dim=conf.action_dim,
+        #                             mem_dim=conf.deter_dim,
+        #                             stoch_dim=conf.global_dim,
+        #                             hidden_dim=conf.hidden_dim,
+        #                             loss_type=conf.mem_loss_type)
+        # else:
+        #     mem_model = NoMemory()
+
+        # RSSM
+
+        self._core = RSSMCore(embed_dim=self._encoder.out_dim + 2 * embed_rnn_dim if embed_rnn else self._encoder.out_dim,
                               action_dim=action_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
@@ -187,14 +179,9 @@ class WorldModel(nn.Module):
                               global_dim=self._global_dim,
                               gru_layers=gru_layers,
                               gru_type=gru_type)
-        if self._embed_rnn:
-            self._input_rnn = GRU2Inputs(input1_dim=encoder.out_dim,
-                                         input2_dim=action_dim,
-                                         mlp_dim=embed_rnn_dim,
-                                         state_dim=embed_rnn_dim,
-                                         bidirectional=True)
-        else:
-            self._input_rnn = None
+
+        # Init
+
         for m in self.modules():
             init_weights_tf2(m)
 
