@@ -7,6 +7,10 @@ import torch.distributions as D
 from torch import Tensor, Size
 import modules_rnn as my
 
+TensorNBICHW = Tensor
+TensorNBI4 = Tensor
+IntTensorNBIHW = Tensor
+
 
 def flatten(x: Tensor) -> Tensor:
     # (N, B, ...) => (N*B, ...)

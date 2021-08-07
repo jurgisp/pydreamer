@@ -207,6 +207,11 @@ class MiniGrid:
 
 
 def worldgrid_map_accuracy(output, target, agent_pos, agent_dir):
+    assert len(output.shape) == 4
+    assert len(target.shape) == 4
+    assert len(agent_pos.shape) == 2 and agent_pos.shape[-1] == 2
+    assert len(agent_dir.shape) == 2 and agent_dir.shape[-1] == 2
+
     val_path = np.array([103, 103, 105]) / 255.0 - 0.5
     val_wall = np.array([64, 209, 255]) / 255.0 - 0.5
 

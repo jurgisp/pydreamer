@@ -1,3 +1,4 @@
+from typing import Union
 import torch
 import torch.nn as nn
 import torch.distributions as D
@@ -82,12 +83,13 @@ class ConvDecoder(nn.Module):
         loss = torch.square(output - target).sum(dim=[-1, -2, -3])  # MSE
         return unflatten_batch(loss, bd)
 
-    def accuracy(self, output, target, map_coord):
+    def accuracy(self, output: TensorNBICHW, target: Union[TensorNBICHW, IntTensorNBIHW], map_coord: TensorNBI4):
         output, bd = flatten_batch(output, 4)  # (*,I,C,H,W)
         target, _ = flatten_batch(target, 4)   # (*,I,C,H,W)
-        map_coord, _ = flatten_batch(map_coord, 1)  # (*,4)
+        map_coord, _ = flatten_batch(map_coord, 2)  # (*,I,4)
         output = torch.mean(output, dim=-4)  # (*,I,C,H,W) => (*,C,H,W)
         target = target.select(-4, 0)  # int(*,I,H,W) => int(*,H,W)
+        map_coord = map_coord.select(-2, 0)
         acc = envs.worldgrid_map_accuracy(output, target, map_coord[:, 0:2], map_coord[:, 2:4])  # TODO: env-specific
         acc = unflatten_batch(acc, bd)
         acc = torch.nansum(acc) / (~torch.isnan(acc)).sum()  # mean
@@ -178,11 +180,7 @@ class DenseDecoder(nn.Module):
         assert len(loss.shape) == 1
         return unflatten_batch(loss, bd)
 
-    def accuracy(self,
-                 output,  # (*,I,C,H,W)
-                 target,   # float(*,I,C,H,W) or int(*,I,H,W)
-                 map_coord
-                 ):
+    def accuracy(self, output: TensorNBICHW, target: Union[TensorNBICHW, IntTensorNBIHW], map_coord: TensorNBI4):
         if output.shape == target.shape:
             target = target.argmax(dim=-3)  # float(*,I,C,H,W) => int(*,I,H,W)
         output, bd = flatten_batch(output, 4)

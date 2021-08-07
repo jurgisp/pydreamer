@@ -70,13 +70,13 @@ class Dreamer(nn.Module):
         )
 
     def train(self,
-              image: Tensor,     # tensor(N, B, C, H, W)
+              image: Tensor,     # Tensor[N,B,C,H,W]
               reward: Tensor,
               terminal: Tensor,
-              action: Tensor,    # tensor(N, B, A)
-              reset: Tensor,     # tensor(N, B)
+              action: Tensor,    # (N,B,A)
+              reset: Tensor,     # (N,B)
               map: Tensor,
-              map_coord: Tensor,       # tensor(N, B, 4)
+              map_coord: Tensor, # (N,B,4)
               in_state: Any,
               I: int = 1,
               imagine=False,     # If True, will imagine sequence, not using observations to form posterior
@@ -93,7 +93,7 @@ class Dreamer(nn.Module):
 
         # Forward (map)
 
-        map_coord = map_coord.unsqueeze(2).expand(N, B, I, -1)
+        map_coord = map_coord.unsqueeze(2).expand(N, B, I, -1)  # TODO: move inside map_model.forward()
         map = map.unsqueeze(2).expand(N, B, I, *map.shape[2:])
         map_features = torch.cat((features, map_coord), dim=-1)
         map_features = map_features.detach()
@@ -465,7 +465,6 @@ class WorldModel(nn.Module):
 
 #         return loss, metrics, log_tensors
 
-
 class DirectHead(nn.Module):
 
     def __init__(self, decoder: DenseDecoder):
@@ -476,7 +475,7 @@ class DirectHead(nn.Module):
         obs_pred = self._decoder.forward(state)
         return (obs_pred, )
 
-    def loss(self, obs_pred, obs_target, map_coord):
+    def loss(self, obs_pred: TensorNBICHW, obs_target: TensorNBICHW, map_coord: TensorNBI4):
         loss = self._decoder.loss(obs_pred, obs_target)  # (N,B,I)
         loss = -logavgexp(-loss, dim=-1)  # (N,B,I) => (N,B)
         with torch.no_grad():
