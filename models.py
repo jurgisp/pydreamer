@@ -108,6 +108,7 @@ class Dreamer(nn.Module):
         loss_tensors.update(**loss_tensors_map)
 
         loss = loss_model + 0.1 * loss_map  # 0.1 only matters if no stop gradient
+        metrics.update(loss=loss.detach())
 
         # Predict
 
@@ -321,7 +322,6 @@ class WorldModel(nn.Module):
             + loss_reward
             + loss_terminal
         ), dim=-1)
-        loss = loss_model.mean()
 
         # IWAE according to paper
 
@@ -345,8 +345,7 @@ class WorldModel(nn.Module):
                                entropy_post=entropy_post,
                                )
 
-            metrics = dict(loss=loss.detach(),
-                           loss_model=loss_model.mean(),
+            metrics = dict(loss_model=loss_model.mean(),
                            loss_model_image=loss_image.mean(),
                            loss_model_image_max=loss_image.max(),
                            loss_model_reward=loss_reward.mean(),
@@ -385,7 +384,7 @@ class WorldModel(nn.Module):
                 logprob_terminal_1 = (logprob_terminal * terminal_1).sum() / terminal_1.sum()
                 metrics.update(logprob_terminal_1=logprob_terminal_1)
 
-        return loss, metrics, log_tensors
+        return loss_model.mean(), metrics, log_tensors
 
 
 # class MapPredictModel(nn.Module):
