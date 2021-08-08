@@ -74,7 +74,12 @@ class Dreamer(nn.Module):
 
         # Actor critic
 
-        self.ac = ActorCritic(in_dim=state_dim, out_actions=conf.action_dim)
+        self.ac = ActorCritic(in_dim=state_dim,
+                              out_actions=conf.action_dim,
+                              discount=conf.discount,
+                              temperature=conf.actor_ent,
+                              target_interval=conf.target_interval,
+                              )
 
     def train(self,
               image: TensorNBCHW,
@@ -115,7 +120,7 @@ class Dreamer(nn.Module):
             features_dream, actions_dream = self.dream(in_state_dream, H)                       # (H+1,NBI,D)
             rewards_dream = self.wm._decoder_reward.forward(features_dream)      # (H+1,NBI,2)
             terminals_dream = self.wm._decoder_terminal.forward(features_dream)  # (H+1,NBI,2)
-        
+
         # Loss
 
         loss_model, metrics, loss_tensors = self.wm.loss(*output, image, reward, terminal, reset)
@@ -147,7 +152,7 @@ class Dreamer(nn.Module):
         features = []
         actions = []
         state = in_state
-        
+
         for i in range(H):
             feature = self.wm._core.to_feature(*state)
             action = self.ac.forward_act_sample(feature)
@@ -161,6 +166,7 @@ class Dreamer(nn.Module):
         features = torch.stack(features)  # (H+1,NBI,D)
         actions = torch.stack(actions)  # (H,NBI,A)
         return features, actions
+
 
 class WorldModel(nn.Module):
 

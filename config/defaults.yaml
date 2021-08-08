@@ -68,6 +68,13 @@ defaults:
   mem_loss_type:
   global_dim: 0
 
+  # Actor Critic
+  discount: 0.999
+  # discount_lambda: 0.95
+  # imag_horizon: 15
+  actor_ent: 0.001
+  target_interval: 100
+
   # Generator
   generator_run: False
   generator_env:
