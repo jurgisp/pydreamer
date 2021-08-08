@@ -33,9 +33,9 @@ class ActorCritic(nn.Module):
         reward: TensorHM = F.softmax(rewards[1:], -1).select(-1, 1)  # select(-1,1) => probability of getting reward=1
         terminal: TensorHM = F.softmax(terminals[1:], -1).select(-1, 1)  # select(-1,) => probability of terminal state
         policy = self.forward_act(features[:-1])
-        value: TensorHM = self._critic.forward(features[:-1]).select(-1, 0)  # TODO: squeeze MLP if out_dim=1
-        value_baseline: TensorHM = self._critic_target.forward(features[:-1]).select(-1, 0).detach()
-        value_target: TensorHM = self._critic_target.forward(features[1:]).select(-1, 0).detach()
+        value: TensorHM = self._critic.forward(features[:-1])
+        value_baseline: TensorHM = self._critic_target.forward(features[:-1]).detach()
+        value_target: TensorHM = self._critic_target.forward(features[1:]).detach()
 
         target: TensorHM = reward + 0.99 * value_target * (1.0 - terminal)
         assert not target.requires_grad
@@ -47,16 +47,18 @@ class ActorCritic(nn.Module):
         loss_critic = - (policy.logits * actions).sum(-1) * advantage
         loss_critic = loss_critic.mean()
 
-        # TODO: need actor entropy (1e-3)
+        policy_entropy = policy.entropy().mean()
+        loss_entropy = - 1e-3 * policy_entropy
+
         # TODO: update target networks
         # TODO: need weights, even for H=1, weight=terminals[0]
 
         with torch.no_grad():
             metrics = dict(loss_ac_value=loss_value.detach(),
                            loss_ac_critic=loss_critic.detach(),
-                           policy_entropy=policy.entropy().mean(),
+                           policy_entropy=policy_entropy.detach(),
                            policy_value=value.mean()
                            )
 
-        loss = loss_value + loss_critic
+        loss = loss_value + loss_critic + loss_entropy
         return loss, metrics

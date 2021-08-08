@@ -19,6 +19,10 @@ class MLP(nn.Module):
         layers += [
             nn.Linear(hidden_dim, out_dim),
         ]
+        if out_dim == 1:
+            layers += [
+                nn.Flatten(0),
+            ]   
         self._model = nn.Sequential(*layers)
 
     def forward(self, x: Tensor) -> Tensor:
