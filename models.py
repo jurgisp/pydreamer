@@ -11,6 +11,7 @@ from modules_rssm import *
 from modules_rnn import *
 from modules_io import *
 from modules_mem import *
+from modules_rl import *
 
 
 class Dreamer(nn.Module):
@@ -18,19 +19,21 @@ class Dreamer(nn.Module):
     def __init__(self, conf):
         super().__init__()
 
+        state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim
+        n_map_coords = 4
+        map_state_dim = state_dim + n_map_coords
+
         # Map decoder
 
-        n_map_coords = 4
-        state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim + n_map_coords
         if conf.map_model == 'vae':
             if conf.map_decoder == 'cnn':
                 map_model = VAEHead(
                     encoder=ConvEncoder(in_channels=conf.map_channels,
                                         out_dim=conf.embed_dim),
-                    decoder=ConvDecoder(in_dim=state_dim + conf.map_stoch_dim,
+                    decoder=ConvDecoder(in_dim=map_state_dim + conf.map_stoch_dim,
                                         mlp_layers=2,
                                         out_channels=conf.map_channels),
-                    state_dim=state_dim,
+                    state_dim=map_state_dim,
                     latent_dim=conf.map_stoch_dim,
                     hidden_dim=conf.hidden_dim
                 )
@@ -40,13 +43,13 @@ class Dreamer(nn.Module):
         elif conf.map_model == 'direct':
             if conf.map_decoder == 'cnn':
                 map_model = DirectHead(
-                    decoder=ConvDecoder(in_dim=state_dim,
+                    decoder=ConvDecoder(in_dim=map_state_dim,
                                         mlp_layers=2,
                                         out_channels=conf.map_channels))  # type: ignore
 
             else:
                 map_model = DirectHead(
-                    decoder=DenseDecoder(in_dim=state_dim,
+                    decoder=DenseDecoder(in_dim=map_state_dim,
                                          out_shape=(conf.map_channels, conf.map_size, conf.map_size),
                                          hidden_dim=conf.map_hidden_dim,
                                          hidden_layers=conf.map_hidden_layers))
@@ -69,17 +72,22 @@ class Dreamer(nn.Module):
             gru_type=conf.gru_type
         )
 
+        # Actor critic
+
+        self.ac = ActorCritic(in_dim=state_dim, out_actions=conf.action_dim)
+
     def train(self,
-              image: Tensor,     # Tensor[N,B,C,H,W]
+              image: TensorNBCHW,
               reward: Tensor,
               terminal: Tensor,
-              action: Tensor,    # (N,B,A)
-              reset: Tensor,     # (N,B)
+              action: Tensor,     # (N,B,A)
+              reset: Tensor,      # (N,B)
               map: Tensor,
-              map_coord: Tensor, # (N,B,4)
+              map_coord: Tensor,  # (N,B,4)
               in_state: Any,
-              I: int = 1,
-              imagine=False,     # If True, will imagine sequence, not using observations to form posterior
+              I: int = 1,         # IWAE samples
+              H: int = 1,        # Imagination horizon
+              imagine=False,      # If True, will imagine sequence, not using observations to form posterior
               do_image_pred=False,
               do_output_tensors=False
               ):
@@ -89,6 +97,7 @@ class Dreamer(nn.Module):
 
         output = self.wm.forward(image, reward, terminal, action, reset, in_state, I, imagine, do_image_pred)
         features = output[0]
+        states = output[-2]
         out_state = output[-1]
 
         # Forward (map)
@@ -99,16 +108,25 @@ class Dreamer(nn.Module):
         map_features = map_features.detach()
         map_out = self.map_model.forward(map_features, map, do_image_pred=do_image_pred)
 
+        # Forward (actor critic)
+
+        with torch.no_grad():  # Not using dynamics gradients for now, just Reinforce
+            in_state_dream: StateB = map_structure(states, lambda x: flatten_batch(x.detach())[0])  # type: ignore
+            features_dream, actions_dream = self.dream(in_state_dream, H)                       # (H+1,NBI,D)
+            rewards_dream = self.wm._decoder_reward.forward(features_dream)      # (H+1,NBI,2)
+            terminals_dream = self.wm._decoder_terminal.forward(features_dream)  # (H+1,NBI,2)
+        
         # Loss
 
         loss_model, metrics, loss_tensors = self.wm.loss(*output, image, reward, terminal, reset)
+        metrics.update(loss=metrics['loss_wm'])
 
         loss_map, metrics_map, loss_tensors_map = self.map_model.loss(*map_out, map, map_coord)    # type: ignore
         metrics.update(**metrics_map)
         loss_tensors.update(**loss_tensors_map)
 
-        loss = loss_model + 0.1 * loss_map  # 0.1 only matters if no stop gradient
-        metrics.update(loss=loss.detach())
+        loss_ac, metrics_ac = self.ac.train(features_dream, rewards_dream, terminals_dream, actions_dream)
+        metrics.update(**metrics_ac)
 
         # Predict
 
@@ -120,8 +138,29 @@ class Dreamer(nn.Module):
         else:
             out_tensors = None
 
-        return loss, metrics, loss_tensors, out_state, out_tensors
+        losses = (loss_model, loss_map, loss_ac)
+        return losses, metrics, loss_tensors, out_state, out_tensors
 
+    def dream(self, in_state: StateB, H: int):
+        NBI = len(in_state[0])  # Imagine batch size = N*B*I
+        noises = self.wm._core.generate_noises(H, (NBI, ), in_state[0].device)
+        features = []
+        actions = []
+        state = in_state
+        
+        for i in range(H):
+            feature = self.wm._core.to_feature(*state)
+            action = self.ac.forward_act_sample(feature)
+            features.append(feature)
+            actions.append(action)
+            _, state = self.wm._core._cell.forward_prior(action, state, noises[i])
+
+        feature = self.wm._core.to_feature(*state)
+        features.append(feature)
+
+        features = torch.stack(features)  # (H+1,NBI,D)
+        actions = torch.stack(actions)  # (H,NBI,A)
+        return features, actions
 
 class WorldModel(nn.Module):
 
@@ -223,8 +262,7 @@ class WorldModel(nn.Module):
                 ):
 
         n, b = image.shape[:2]
-        noises = torch.normal(torch.zeros((n, b, I, self._stoch_dim)),
-                              torch.ones((n, b, I, self._stoch_dim))).to(image.device)  # Belongs to RSSM but need to do here for perf
+        noises = self._core.generate_noises(n, (b * I, ), image.device)  # Belongs to RSSM but need to do here for perf
 
         # Encoder
 
@@ -241,7 +279,7 @@ class WorldModel(nn.Module):
 
         # RSSM
 
-        prior, post, post_samples, features, out_state = self._core.forward(embed, action, reset, in_state, None, noises, I=I, imagine=imagine)
+        prior, post, post_samples, features, states, out_state = self._core.forward(embed, action, reset, in_state, None, noises, I=I, imagine=imagine)
 
         # Decoder
 
@@ -270,11 +308,12 @@ class WorldModel(nn.Module):
             image_pred,                  # Optional[(N,B,I,C,H,W)]
             reward_pred,
             terminal_pred,
+            states,
             out_state,
         )
 
     def predict(self,
-                features, prior, post, post_samples, image_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, out_state,     # forward() output
+                features, prior, post, post_samples, image_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, states, out_state,     # forward() output
                 ):
         if image_pred is not None:
             image_pred = self._decoder_image.to_distr(image_pred)
@@ -285,7 +324,7 @@ class WorldModel(nn.Module):
         )
 
     def loss(self,
-             features, prior, post, post_samples, image_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, out_state,     # forward() output
+             features, prior, post, post_samples, image_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, states, out_state,     # forward() output
              image, reward, terminal,
              reset,
              ):
@@ -345,13 +384,13 @@ class WorldModel(nn.Module):
                                entropy_post=entropy_post,
                                )
 
-            metrics = dict(loss_model=loss_model.mean(),
-                           loss_model_image=loss_image.mean(),
-                           loss_model_image_max=loss_image.max(),
-                           loss_model_reward=loss_reward.mean(),
-                           loss_model_terminal=loss_terminal.mean(),
-                           loss_model_kl=loss_kl.mean(),
-                           loss_model_kl_max=loss_kl.max(),
+            metrics = dict(loss_wm=loss_model.mean(),
+                           loss_wm_image=loss_image.mean(),
+                           loss_wm_image_max=loss_image.max(),
+                           loss_wm_reward=loss_reward.mean(),
+                           loss_wm_terminal=loss_terminal.mean(),
+                           loss_wm_kl=loss_kl.mean(),
+                           loss_wm_kl_max=loss_kl.max(),
                            entropy_prior=entropy_prior.mean(),
                            entropy_post=entropy_post.mean(),
                            )
@@ -457,8 +496,8 @@ class WorldModel(nn.Module):
 #         loss = loss_image + self._map_weight * loss_map
 
 #         metrics = dict(loss=loss.detach(),
-#                        loss_model_image=loss_image.detach(),
-#                        loss_model=loss_image.detach(),
+#                        loss_wm_image=loss_image.detach(),
+#                        loss_wm=loss_image.detach(),
 #                        loss_map=loss_map.detach(),
 #                        #    **metrics_map
 #                        )

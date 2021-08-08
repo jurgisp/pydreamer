@@ -66,9 +66,11 @@ def run(conf):
 
     # Training
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
+    optimizer_wm = torch.optim.Adam(model.wm.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
+    optimizer_map = torch.optim.Adam(model.map_model.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
+    optimizer_ac = torch.optim.Adam(model.ac.parameters(), lr=conf.adam_lr_ac, eps=conf.adam_eps)  # type: ignore
 
-    resume_step = tools.mlflow_load_checkpoint(model, optimizer)
+    resume_step = tools.mlflow_load_checkpoint(model, optimizer_wm, optimizer_map, optimizer_ac)
     if resume_step:
         print(f'Loaded model from checkpoint epoch {resume_step}')
 
@@ -120,7 +122,7 @@ def run(conf):
                     with autocast(enabled=conf.amp):
 
                         state = states.get(wid) or model.wm.init_state(image.size(1) * conf.iwae_samples)
-                        loss, loss_metrics, loss_tensors, new_state, out_tensors = \
+                        losses, loss_metrics, loss_tensors, new_state, out_tensors = \
                             model.train(image, reward, terminal, action, reset, map, map_coord, state,
                                         I=conf.iwae_samples,
                                         do_output_tensors=steps % conf.log_interval == 1)
@@ -131,18 +133,28 @@ def run(conf):
 
                 with timer('backward'):
 
-                    optimizer.zero_grad()
-                    scaler.scale(loss).backward()  # loss.backward()
+                    loss_wm, loss_map, loss_ac = losses
+                    optimizer_wm.zero_grad()
+                    optimizer_map.zero_grad()
+                    optimizer_ac.zero_grad()
+                    scaler.scale(loss_wm).backward()
+                    scaler.scale(loss_map).backward()
+                    scaler.scale(loss_ac).backward()
 
                 # Grad step
 
                 with timer('gradstep'):  # CUDA wait happens here
 
-                    scaler.unscale_(optimizer)
+                    scaler.unscale_(optimizer_wm)
+                    scaler.unscale_(optimizer_map)
+                    scaler.unscale_(optimizer_ac)
                     grad_norm_model = nn.utils.clip_grad_norm_(model.wm.parameters(), conf.grad_clip)
                     grad_norm_map = nn.utils.clip_grad_norm_(model.map_model.parameters(), conf.grad_clip)
-                    grad_metrics = {'grad_norm': grad_norm_model, 'grad_norm_map': grad_norm_map}
-                    scaler.step(optimizer)
+                    grad_norm_ac = nn.utils.clip_grad_norm_(model.ac.parameters(), conf.grad_clip)
+                    grad_metrics = {'grad_norm': grad_norm_model, 'grad_norm_map': grad_norm_map, 'grad_norm_ac': grad_norm_ac}
+                    scaler.step(optimizer_wm)
+                    scaler.step(optimizer_map)
+                    scaler.step(optimizer_ac)
                     scaler.update()
 
                 with timer('other'):
@@ -177,12 +189,12 @@ def run(conf):
                         last_time, last_steps = t, steps
 
                         print(f"[{steps:06}]"
-                              f"  loss_model: {metrics.get('loss_model', 0):.3f}"
-                              f"  loss_model_kl: {metrics.get('loss_model_kl', 0):.3f}"
-                              f"  loss_model_image: {metrics.get('loss_model_image', 0):.3f}"
-                              f"  loss_map: {metrics['loss_map']:.3f}"
-                              f"  entropy_prior: {metrics.get('entropy_prior',0):.3f}"
-                              f"  acc_map: {metrics.get('acc_map',0):.3f}"
+                              f"  loss_wm: {metrics.get('loss_wm', 0):.3f}"
+                              f"  loss_wm_kl: {metrics.get('loss_wm_kl', 0):.3f}"
+                              f"  loss_ac_value: {metrics.get('loss_ac_value', 0):.3f}"
+                              f"  loss_map: {metrics.get('loss_map', 0):.3f}"
+                              f"  policy_value: {metrics.get('policy_value',0):.3f}"
+                              f"  policy_entropy: {metrics.get('policy_entropy',0):.3f}"
                               f"  fps: {metrics['fps']:.3f}"
                               )
                         mlflow.log_metrics(metrics, step=steps)
@@ -192,7 +204,7 @@ def run(conf):
                     # Save model
 
                     if steps % conf.save_interval == 0:
-                        tools.mlflow_save_checkpoint(model, optimizer, steps)
+                        tools.mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_ac, steps)
                         print(f'Saved model checkpoint')
 
                     # Stop

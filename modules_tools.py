@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Callable, Dict, List, Tuple, Union
 import numpy as np
 import torch
 import torch.nn as nn
@@ -7,9 +7,25 @@ import torch.distributions as D
 from torch import Tensor, Size
 import modules_rnn as my
 
+# N = 50         (TBTT length)
+# B = 50         (batch size)
+# A = 3          (action dim)
+# I = 1/3/10     (IWAE)
+# F = 2048+32    (feature_dim)
+# H = 10         (dream horizon)
+# J = H+1 = 11
+# M = N*B*I = 2500 
+TensorNBCHW = Tensor
 TensorNBICHW = Tensor
 TensorNBI4 = Tensor
+TensorJMF = Tensor
+TensorJM2 = Tensor
+TensorHMA = Tensor
+TensorHM = Tensor
+
 IntTensorNBIHW = Tensor
+StateB = Tuple[Tensor, Tensor]
+StateNB = Tuple[Tensor, Tensor]
 
 
 def flatten(x: Tensor) -> Tensor:
@@ -78,3 +94,18 @@ def init_weights_tf2(m):
 
 def logavgexp(x: Tensor, dim: int) -> Tensor:
     return x.logsumexp(dim=dim) - np.log(x.size(dim))
+
+
+def map_structure(data: Tuple[Tensor, ...], f: Callable[[Tensor], Tensor]) -> Tuple[Tensor, ...]:
+    # Like tf.nest.map_structure
+    assert isinstance(data, tuple), 'Not implemented for other types'
+    return tuple(f(d) for d in data)
+
+
+def stack_structure(data: List[Tuple[Tensor, ...]]) -> Tuple[Tensor, ...]:
+    assert isinstance(data[0], tuple), 'Not implemented for other types'
+    n = len(data[0])
+    return tuple(
+        torch.stack([d[i] for d in data])
+        for i in range(n)
+    )

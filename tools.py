@@ -46,20 +46,22 @@ def mlflow_log_npz(data, name, subdir=None, verbose=False):
         mlflow.log_artifact(str(path), artifact_path=subdir)
 
 
-def mlflow_save_checkpoint(model, optimizer, steps):
+def mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_ac, steps):
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / 'latest.pt'
         torch.save({
             'epoch': steps,
             'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
+            'optimizer_wm_state_dict': optimizer_wm.state_dict(),
+            'optimizer_map_state_dict': optimizer_map.state_dict(),
+            'optimizer_ac_state_dict': optimizer_ac.state_dict(),
         }, path)
         mlflow.log_artifact(str(path), artifact_path='checkpoints')
 
-def mlflow_load_checkpoint(model, optimizer, artifact_path = 'checkpoints/latest.pt'):
+def mlflow_load_checkpoint(model, optimizer_wm, optimizer_map, optimizer_ac, artifact_path = 'checkpoints/latest.pt'):
     with tempfile.TemporaryDirectory() as tmpdir:
         client = MlflowClient()
-        run_id = mlflow.active_run().info.run_id
+        run_id = mlflow.active_run().info.run_id  # type: ignore
         try:
             path = client.download_artifacts(run_id, artifact_path, tmpdir)
         except:
@@ -67,7 +69,9 @@ def mlflow_load_checkpoint(model, optimizer, artifact_path = 'checkpoints/latest
             return None
         checkpoint = torch.load(path)
         model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        optimizer_wm.load_state_dict(checkpoint['optimizer_wm_state_dict'])
+        optimizer_map.load_state_dict(checkpoint['optimizer_map_state_dict'])
+        optimizer_ac.load_state_dict(checkpoint['optimizer_ac_state_dict'])
         return checkpoint['epoch']
 
 def save_npz(data, filename):
