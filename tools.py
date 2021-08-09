@@ -45,6 +45,11 @@ def mlflow_log_npz(data, name, subdir=None, verbose=False):
             print(f'Uploading artifact {subdir}/{name} size {path.stat().st_size/1024/1024:.2f} MB')
         mlflow.log_artifact(str(path), artifact_path=subdir)
 
+def mlflow_log_text(text, name: str, subdir=None):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / name
+        path.write_text(text)
+        mlflow.log_artifact(str(path), artifact_path=subdir)
 
 def mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_ac, steps):
     with tempfile.TemporaryDirectory() as tmpdir:

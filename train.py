@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 
 import tools
-from tools import Timer, mlflow_start_or_resume, param_count, NoProfiler
+from tools import *
 from data import OfflineDataSequential
 from preprocessing import MinigridPreprocess, WorkerInfoPreprocess
 from models import *
@@ -61,8 +61,8 @@ def run(conf):
     for submodel in [model.wm._encoder, model.wm._decoder_image, model.wm._core, model.wm._input_rnn, model.map_model]:
         if submodel is not None:
             print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
-    print(model)
-    mlflow.set_tag(mlflow.utils.mlflow_tags.MLFLOW_RUN_NOTE, f'```\n{str(model)[:4900]}\n```')  # type: ignore  # There is 5000 char limit on mlflow
+    # print(model)
+    mlflow_log_text(str(model), 'architecture.txt')
 
     # Training
 
