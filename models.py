@@ -192,11 +192,12 @@ class WorldModel(nn.Module):
 
         # Encoder
 
+        encoder_channels = conf.image_channels + 2  # + reward, terminal
         if conf.image_encoder == 'cnn':
-            self._encoder = ConvEncoder(in_channels=conf.image_channels,
+            self._encoder = ConvEncoder(in_channels=encoder_channels,
                                         out_dim=conf.embed_dim)
         else:
-            self._encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * conf.image_channels,
+            self._encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * encoder_channels,
                                          out_dim=conf.embed_dim,
                                          hidden_layers=conf.image_encoder_layers)
 
@@ -256,9 +257,9 @@ class WorldModel(nn.Module):
         return self._core.init_state(batch_size)
 
     def forward(self,
-                image: Tensor,     # tensor(N, B, C, H, W)
-                reward: Tensor,
-                terminal: Tensor,
+                image: TensorNBCHW,
+                reward: TensorNB,
+                terminal: TensorNB,
                 action: Tensor,    # tensor(N, B, A)
                 reset: Tensor,     # tensor(N, B)
                 in_state: Any,
@@ -267,12 +268,18 @@ class WorldModel(nn.Module):
                 do_image_pred=False,
                 ):
 
-        n, b = image.shape[:2]
-        noises = self._core.generate_noises(n, (b * I, ), image.device)  # Belongs to RSSM but need to do here for perf
+        N, B, C, H, W = image.shape
+        noises = self._core.generate_noises(N, (B * I, ), image.device)  # Belongs to RSSM but need to do here for perf
 
         # Encoder
 
-        embed = self._encoder.forward(image)  # (N,B,E)
+        reward_plane = reward.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
+        terminal_plane = terminal.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
+        observation = torch.cat([  # (N,B,C+2,H,W)
+            image,
+            reward_plane.to(image.dtype),
+            terminal_plane.to(image.dtype)], dim=-3)
+        embed = self._encoder.forward(observation)  # (N,B,E)
         if self._input_rnn:
             embed_rnn, _ = self._input_rnn.forward(embed, action)  # (N,B,2E)
             embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E)

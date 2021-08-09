@@ -16,6 +16,7 @@ import modules_rnn as my
 # J = H+1 = 11
 # M = N*B*I = 2500 
 TensorNBCHW = Tensor
+TensorNB = Tensor
 TensorNBICHW = Tensor
 TensorNBI4 = Tensor
 TensorJMF = Tensor
