@@ -51,7 +51,6 @@ spec:
             - "10_000_000"
             - --seed
             - "${SEED}"
-            - --save_to_mlflow
           resources:
             requests:
               memory: 4000Mi

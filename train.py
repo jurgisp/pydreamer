@@ -400,13 +400,14 @@ def prepare_batch_npz(batch,
 
 def run_generator(conf):
     os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
-    conf = argparse.Namespace(**vars(conf),
-                              policy='random',
-                              save_to_mlflow=True,
-                              num_steps=int(1e9),
-                              steps_per_npz=2000,
-                              seed=0)
-    p = Process(target=generator.main, args=(conf,))
+    p = Process(target=generator.main, 
+                kwargs=dict(
+                    env_id=conf.env_id,
+                    env_max_steps=conf.env_max_steps,
+                    policy='random', 
+                    num_steps=int(1e9), 
+                    seed=0
+                ))
     p.start()
 
 

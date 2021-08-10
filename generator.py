@@ -17,47 +17,42 @@ from tools import *
 WALL = 2
 
 
-def main(conf):
-    # print('Generator started...')
-    # delete_every = 100  # if conf.delete_old is set
-    confd = vars(conf)
-
-    env_name = conf.env_id
-    policy = conf.policy
-    output_dir = None
-
+def main(env_id='MiniGrid-MazeS11N-v0',
+         seed=0,
+         policy='random',
+         num_steps=int(1e6),
+         env_max_steps=500,
+         steps_per_npz=2000,
+         model_conf=dict(), 
+         ):
     if 'MLFLOW_RUN_ID' in os.environ:
         run = mlflow.start_run()
         print(f'[Generator] using existing mlflow run {run.info.run_id}')
-    elif conf.save_to_mlflow:
-        run = mlflow.start_run(run_name=f'{env_name}-s{conf.seed}')
-        print(f'Mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
     else:
-        output_dir = Path(conf.output_dir or f"data/{env_name}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}")
-        output_dir = pathlib.Path(output_dir).expanduser()
-        output_dir.mkdir(parents=True, exist_ok=True)
+        run = mlflow.start_run(run_name=f'{env_id}-s{seed}')
+        print(f'Mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
 
-    if env_name.startswith('MiniGrid-'):
-        env = MiniGrid(env_name, max_steps=conf.env_max_steps, seed=conf.seed)
+    if env_id.startswith('MiniGrid-'):
+        env = MiniGrid(env_id, max_steps=env_max_steps, seed=seed)
 
-    elif env_name.startswith('MiniWorld-'):
+    elif env_id.startswith('MiniWorld-'):
         import gym_miniworld.wrappers as wrap
-        env = env_raw = gym.make(env_name, max_steps=conf.env_max_steps)
+        env = env_raw = gym.make(env_id, max_steps=env_max_steps)
         env = wrap.DictWrapper(env)
         env = wrap.MapWrapper(env)
         env = wrap.PixelMapWrapper(env)
         env = wrap.AgentPosWrapper(env)
 
     else:
-        env = gym.make(env_name, max_steps=conf.env_max_steps)
+        env = gym.make(env_id, max_steps=env_max_steps)
 
-    env = CollectWrapper(env, conf.env_max_steps)
+    env = CollectWrapper(env, env_max_steps)
 
     # if policy == 'network':
     #     model = Dreamer(conf)
     #     print('Generator model created')
     #     print(model)
-    #     # policy = 
+    #     # policy =
     if policy == 'random':
         policy = RandomPolicy(env.action_space)
     elif policy == 'minigrid_wander':
@@ -76,7 +71,7 @@ def main(conf):
     visited_stats = []
     first_save = True
 
-    while steps < conf.num_steps:
+    while steps < num_steps:
 
         # Unroll one episode
 
@@ -103,7 +98,7 @@ def main(conf):
         if episodes == 0:
             print('Episode data sample: ', {k: v.shape for k, v in data.items()})
 
-        print(f"[{steps:08}/{conf.num_steps:08}] "
+        print(f"[{steps:08}/{num_steps:08}] "
               f"Episode {episodes} recorded:"
               f"  steps: {epsteps}"
               f",  reward: {data['reward'].sum()}"
@@ -118,7 +113,7 @@ def main(conf):
         datas_episodes = len(datas)
         datas_steps = sum(len(d['reset']) for d in datas)
 
-        if datas_steps >= conf.steps_per_npz:
+        if datas_steps >= steps_per_npz:
 
             # Concatenate episodes
 
@@ -139,31 +134,11 @@ def main(conf):
                 first_save = False
 
             if datas_episodes > 1:
-                fname = f's{conf.seed}-ep{episodes-datas_episodes:06}_{episodes-1:06}-{datas_steps:04}.npz'
+                fname = f's{seed}-ep{episodes-datas_episodes:06}_{episodes-1:06}-{datas_steps:04}.npz'
             else:
-                fname = f's{conf.seed}-ep{episodes-1:06}-{datas_steps:04}.npz'
+                fname = f's{seed}-ep{episodes-1:06}-{datas_steps:04}.npz'
 
-            if conf.save_to_mlflow:
-                mlflow_log_npz(data, fname, 'episodes', verbose=True)
-            else:
-                assert output_dir
-                fname = output_dir / fname
-                save_npz(data, fname)
-
-        # Delete old
-
-        # if conf.delete_old and episodes % delete_every == 0:
-        #     assert not conf.save_to_mlflow
-        #     for i_new in range(episodes - delete_every + 1, episodes + 1):
-        #         i_old = i_new - conf.delete_old
-        #         if i_old < 0:
-        #             continue
-        #         del_fname = output_dir / f's{conf.seed}-ep{i_old:06}-{epsteps:04}.npz'
-        #         print(f'Deleting {del_fname}')
-        #         del_fname.unlink()
-
-        # if conf.sleep:
-        #     time.sleep(conf.sleep)
+            mlflow_log_npz(data, fname, 'episodes', verbose=True)
 
 
 class RandomPolicy:
@@ -461,13 +436,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_id', type=str, required=True)
     parser.add_argument('--policy', type=str, required=True)
-    parser.add_argument('--output_dir', type=str, default=None)
     parser.add_argument('--num_steps', type=int, default=1_000_000)
     parser.add_argument('--seed', type=int, default=1)
-    parser.add_argument('--delete_old', type=int, default=0)
-    parser.add_argument('--sleep', type=int, default=0)
-    parser.add_argument('--save_to_mlflow', action='store_true')
     parser.add_argument('--env_max_steps', type=int, default=500)
-    parser.add_argument('--steps_per_npz', type=int, default=2000)
     args = parser.parse_args()
-    main(args)
+    main(**vars(args))
