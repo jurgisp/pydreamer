@@ -168,12 +168,7 @@ class DenseDecoder(nn.Module):
         target, _ = flatten_batch(target, len(self.out_shape) - 1)  # (*,H,W) => (B,H,W)
 
         if self._min_prob == 0:
-            if len(output.shape) == 4 and output.shape[-3] == 4:
-                # TODO: temporary, for apples
-                class_weights = torch.tensor([1., 1., 1., 10.], device=target.device)  
-            else:
-                class_weights = None
-            loss = F.nll_loss(F.log_softmax(output, 1), target, weight=class_weights, reduction='none')  # = F.cross_entropy()
+            loss = F.nll_loss(F.log_softmax(output, 1), target, reduction='none')  # = F.cross_entropy()
         else:
             prob = F.softmax(output, 1)
             prob = (1.0 - self._min_prob) * prob + self._min_prob * (1.0 / prob.size(1))  # mix with uniform prob
