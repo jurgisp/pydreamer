@@ -14,7 +14,7 @@ import modules_rnn as my
 # F = 2048+32    (feature_dim)
 # H = 10         (dream horizon)
 # J = H+1 = 11
-# M = N*B*I = 2500 
+# M = N*B*I = 2500
 TensorNBCHW = Tensor
 TensorNB = Tensor
 TensorNBICHW = Tensor
@@ -110,3 +110,7 @@ def stack_structure(data: List[Tuple[Tensor, ...]]) -> Tuple[Tensor, ...]:
         torch.stack([d[i] for d in data])
         for i in range(n)
     )
+
+
+def nanmean(x: Tensor) -> Tensor:
+    return torch.nansum(x) / (~torch.isnan(x)).sum()

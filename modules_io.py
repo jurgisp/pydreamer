@@ -91,8 +91,7 @@ class ConvDecoder(nn.Module):
         target = target.select(-4, 0)  # int(*,I,H,W) => int(*,H,W)
         map_coord = map_coord.select(-2, 0)
         acc = envs.worldgrid_map_accuracy(output, target, map_coord[:, 0:2], map_coord[:, 2:4])  # TODO: env-specific
-        acc = unflatten_batch(acc, bd)
-        acc = torch.nansum(acc) / (~torch.isnan(acc)).sum()  # mean
+        acc = unflatten_batch(acc, bd)  # (N,B)
         return acc
 
     def to_distr(self, output: Tensor) -> D.Distribution:
@@ -191,8 +190,7 @@ class DenseDecoder(nn.Module):
 
         acc = output.argmax(dim=-3) == target
         acc = acc.to(torch.float).mean(dim=[-1, -2])
-        acc = unflatten_batch(acc, bd)
-        acc = acc.mean()
+        acc = unflatten_batch(acc, bd)  # (N,B)
         return acc
 
     def to_distr(self, output: Tensor) -> D.Distribution:

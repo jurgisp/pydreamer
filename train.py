@@ -256,7 +256,7 @@ def evaluate(prefix: str,
     state = None
     loss_tensors = None
     npz_datas = []
-    n_finished_episodes = None
+    n_finished_episodes = np.zeros(1)
 
     for i_batch in range(eval_batches):
         with torch.no_grad():

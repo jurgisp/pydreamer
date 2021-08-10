@@ -254,7 +254,7 @@ def worldgrid_map_accuracy(output, target, agent_pos, agent_dir):
             check_mask[idx[mask], my[mask], mx[mask]] = True
 
     acc = (correct & check_mask).sum(dim=[1, 2]) / check_mask.sum(dim=[1, 2])
-    mask = ((-1e-3 < dy) & (dy < 1e-3)) | ((-1e-3 < dx) & (dx < 1e-3))  # calculate only at right angles
+    mask = ((-0.01 < dy) & (dy < 0.01)) | ((-0.01 < dx) & (dx < 0.01))  # calculate only at right angles
     acc[~mask] = np.nan
 
     return acc

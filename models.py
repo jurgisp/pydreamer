@@ -45,14 +45,14 @@ class Dreamer(nn.Module):
                 map_model = DirectHead(
                     decoder=ConvDecoder(in_dim=map_state_dim,
                                         mlp_layers=2,
-                                        out_channels=conf.map_channels))  # type: ignore
+                                        out_channels=conf.map_channels))
 
             else:
                 map_model = DirectHead(
                     decoder=DenseDecoder(in_dim=map_state_dim,
                                          out_shape=(conf.map_channels, conf.map_size, conf.map_size),
                                          hidden_dim=conf.map_hidden_dim,
-                                         hidden_layers=conf.map_hidden_layers))
+                                         hidden_layers=conf.map_hidden_layers))    # type: ignore
         else:
             map_model = NoHead(out_shape=(conf.map_channels, conf.map_size, conf.map_size))
 
@@ -519,7 +519,7 @@ class WorldModel(nn.Module):
 
 class DirectHead(nn.Module):
 
-    def __init__(self, decoder: DenseDecoder):
+    def __init__(self, decoder: ConvDecoder):
         super().__init__()
         self._decoder = decoder
 
@@ -532,8 +532,10 @@ class DirectHead(nn.Module):
         loss = -logavgexp(-loss, dim=-1)  # (N,B,I) => (N,B)
         with torch.no_grad():
             acc_map = self._decoder.accuracy(obs_pred, obs_target, map_coord)
-            tensors = dict(loss_map=loss.detach())
-            metrics = dict(loss_map=loss.mean(), acc_map=acc_map)
+            tensors = dict(loss_map=loss.detach(),
+                           acc_map=acc_map)
+            metrics = dict(loss_map=loss.mean(),
+                           acc_map=nanmean(acc_map))
         return loss.mean(), metrics, tensors
 
     def to_distr(self, obs_pred):
@@ -596,7 +598,8 @@ class VAEHead(nn.Module):
                            )
             if obs_pred is not None:
                 acc_map = self._decoder.accuracy(obs_pred, obs_target, map_coord)
-                metrics.update(acc_map=acc_map)
+                tensors.update(acc_map=acc_map)
+                metrics.update(acc_map=nanmean(acc_map))
 
         return loss.mean(), metrics, tensors
 
