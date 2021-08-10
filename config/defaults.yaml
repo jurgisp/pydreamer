@@ -77,9 +77,8 @@ defaults:
 
   # Generator
   generator_run: False
-  generator_env:
-  generator_wait: 300
-  generator_buffer: 0
+  env_id:
+  env_max_steps: 1500
 
 minigrid:
   # Data

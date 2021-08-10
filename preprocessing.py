@@ -66,7 +66,7 @@ class MinigridPreprocess:
 
     def apply(self, batch: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         if self._first:
-            print('Data batch: ', {k: v.shape for k, v in batch.items()})
+            print('Data batch (before preprocess): ', {k: v.shape for k, v in batch.items()})
             self._first = False
 
         # image

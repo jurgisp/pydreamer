@@ -1,3 +1,5 @@
+import os
+from models import Dreamer
 from typing import Tuple, Optional, Dict, List
 import argparse
 import numpy as np
@@ -16,35 +18,46 @@ WALL = 2
 
 
 def main(conf):
+    # print('Generator started...')
     # delete_every = 100  # if conf.delete_old is set
+    confd = vars(conf)
 
-    env_name = conf.env
+    env_name = conf.env_id
     policy = conf.policy
-    output_dir = Path(conf.output_dir or f"data/{env_name}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}")
+    output_dir = None
 
-    if conf.save_to_mlflow:
+    if 'MLFLOW_RUN_ID' in os.environ:
+        run = mlflow.start_run()
+        print(f'[Generator] using existing mlflow run {run.info.run_id}')
+    elif conf.save_to_mlflow:
         run = mlflow.start_run(run_name=f'{env_name}-s{conf.seed}')
         print(f'Mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
     else:
+        output_dir = Path(conf.output_dir or f"data/{env_name}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}")
         output_dir = pathlib.Path(output_dir).expanduser()
         output_dir.mkdir(parents=True, exist_ok=True)
 
     if env_name.startswith('MiniGrid-'):
-        env = MiniGrid(env_name, max_steps=conf.max_steps, seed=conf.seed)
+        env = MiniGrid(env_name, max_steps=conf.env_max_steps, seed=conf.seed)
 
     elif env_name.startswith('MiniWorld-'):
         import gym_miniworld.wrappers as wrap
-        env = env_raw = gym.make(env_name, max_steps=conf.max_steps)
+        env = env_raw = gym.make(env_name, max_steps=conf.env_max_steps)
         env = wrap.DictWrapper(env)
         env = wrap.MapWrapper(env)
         env = wrap.PixelMapWrapper(env)
         env = wrap.AgentPosWrapper(env)
 
     else:
-        env = gym.make(env_name, max_steps=conf.max_steps)
+        env = gym.make(env_name, max_steps=conf.env_max_steps)
 
-    env = CollectWrapper(env, conf.max_steps)
+    env = CollectWrapper(env, conf.env_max_steps)
 
+    # if policy == 'network':
+    #     model = Dreamer(conf)
+    #     print('Generator model created')
+    #     print(model)
+    #     # policy = 
     if policy == 'random':
         policy = RandomPolicy(env.action_space)
     elif policy == 'minigrid_wander':
@@ -133,6 +146,7 @@ def main(conf):
             if conf.save_to_mlflow:
                 mlflow_log_npz(data, fname, 'episodes', verbose=True)
             else:
+                assert output_dir
                 fname = output_dir / fname
                 save_npz(data, fname)
 
@@ -445,7 +459,7 @@ class CollectWrapper:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, required=True)
+    parser.add_argument('--env_id', type=str, required=True)
     parser.add_argument('--policy', type=str, required=True)
     parser.add_argument('--output_dir', type=str, default=None)
     parser.add_argument('--num_steps', type=int, default=1_000_000)
@@ -453,7 +467,7 @@ if __name__ == '__main__':
     parser.add_argument('--delete_old', type=int, default=0)
     parser.add_argument('--sleep', type=int, default=0)
     parser.add_argument('--save_to_mlflow', action='store_true')
-    parser.add_argument('--max_steps', type=int, default=500)
+    parser.add_argument('--env_max_steps', type=int, default=500)
     parser.add_argument('--steps_per_npz', type=int, default=2000)
     args = parser.parse_args()
     main(args)

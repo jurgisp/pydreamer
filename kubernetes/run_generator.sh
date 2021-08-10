@@ -45,7 +45,7 @@ spec:
             - python3
           args:
             - generator.py
-            - --env
+            - --env_id
             - ${ENVID}
             - --num_steps
             - "10_000_000"

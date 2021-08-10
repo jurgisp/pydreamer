@@ -1,7 +1,8 @@
+import os
 from typing import Optional
 import argparse
-import pathlib
-import subprocess
+from pathlib import Path
+from multiprocessing import Process
 from collections import defaultdict
 from typing import Iterator
 import numpy as np
@@ -20,6 +21,7 @@ from tools import *
 from data import OfflineDataSequential
 from preprocessing import MinigridPreprocess, WorkerInfoPreprocess
 from models import *
+import generator
 
 
 torch.distributions.Distribution.set_default_validate_args(False)
@@ -27,12 +29,16 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 
 
 def run(conf):
-    if conf.generator_run:
-        run_generator(conf)
-
     mlflow_start_or_resume(conf.run_name, conf.resume_id)
     mlflow.log_params(vars(conf))
     device = torch.device(conf.device)
+
+    # Generator / Agent
+
+    if conf.generator_run:
+        run_generator(conf)
+
+    # Data
 
     data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True)
     data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.eval_batch_size, skip_first=False)
@@ -42,6 +48,7 @@ def run(conf):
                                     map_categorical=conf.map_channels if conf.map_categorical else None,
                                     map_key=conf.map_key,
                                     amp=conf.device.startswith('cuda') and conf.amp)
+
 
     # MODEL
 
@@ -203,7 +210,7 @@ def run(conf):
 
                     # Save model
 
-                    if steps % conf.save_interval == 0:
+                    if steps % conf.save_interval == 1:
                         tools.mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_ac, steps)
                         print(f'Saved model checkpoint')
 
@@ -392,22 +399,15 @@ def prepare_batch_npz(batch,
 
 
 def run_generator(conf):
-    # Start train
-    cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 1 --output_dir {conf.input_dir} --delete_old {conf.generator_buffer}'
-    print(f'Starting data generator:\n{cmd}')
-    p1 = subprocess.Popen(cmd.split(' '), stdout=subprocess.DEVNULL)
-    # Start eval
-    cmd = f'python3 generator.py {conf.generator_env} --num_steps 1000000000 --seed 2 --output_dir {conf.eval_dir} --delete_old {conf.generator_buffer} --sleep 20'
-    print(f'Starting data generator:\n{cmd}')
-    p2 = subprocess.Popen(cmd.split(' '), stdout=subprocess.DEVNULL)
-    # Check
-    time.sleep(5)
-    assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
-    # Wait
-    print(f'Waiting for {conf.generator_wait} sec for initial data')
-    time.sleep(conf.generator_wait)
-    # Check again
-    assert (p1.poll() is None) and (p2.poll() is None), 'Process has exited'
+    os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
+    conf = argparse.Namespace(**vars(conf),
+                              policy='random',
+                              save_to_mlflow=True,
+                              num_steps=int(1e9),
+                              steps_per_npz=2000,
+                              seed=0)
+    p = Process(target=generator.main, args=(conf,))
+    p.start()
 
 
 def get_profiler(conf):
