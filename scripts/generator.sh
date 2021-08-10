@@ -560,9 +560,6 @@ gcloud compute instances detach-disk "adhoc-jurgis" --disk "gke-shared-disk"
 
 ## MiniGrid
 
-# python generator.py MiniGrid-MazeS11-v0 --num_steps 1_000_000_000 --seed 1 --delete_old 20 --output_dir ./data_bak/train --sleep 1
-# python generator.py MiniGrid-MazeS11-v0 --num_steps 5_000_000 --seed 2
-
 ./kubernetes/run_generator.sh dreamer2_episodes MiniGrid-MazeS11N-v0 1
 ./kubernetes/run_generator.sh dreamer2_episodes MiniGrid-MazeS11N-v0 2
 ./kubernetes/run_generator.sh dreamer2_episodes MiniGrid-MazeS11N-v0 3

@@ -15,12 +15,12 @@ from tools import *
 WALL = 2
 
 
-def main(output_dir,
-         env_name,
-         policy,
-         conf,
-         ):
+def main(conf):
     # delete_every = 100  # if conf.delete_old is set
+
+    env_name = conf.env
+    policy = conf.policy
+    output_dir = Path(conf.output_dir or f"data/{env_name}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}")
 
     if conf.save_to_mlflow:
         run = mlflow.start_run(run_name=f'{env_name}-s{conf.seed}')
@@ -445,8 +445,8 @@ class CollectWrapper:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('env')
-    parser.add_argument('policy')
+    parser.add_argument('--env', type=str, required=True)
+    parser.add_argument('--policy', type=str, required=True)
     parser.add_argument('--output_dir', type=str, default=None)
     parser.add_argument('--num_steps', type=int, default=1_000_000)
     parser.add_argument('--seed', type=int, default=1)
@@ -456,7 +456,4 @@ if __name__ == '__main__':
     parser.add_argument('--max_steps', type=int, default=500)
     parser.add_argument('--steps_per_npz', type=int, default=2000)
     args = parser.parse_args()
-
-    output_dir = args.output_dir or f"data/{args.env}/{datetime.datetime.now().strftime('%Y%m%d_%H%M')}"
-
-    main(output_dir, args.env, args.policy, args)
+    main(args)
