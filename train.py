@@ -41,8 +41,10 @@ def run(conf):
         conf.input_dir = generator_dir
         conf.eval_dir = generator_dir  # TODO
         data_reload_interval = 60
-        run_generator(conf)
-        time.sleep(300)
+        print('Pre-generating random data...')
+        run_generator(conf, seed=0, policy='random', num_steps=100000, block=True)
+        print('Random data done, starting real generator...')
+        run_generator(conf, seed=1, policy='network')
 
     # Data
 
@@ -215,9 +217,9 @@ def run(conf):
 
                     # Save model
 
-                    if steps % conf.save_interval == 1:
+                    if steps % conf.save_interval == 0:
                         tools.mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_ac, steps)
-                        print(f'Saved model checkpoint')
+                        print(f'Saved model checkpoint {steps}')
 
                     # Stop
 
@@ -403,17 +405,20 @@ def prepare_batch_npz(batch,
     return data
 
 
-def run_generator(conf):
+def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=False):
     os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
     p = Process(target=generator.main,
                 kwargs=dict(
                     env_id=conf.env_id,
                     env_max_steps=conf.env_max_steps,
-                    policy='random',
-                    num_steps=int(1e9),
-                    seed=0
+                    policy=policy,
+                    num_steps=num_steps,
+                    seed=seed,
+                    model_conf=conf,
                 ))
     p.start()
+    if block:
+        p.join()
 
 
 def get_profiler(conf):

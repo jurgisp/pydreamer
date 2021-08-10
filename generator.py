@@ -23,11 +23,12 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          num_steps=int(1e6),
          env_max_steps=500,
          steps_per_npz=2000,
+         model_reload_interval=60,
          model_conf=dict(), 
          ):
     if 'MLFLOW_RUN_ID' in os.environ:
         run = mlflow.start_run()
-        print(f'[Generator] using existing mlflow run {run.info.run_id}')
+        print(f'Generator using existing mlflow run {run.info.run_id}')
     else:
         run = mlflow.start_run(run_name=f'{env_id}-s{seed}')
         print(f'Mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
@@ -48,12 +49,11 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
     env = CollectWrapper(env, env_max_steps)
 
-    # if policy == 'network':
-    #     model = Dreamer(conf)
-    #     print('Generator model created')
-    #     print(model)
-    #     # policy =
-    if policy == 'random':
+    model = None
+    if policy == 'network':
+        model = Dreamer(model_conf)
+        policy = NetworkPolicy(model)
+    elif policy == 'random':
         policy = RandomPolicy(env.action_space)
     elif policy == 'minigrid_wander':
         policy = MinigridWanderPolicy()
@@ -70,8 +70,21 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     datas = []
     visited_stats = []
     first_save = True
+    last_model_load = 0
 
     while steps < num_steps:
+
+        if model is not None:
+            if time.time() - last_model_load > model_reload_interval:
+                while True:
+                    cp = mlflow_load_checkpoint(policy.model)  # type: ignore
+                    if cp:
+                        print(f'Generator {seed} loaded model checkpoint {cp}')
+                        last_model_load = time.time()
+                        break
+                    else:
+                        print('Generator model checkpoint not found, waiting...')
+                        time.sleep(10)
 
         # Unroll one episode
 
@@ -140,6 +153,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
             mlflow_log_npz(data, fname, 'episodes', verbose=True)
 
+    print(f'Generator {seed} done.')
+
 
 class RandomPolicy:
     def __init__(self, action_space):
@@ -148,6 +163,14 @@ class RandomPolicy:
     def __call__(self, obs, epstep):
         return self.action_space.sample()
 
+
+class NetworkPolicy:
+    def __init__(self, model: Dreamer):
+        self.model = model
+
+    def __call__(self, obs, epstep):
+        # WIP: need preprocess obs
+        raise NotImplementedError
 
 class MinigridWanderPolicy:
     def __call__(self, obs, epstep):
