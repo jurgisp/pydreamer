@@ -437,7 +437,7 @@ if __name__ == '__main__':
     parser.add_argument('--env_id', type=str, required=True)
     parser.add_argument('--policy', type=str, required=True)
     parser.add_argument('--num_steps', type=int, default=1_000_000)
-    parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--env_max_steps', type=int, default=500)
     args = parser.parse_args()
     main(**vars(args))

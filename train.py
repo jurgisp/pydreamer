@@ -35,20 +35,25 @@ def run(conf):
 
     # Generator / Agent
 
+    data_reload_interval = 0
     if conf.generator_run:
+        generator_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes'  # type: ignore
+        conf.input_dir = generator_dir
+        conf.eval_dir = generator_dir  # TODO
+        data_reload_interval = 60
         run_generator(conf)
+        time.sleep(300)
 
     # Data
 
-    data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True)
-    data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.eval_batch_size, skip_first=False)
-    data_eval_full = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.full_eval_batch_size, skip_first=False)
+    data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True, reload_interval=data_reload_interval)
+    data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.eval_batch_size, skip_first=False, reload_interval=data_reload_interval)
+    data_eval_full = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.full_eval_batch_size, skip_first=False, reload_interval=data_reload_interval)
     preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
                                     image_key=conf.image_key,
                                     map_categorical=conf.map_channels if conf.map_categorical else None,
                                     map_key=conf.map_key,
                                     amp=conf.device.startswith('cuda') and conf.amp)
-
 
     # MODEL
 
@@ -400,12 +405,12 @@ def prepare_batch_npz(batch,
 
 def run_generator(conf):
     os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
-    p = Process(target=generator.main, 
+    p = Process(target=generator.main,
                 kwargs=dict(
                     env_id=conf.env_id,
                     env_max_steps=conf.env_max_steps,
-                    policy='random', 
-                    num_steps=int(1e9), 
+                    policy='random',
+                    num_steps=int(1e9),
                     seed=0
                 ))
     p.start()
