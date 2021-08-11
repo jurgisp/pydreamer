@@ -307,7 +307,7 @@ def evaluate(prefix: str,
                 with autocast(enabled=conf.amp):
 
                     _, _, loss_tensors_im, _, out_tensors_im = \
-                        model.train(0 * image[:15], 0 * reward[:15], 0 * terminal[:15], action[:15], reset[:15], map[:15], map_coord[:15], state,
+                        model.train(0 * image, 0 * reward, 0 * terminal, action, reset, map, map_coord, state,
                                     I=eval_samples,
                                     imagine=True,
                                     do_image_pred=True,
