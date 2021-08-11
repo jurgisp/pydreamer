@@ -415,6 +415,7 @@ def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=Fals
                     num_steps=num_steps,
                     seed=seed,
                     model_conf=conf,
+                    log_mlflow_metrics=(policy == 'network')  # Don't log for initial random prefill
                 ))
     p.start()
     if block:

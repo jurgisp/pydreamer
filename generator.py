@@ -26,9 +26,12 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          steps_per_npz=2000,
          model_reload_interval=60,
          model_conf=dict(),
+         log_mlflow_metrics=True,
          ):
     if 'MLFLOW_RUN_ID' in os.environ:
-        run = mlflow.start_run()
+        run = mlflow.active_run()
+        if run is None:
+            run = mlflow.start_run()
         print(f'Generator using existing mlflow run {run.info.run_id}')
     else:
         run = mlflow.start_run(run_name=f'{env_id}-s{seed}')
@@ -79,15 +82,16 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     visited_stats = []
     first_save = True
     last_model_load = 0
+    model_step = 0
 
     while steps < num_steps:
 
         if model is not None:
             if time.time() - last_model_load > model_reload_interval:
                 while True:
-                    cp = mlflow_load_checkpoint(policy.model)  # type: ignore
-                    if cp:
-                        print(f'Generator {seed} loaded model checkpoint {cp}')
+                    model_step = mlflow_load_checkpoint(policy.model)  # type: ignore
+                    if model_step:
+                        print(f'Generator {seed} loaded model checkpoint {model_step}')
                         last_model_load = time.time()
                         break
                     else:
@@ -113,6 +117,16 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         visited_pct = agent_pos_visited / 25
         visited_stats.append(visited_pct)
 
+        # Calculate discounted return
+
+        rewards = data['reward']
+        values = np.zeros_like(rewards)
+        discount = 0.99
+        v = 0.
+        for i in reversed(range(len(rewards) - 1)):
+            v = rewards[i + 1] + discount * v
+            values[i] = v
+
         # Log
 
         fps = epsteps / (time.time() - timer + 1e-6)
@@ -126,6 +140,17 @@ def main(env_id='MiniGrid-MazeS11N-v0',
               f",  explored%: {visited_pct:.1%}|{np.mean(visited_stats):.1%}"
               f",  fps: {fps:.0f}"
               )
+
+        if log_mlflow_metrics:
+            log_step = model_step if model else steps
+            mlflow.log_metrics({
+                'agent/episode_length': epsteps,
+                'agent/episode_reward': data['reward'].sum(),
+                'agent/fps': fps,
+                'agent/steps': steps,
+                'agent/episodes': episodes + 1,
+                'agent/value': values.mean(),
+            }, step=log_step)
 
         # Save to npz
 
