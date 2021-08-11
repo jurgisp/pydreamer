@@ -64,10 +64,14 @@ class MinigridPreprocess:
     def __call__(self, dataset: IterableDataset) -> IterableDataset:
         return TransformedDataset(dataset, self.apply)
 
-    def apply(self, batch: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    def apply(self, batch: Dict[str, np.ndarray], expandTB=False) -> Dict[str, np.ndarray]:
         if self._first:
-            print('Data batch (before preprocess): ', {k: v.shape for k, v in batch.items()})
-            self._first = False
+            print('Preprocess batch (before): ', {k: v.shape for k, v in batch.items()})
+
+        # expand
+
+        if expandTB:
+            batch = {k: v[np.newaxis, np.newaxis] for k, v in batch.items()}  # (*) => (T=1,B=1,*)
 
         # image
 
@@ -109,4 +113,11 @@ class MinigridPreprocess:
             batch['map'] = batch['map'].astype(np.float16)
             batch['action'] = batch['action'].astype(np.float16)
             batch['map_coord'] = batch['map_coord'].astype(np.float16)
+
+        #
+
+        if self._first:
+            print('Preprocess batch (after): ', {k: v.shape for k, v in batch.items()})
+            self._first = False
+            
         return batch

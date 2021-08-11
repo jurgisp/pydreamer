@@ -1,4 +1,5 @@
 import os
+from preprocessing import MinigridPreprocess
 from models import Dreamer
 from typing import Tuple, Optional, Dict, List
 import argparse
@@ -24,7 +25,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          env_max_steps=500,
          steps_per_npz=2000,
          model_reload_interval=60,
-         model_conf=dict(), 
+         model_conf=dict(),
          ):
     if 'MLFLOW_RUN_ID' in os.environ:
         run = mlflow.start_run()
@@ -47,12 +48,19 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     else:
         env = gym.make(env_id, max_steps=env_max_steps)
 
-    env = CollectWrapper(env, env_max_steps)
+    env = ActionRewardResetWrapper(env, env_max_steps)
+    env = CollectWrapper(env)
 
     model = None
     if policy == 'network':
-        model = Dreamer(model_conf)
-        policy = NetworkPolicy(model)
+        conf = model_conf
+        model = Dreamer(conf)
+        preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
+                                        image_key=conf.image_key,
+                                        map_categorical=conf.map_channels if conf.map_categorical else None,
+                                        map_key=conf.map_key)
+        policy = NetworkPolicy(model, preprocess)
+
     elif policy == 'random':
         policy = RandomPolicy(env.action_space)
     elif policy == 'minigrid_wander':
@@ -91,7 +99,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         obs, done = env.reset(), False
         epsteps, timer = 0, time.time()
         while not done:
-            action = policy(obs, epsteps)
+            action = policy(obs)
             obs, reward, done, info = env.step(action)
             steps += 1
             epsteps += 1
@@ -160,20 +168,36 @@ class RandomPolicy:
     def __init__(self, action_space):
         self.action_space = action_space
 
-    def __call__(self, obs, epstep):
+    def __call__(self, obs):
         return self.action_space.sample()
 
 
 class NetworkPolicy:
-    def __init__(self, model: Dreamer):
+    def __init__(self, model: Dreamer, preprocess: MinigridPreprocess):
         self.model = model
+        self.preprocess = preprocess
+        self._state = model.wm.init_state(1)
 
-    def __call__(self, obs, epstep):
-        # WIP: need preprocess obs
+    def __call__(self, obs):
+        batch = self.preprocess.apply(obs, expandTB=True)
+
+        image = torch.from_numpy(batch['image'])
+        reward = torch.from_numpy(batch['reward'])
+        terminal = torch.from_numpy(batch['terminal'])
+        action = torch.from_numpy(batch['action'])
+        reset = torch.from_numpy(batch['reset'])
+        map = torch.from_numpy(batch['map'])
+        map_coord = torch.from_numpy(batch['map_coord'])
+
+        # WIP
+        _, _, _, new_state, _ = self.model.train(image, reward, terminal, action, reset, map, map_coord, self._state)
+        self._state = new_state
+
         raise NotImplementedError
 
+
 class MinigridWanderPolicy:
-    def __call__(self, obs, epstep):
+    def __call__(self, obs):
         if obs['image'].shape == (7, 7):
             (ax, ay) = (3, 6)  # agent is here
             front = MiniGrid.GRID_VALUES[obs['image'][ax, ay - 1]]  # front is up
@@ -240,7 +264,7 @@ class MazeBouncingBallPolicy:
         self.pos = None
         self.turns_remaining = 0
 
-    def __call__(self, obs, epstep):
+    def __call__(self, obs):
         assert 'agent_pos' in obs, f'Need agent position'
         pos = obs['agent_pos']
         action = -1
@@ -289,7 +313,7 @@ class MazeDijkstraPolicy:
         self._goal = None
         self._expected_pos = None
 
-    def __call__(self, obs, epstep):
+    def __call__(self, obs):
         assert 'agent_pos' in obs, 'Need agent position'
         assert 'map_agent' in obs, 'Need map'
 
@@ -299,7 +323,7 @@ class MazeDijkstraPolicy:
         map = obs['map_agent']
         # assert map[int(x), int(y)] >= 3, 'Agent should be here'
 
-        if epstep == 0:
+        if obs['reset']:
             self._goal = None  # new episode
             self._expected_pos = None
         if self._goal is None:
@@ -411,12 +435,12 @@ def find_shortest(map, start, goal, step_size=1.0, turn_size=45.0):
     return actions, path, len(visited)
 
 
-class CollectWrapper:
+class ActionRewardResetWrapper:
 
-    def __init__(self, env, max_steps):
+    def __init__(self, env, max_steps: int):
         self._env = env
-        self._episode = []
         self._max_steps = max_steps
+        self._epstep = 0
         # Handle environments with one-hot or discrete action, but collect always as one-hot
         self._action_size = env.action_space.shape[0] if env.action_space.shape != () else env.action_space.n
 
@@ -424,21 +448,43 @@ class CollectWrapper:
         return getattr(self._env, name)
 
     def step(self, action):
+        self._epstep += 1
         obs, reward, done, info = self._env.step(action)
-        transition = obs.copy()
-
         if isinstance(action, int):
             action_onehot = np.zeros(self._action_size)
             action_onehot[action] = 1.0
         else:
             assert isinstance(action, np.ndarray) and action.shape == (self._action_size,), "Wrong one-hot action shape"
             action_onehot = action
-        transition['action'] = action_onehot
-        transition['reward'] = reward
-        transition['terminal'] = done if len(self._episode) < self._max_steps else False  # Only True if actual terminal state, not done because of max_steps
-        transition['reset'] = False
+        obs['action'] = action_onehot
+        obs['reward'] = np.array(reward)
+        # Only True if actual terminal state, not done because of max_steps
+        obs['terminal'] = np.array(done if self._epstep < self._max_steps else False)
+        obs['reset'] = np.array(False)
+        return obs, reward, done, info
 
-        self._episode.append(transition)
+    def reset(self):
+        obs = self._env.reset()
+        obs['action'] = np.zeros(self._action_size)
+        obs['reward'] = np.array(0.0)
+        obs['terminal'] = np.array(False)
+        obs['reset'] = np.array(True)
+        self._epstep = 0
+        return obs
+
+
+class CollectWrapper:
+
+    def __init__(self, env):
+        self._env = env
+        self._episode = []
+
+    def __getattr__(self, name):
+        return getattr(self._env, name)
+
+    def step(self, action):
+        obs, reward, done, info = self._env.step(action)
+        self._episode.append(obs.copy())
         if done:
             episode = {k: np.array([t[k] for t in self._episode]) for k in self._episode[0]}
             info['episode'] = episode
@@ -446,12 +492,7 @@ class CollectWrapper:
 
     def reset(self):
         obs = self._env.reset()
-        transition = obs.copy()
-        transition['action'] = np.zeros(self._action_size)
-        transition['reward'] = 0.0
-        transition['terminal'] = False
-        transition['reset'] = True
-        self._episode = [transition]
+        self._episode = [obs.copy()]
         return obs
 
 
