@@ -47,8 +47,10 @@ spec:
             - name: dshm
               mountPath: /dev/shm
           command:
-            - python3
+            - bash
           args:
+            - kubernetes/xvfb.sh 
+            - python3
             - train.py
             - --configs
             - defaults
