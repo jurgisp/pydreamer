@@ -183,17 +183,15 @@ class NetworkPolicy:
 
         image = torch.from_numpy(batch['image'])
         reward = torch.from_numpy(batch['reward'])
-        terminal = torch.from_numpy(batch['terminal'])
         action = torch.from_numpy(batch['action'])
         reset = torch.from_numpy(batch['reset'])
-        map = torch.from_numpy(batch['map'])
-        map_coord = torch.from_numpy(batch['map_coord'])
 
-        # WIP
-        _, _, _, new_state, _ = self.model.train(image, reward, terminal, action, reset, map, map_coord, self._state)
-        self._state = new_state
+        with torch.no_grad():
+            action_p, new_state = self.model.forward(image, reward, action, reset, self._state)
+            self._state = new_state
 
-        raise NotImplementedError
+        action = action_p.sample()
+        return action.squeeze().item()
 
 
 class MinigridWanderPolicy:

@@ -81,6 +81,30 @@ class Dreamer(nn.Module):
                               target_interval=conf.target_interval,
                               )
 
+    def forward(self,
+                image: TensorNBCHW,   # (1,B,C,H,W)
+                prev_reward: Tensor,  # (1,B)
+                prev_action: Tensor,  # (1,B,A)
+                reset: Tensor,        # (1,B)
+                in_state: Any,
+                ):
+        N, B = image.shape[:2]
+        assert N == 1
+
+        # Forward (world model)
+
+        terminal = torch.zeros_like(reset)
+        output = self.wm.forward(image, prev_reward, terminal, prev_action, reset, in_state)
+        features = output[0]
+        out_state = output[-1]
+
+        # Forward (actor critic)
+
+        feature = features[0,:,0]  # (N=1,B,I=1,F) => (B,F)
+        action_p = self.ac.forward_act(feature)
+
+        return action_p, out_state
+
     def train(self,
               image: TensorNBCHW,
               reward: Tensor,
