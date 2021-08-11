@@ -41,9 +41,9 @@ def run(conf):
         conf.input_dir = generator_dir
         conf.eval_dir = generator_dir  # TODO
         data_reload_interval = 60
-        print('Pre-generating random data...')
-        run_generator(conf, seed=0, policy='random', num_steps=100000, block=True)
-        print('Random data done, starting real generator...')
+        print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
+        run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True)
+        print('Generator random prefill done, starting agent generator...')
         run_generator(conf, seed=1, policy='network')
 
     # Data
