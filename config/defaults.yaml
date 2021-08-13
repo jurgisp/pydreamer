@@ -38,11 +38,11 @@ defaults:
   amp: True
 
   # Eval
-  eval_batches: 51  # For unbiased eval needs to be enough to cover full episodes
-  eval_batch_size: 10  # Smaller for faster eval
-  full_eval_batches: 101  # Big enough to reach episode end (xN). +1 to log last episode
-  full_eval_samples: 10  # Big enough for good sampling
-  full_eval_batch_size: 10  # Limited by GPU mem
+  test_batches: 61  # For unbiased test needs to be enough to cover full episodes
+  test_batch_size: 10  # Smaller for faster test
+  eval_batches: 61  # Big enough to reach episode end (xN). +1 to log last episode
+  eval_samples: 10  # Big enough for good sampling
+  eval_batch_size: 10  # Limited by GPU mem
 
   # Model
   model: world

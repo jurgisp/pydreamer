@@ -49,8 +49,8 @@ def run(conf):
     # Data
 
     data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True, reload_interval=data_reload_interval)
+    data_test = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.test_batch_size, skip_first=False, reload_interval=data_reload_interval)
     data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.eval_batch_size, skip_first=False, reload_interval=data_reload_interval)
-    data_eval_full = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.full_eval_batch_size, skip_first=False, reload_interval=data_reload_interval)
     preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
                                     image_key=conf.image_key,
                                     map_categorical=conf.map_channels if conf.map_categorical else None,
@@ -192,24 +192,25 @@ def run(conf):
                     # Log metrics
 
                     if steps % conf.log_interval == 0:
-                        metrics = {k: np.mean(v) for k, v in metrics.items()}
-                        metrics.update({k + '_max': np.max(v) for k, v in metrics_max.items()})
+                        metrics = {f'train/{k}': np.mean(v) for k, v in metrics.items()}
+                        metrics.update({f'train/{k}_max': np.max(v) for k, v in metrics_max.items()})
+                        metrics['train/steps'] = steps  # type: ignore
                         metrics['_step'] = steps  # type: ignore
-                        metrics['_loss'] = metrics['loss']
+                        metrics['_loss'] = metrics['train/loss']
 
                         t = time.time()
                         fps = (steps - last_steps) / (t - last_time)
-                        metrics['fps'] = fps  # type: ignore
+                        metrics['train/fps'] = fps  # type: ignore
                         last_time, last_steps = t, steps
 
                         print(f"[{steps:06}]"
-                              f"  loss_wm: {metrics.get('loss_wm', 0):.3f}"
-                              f"  loss_wm_kl: {metrics.get('loss_wm_kl', 0):.3f}"
-                              f"  loss_ac_value: {metrics.get('loss_ac_value', 0):.3f}"
-                              f"  loss_map: {metrics.get('loss_map', 0):.3f}"
-                              f"  policy_value: {metrics.get('policy_value',0):.3f}"
-                              f"  policy_entropy: {metrics.get('policy_entropy',0):.3f}"
-                              f"  fps: {metrics['fps']:.3f}"
+                              f"  loss_wm: {metrics.get('train/loss_wm', 0):.3f}"
+                              f"  loss_wm_kl: {metrics.get('train/loss_wm_kl', 0):.3f}"
+                              f"  loss_ac_value: {metrics.get('train/loss_ac_value', 0):.3f}"
+                              f"  loss_map: {metrics.get('train/loss_map', 0):.3f}"
+                              f"  policy_value: {metrics.get('train/policy_value',0):.3f}"
+                              f"  policy_entropy: {metrics.get('train/policy_entropy',0):.3f}"
+                              f"  fps: {metrics['train/fps']:.3f}"
                               )
                         mlflow.log_metrics(metrics, step=steps)
                         metrics = defaultdict(list)
@@ -233,12 +234,12 @@ def run(conf):
                     if conf.eval_interval and steps % conf.eval_interval == 0:
 
                         # Same batch as train
-                        eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
-                        evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.iwae_samples, conf.keep_state, conf)
+                        test_iter = iter(DataLoader(preprocess(data_test), batch_size=None))
+                        evaluate('test', steps, model, test_iter, device, conf.test_batches, conf.iwae_samples, conf.keep_state, conf)
 
                         # Full episodes
-                        eval_iter_full = iter(DataLoader(preprocess(data_eval_full), batch_size=None))
-                        evaluate('eval_full', steps, model, eval_iter_full, device, conf.full_eval_batches, conf.full_eval_samples, True, conf)
+                        eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
+                        evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.eval_samples, True, conf)
 
             for k, v in timers.items():
                 metrics[f'timer_{k}'].append(v.dt_ms)
