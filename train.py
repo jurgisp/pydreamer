@@ -298,7 +298,7 @@ def evaluate(prefix: str,
 
             # Log _last predictions from the last batch of previous episode
 
-            if n_reset_episodes > 0 and loss_tensors is not None:
+            if n_reset_episodes > 0 and loss_tensors is not None and 'loss_map' in loss_tensors:
                 logprob_map_last = (loss_tensors['loss_map'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
                 metrics_eval['logprob_map_last'].append(logprob_map_last.item())
 
@@ -409,6 +409,7 @@ def prepare_batch_npz(batch,
 def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=False):
     os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
     p = Process(target=generator.main,
+                daemon=True,
                 kwargs=dict(
                     env_id=conf.env_id,
                     env_max_steps=conf.env_max_steps,
