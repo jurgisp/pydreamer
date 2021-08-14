@@ -10,7 +10,7 @@ import pathlib
 import collections
 from numba import njit
 import gym
-from envs import MiniGrid
+from envs import MiniGrid, Atari
 import mlflow
 
 from tools import *
@@ -39,6 +39,10 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
     if env_id.startswith('MiniGrid-'):
         env = MiniGrid(env_id, max_steps=env_max_steps, seed=seed)
+
+    if env_id.startswith('Atari-'):
+        env = Atari(env_id.split('-')[1].lower())
+        # TODO: max_steps wrapper
 
     elif env_id.startswith('MiniWorld-'):
         import gym_miniworld.wrappers as wrap
@@ -109,13 +113,16 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             epsteps += 1
         data = info['episode']  # type: ignore
 
-        # Calculate visited
+        # Calculate visited (for MiniGrid/MiniWorld)
 
-        agent_pos = data['agent_pos']
-        agent_pos = np.floor(agent_pos / 2)
-        agent_pos_visited = len(np.unique(agent_pos, axis=0))
-        visited_pct = agent_pos_visited / 25
-        visited_stats.append(visited_pct)
+        if 'agent_pos' in data:
+            agent_pos = data['agent_pos']
+            agent_pos = np.floor(agent_pos / 2)
+            agent_pos_visited = len(np.unique(agent_pos, axis=0))
+            visited_pct = agent_pos_visited / 25
+            visited_stats.append(visited_pct)
+        else:
+            visited_pct = np.nan
 
         # Calculate discounted return
 
@@ -137,7 +144,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
               f"Episode {episodes} recorded:"
               f"  steps: {epsteps}"
               f",  reward: {data['reward'].sum()}"
-              f",  explored%: {visited_pct:.1%}|{np.mean(visited_stats):.1%}"
+            #   f",  explored%: {visited_pct:.1%}|{np.mean(visited_stats):.1%}"
               f",  fps: {fps:.0f}"
               )
 

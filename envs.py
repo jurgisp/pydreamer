@@ -1,8 +1,71 @@
+import threading
 import numpy as np
 import gym
 import gym_minigrid
 import gym_minigrid.envs
 import torch
+
+
+class Atari:
+
+    LOCK = threading.Lock()
+
+    def __init__(self,
+                 name,
+                 action_repeat=4,
+                 size=(64, 64),
+                 grayscale=False,  # DreamerV2 uses grayscale=True
+                 noops=30,
+                 life_done=False,
+                 sticky_actions=True,
+                 all_actions=True
+                 ):
+        assert size[0] == size[1]
+        import gym.wrappers
+        import gym.envs.atari
+        with self.LOCK:
+            env = gym.envs.atari.AtariEnv(
+                game=name,
+                obs_type='image',
+                frameskip=1,
+                repeat_action_probability=0.25 if sticky_actions else 0.0,
+                full_action_space=all_actions)
+        # Avoid unnecessary rendering in inner env.
+        env._get_obs = lambda: None  # type: ignore
+        # Tell wrapper that the inner env has no action repeat.
+        env.spec = gym.envs.registration.EnvSpec('NoFrameskip-v0')  # type: ignore
+        env = gym.wrappers.AtariPreprocessing(env, noops, action_repeat, size[0], life_done, grayscale)
+        self._env = env
+        self._grayscale = grayscale
+
+    @property
+    def observation_space(self):
+        return gym.spaces.Dict({'image': self._env.observation_space})  # type: ignore
+
+    @property
+    def action_space(self):
+        return self._env.action_space
+
+    def reset(self):
+        with self.LOCK:
+            image = self._env.reset()
+        if self._grayscale:
+            image = image[..., None]
+        obs = {'image': image}
+        return obs
+
+    def step(self, action):
+        image, reward, done, info = self._env.step(action)
+        if self._grayscale:
+            image = image[..., None]
+        obs = {'image': image}
+        return obs, reward, done, info
+
+    def close(self):
+        return self._env.close()
+
+    def render(self, mode):
+        return self._env.render(mode)
 
 
 class MiniGrid:
