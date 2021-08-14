@@ -102,7 +102,7 @@ class Dreamer(nn.Module):
 
         # Forward (actor critic)
 
-        feature = features[0,:,0]  # (N=1,B,I=1,F) => (B,F)
+        feature = features[0, :, 0]  # (N=1,B,I=1,F) => (B,F)
         action_p = self.ac.forward_act(feature)
 
         return action_p, out_state
@@ -248,7 +248,7 @@ class WorldModel(nn.Module):
                                                hidden_layers=conf.image_decoder_layers,
                                                min_prob=conf.image_decoder_min_prob)
 
-        self._decoder_reward = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.reward_decoder_layers)
+        self._decoder_reward = DenseNormalHead(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers)
         self._decoder_terminal = DenseBernoulliHead(in_dim=state_dim, hidden_layers=conf.terminal_decoder_layers)
 
         # Memory model
@@ -448,9 +448,12 @@ class WorldModel(nn.Module):
                 log_tensors.update(logprob_reward=logprob_reward)
                 metrics.update(logprob_reward=logprob_reward.mean())
 
-                reward_1 = (reward.select(-1, 0) == 1)  # mask where reward is 1
-                logprob_reward_1 = (logprob_reward * reward_1).sum() / reward_1.sum()
-                metrics.update(logprob_reward_1=logprob_reward_1)
+                reward_pos = (reward.select(-1, 0) > 0)  # mask where reward is *positive*
+                logprob_reward_pos = (logprob_reward * reward_pos).sum() / reward_pos.sum()
+                reward_neg = (reward.select(-1, 0) < 0)  # mask where reward is *negative*
+                logprob_reward_neg = (logprob_reward * reward_neg).sum() / reward_neg.sum()
+                metrics.update(logprob_reward_pos=logprob_reward_pos,
+                               logprob_reward_neg=logprob_reward_neg)
 
             if terminal_pred is not None:
                 logprob_terminal = self._decoder_terminal.loss(terminal_pred, terminal)

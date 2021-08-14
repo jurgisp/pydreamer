@@ -27,13 +27,13 @@ class ActorCritic(nn.Module):
         p = D.OneHotCategorical(logits=y)
         return p
 
-    def train(self, features: TensorJMF, rewards: TensorJM2, terminals: D.Bernoulli, actions: TensorHMA) -> Tuple[Tensor, Dict[str, Tensor]]:
+    def train(self, features: TensorJMF, rewards: D.Distribution, terminals: D.Distribution, actions: TensorHMA) -> Tuple[Tensor, Dict[str, Tensor]]:
         if self._train_steps % self._target_interval == 0:
             self.update_critic_target()
         self._train_steps += 1
 
-        reward: TensorHM = -1.0 * F.softmax(rewards[1:], -1).select(-1, 1)  # select(-1,1) => probability of getting reward=-1  # TODO: hack
-        terminal: TensorHM = terminals.probs
+        reward: TensorHM = rewards.mean[1:]
+        terminal: TensorHM = terminals.mean[1:]
         policy = self.forward_act(features[:-1])
         value: TensorHM = self._critic.forward(features[:-1])
         value_baseline: TensorHM = self._critic_target.forward(features[:-1]).detach()

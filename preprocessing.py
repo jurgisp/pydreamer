@@ -101,7 +101,7 @@ class MinigridPreprocess:
 
         # reward, terminal
 
-        batch['reward'] = batch['reward'].astype(bool).astype(np.int64)  # assume reward 0 or 1
+        batch['reward'] = batch['reward'].astype(np.float32)
         batch['terminal'] = batch['terminal'].astype(np.float32)
 
         # map_coord
