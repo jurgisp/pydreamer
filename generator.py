@@ -224,6 +224,7 @@ class NetworkPolicy:
             self._state = new_state
 
         action = action_p.sample()
+        action = action.argmax(-1)  # one-hot => int
         return action.squeeze().item()
 
 

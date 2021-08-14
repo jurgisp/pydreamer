@@ -22,16 +22,10 @@ class ActorCritic(nn.Module):
         self._critic_target = MLP(in_dim, 1, hidden_dim, hidden_layers)
         self._train_steps = 0
 
-    def forward_act(self, features: Tensor) -> D.Categorical:
+    def forward_act(self, features: Tensor) -> D.OneHotCategorical:
         y = self._actor(features)
-        p = D.Categorical(logits=y)
+        p = D.OneHotCategorical(logits=y)
         return p
-
-    def forward_act_sample(self, features: Tensor) -> Tensor:
-        p = self.forward_act(features)
-        a = F.one_hot(p.sample(), num_classes=self.out_actions)
-        a = a.to(torch.float)
-        return a
 
     def train(self, features: TensorJMF, rewards: TensorJM2, terminals: TensorJM2, actions: TensorHMA) -> Tuple[Tensor, Dict[str, Tensor]]:
         if self._train_steps % self._target_interval == 0:

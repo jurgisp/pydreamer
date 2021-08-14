@@ -181,7 +181,7 @@ class Dreamer(nn.Module):
 
         for i in range(H):
             feature = self.wm._core.to_feature(*state)
-            action = self.ac.forward_act_sample(feature)
+            action = self.ac.forward_act(feature).sample()
             features.append(feature)
             actions.append(action)
             _, state = self.wm._core._cell.forward_prior(action, state, noises[i])
