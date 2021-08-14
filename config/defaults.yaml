@@ -147,3 +147,23 @@ miniworld:
   image_encoder: cnn
   image_decoder: cnn
   embed_dim: 1024
+
+atari:
+  # Generator
+  env_id: Atari-Pong
+  generator_run: True
+  generator_prefill_steps: 100_000
+
+  # Env
+  image_key: image
+  image_size: 64
+  image_channels: 3
+  image_categorical: False
+  map_key:
+  action_dim: 18
+
+  # Model
+  image_encoder: cnn
+  image_decoder: cnn
+  embed_dim: 1024
+  map_model: none

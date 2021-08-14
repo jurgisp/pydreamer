@@ -53,8 +53,10 @@ class Dreamer(nn.Module):
                                          out_shape=(conf.map_channels, conf.map_size, conf.map_size),
                                          hidden_dim=conf.map_hidden_dim,
                                          hidden_layers=conf.map_hidden_layers))    # type: ignore
-        else:
+        elif conf.map_model == 'none':
             map_model = NoHead(out_shape=(conf.map_channels, conf.map_size, conf.map_size))
+        else:
+            assert False, f'Unknown map_model={conf.map_model}'
 
         self.map_model: DirectHead = map_model  # type: ignore
 
@@ -639,9 +641,16 @@ class NoHead(nn.Module):
     def __init__(self, out_shape):
         super().__init__()
         self.out_shape = out_shape  # (C,MH,MW)
+        self._dummy = nn.Parameter(torch.zeros(1), requires_grad=True)
 
-    def forward(self, obs, state):
+    def forward(self, state, obs, do_image_pred=False):
         return (obs,)
 
-    def loss(self, obs, obs_target):
-        return torch.tensor(0.0, device=obs.device), {}, {}
+    def loss(self, obs_pred: TensorNBICHW, obs_target: TensorNBICHW, map_coord: TensorNBI4):
+        return torch.square(self._dummy), {}, {}
+
+    def to_distr(self, output):
+        assert len(output.shape) == 6  # (N,B,I,C,H,W)
+        x = output.mean(dim=2)  # (N,B,I,C,H,W) => (N,B,C,H,W)
+        x = x.permute(0, 1, 3, 4, 2)  # (N,B,C,H,W) => (N,B,H,W,C)
+        return D.Normal(x, torch.ones_like(x) / 255.0)

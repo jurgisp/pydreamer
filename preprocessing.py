@@ -11,12 +11,13 @@ def to_onehot(x: np.ndarray, n_categories) -> np.ndarray:
     x = x.transpose(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
     return x
 
+
 def to_image(x: np.ndarray) -> np.ndarray:
     if x.dtype == np.uint8:
         x = x.astype(np.float32)
         x = x / 255.0 - 0.5
     else:
-        assert 0.0 <= x[0,0,0,0,0] and x[0,0,0,0,0] <= 1.0
+        assert 0.0 <= x[0, 0, 0, 0, 0] and x[0, 0, 0, 0, 0] <= 1.0
         x = x.astype(np.float32)
     x = x.transpose(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
     return x
@@ -76,6 +77,7 @@ class MinigridPreprocess:
         # image
 
         batch['image'] = batch[self._image_key]  # Use something else (e.g. map_masked) as image
+        T, B, C, H, W = batch['image'].shape
         if self._image_categorical:
             batch['image'] = to_onehot(batch['image'], self._image_categorical)
         else:
@@ -83,11 +85,14 @@ class MinigridPreprocess:
 
         # map
 
-        batch['map'] = batch[self._map_key]
-        if self._map_categorical:
-            batch['map'] = to_onehot(batch['map'], self._map_categorical)
+        if self._map_key:
+            batch['map'] = batch[self._map_key]
+            if self._map_categorical:
+                batch['map'] = to_onehot(batch['map'], self._map_categorical)
+            else:
+                batch['map'] = to_image(batch['map'])
         else:
-            batch['map'] = to_image(batch['map'])
+            batch['map'] = np.zeros((T, B, 1, 1, 1))
 
         # action
 
@@ -105,19 +110,20 @@ class MinigridPreprocess:
             agent_pos = batch['agent_pos'] / 4.5 - 1.0  # TODO: make generic for any size
             agent_dir = batch['agent_dir']
             batch['map_coord'] = np.concatenate([agent_pos, agent_dir], axis=-1).astype(np.float32)
+        else:
+            batch['map_coord'] = np.zeros((T, B, 4))
 
         # => float16
-            
+
         if self._amp:
-            batch['image'] = batch['image'].astype(np.float16)
-            batch['map'] = batch['map'].astype(np.float16)
-            batch['action'] = batch['action'].astype(np.float16)
-            batch['map_coord'] = batch['map_coord'].astype(np.float16)
+            for key in ['image', 'action', 'map', 'map_coord']:
+                if key in batch:
+                    batch[key] = batch[key].astype(np.float16)
 
         #
 
         if self._first:
             print('Preprocess batch (after): ', {k: v.shape for k, v in batch.items()})
             self._first = False
-            
+
         return batch
