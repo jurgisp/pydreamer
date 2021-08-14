@@ -95,7 +95,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 while True:
                     model_step = mlflow_load_checkpoint(policy.model)  # type: ignore
                     if model_step:
-                        print(f'Generator {seed} loaded model checkpoint {model_step}')
+                        print(f'Generator loaded model checkpoint {model_step}')
                         last_model_load = time.time()
                         break
                     else:
@@ -128,7 +128,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
         rewards = data['reward']
         values = np.zeros_like(rewards)
-        discount = 0.99
+        discount = 0.999
         v = 0.
         for i in reversed(range(len(rewards) - 1)):
             v = rewards[i + 1] + discount * v
@@ -140,12 +140,13 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         if episodes == 0:
             print('Episode data sample: ', {k: v.shape for k, v in data.items()})
 
-        print(f"[{steps:08}/{num_steps:08}] "
-              f"Episode {episodes} recorded:"
+        print(f"Episode recorded:"
               f"  steps: {epsteps}"
               f",  reward: {data['reward'].sum()}"
             #   f",  explored%: {visited_pct:.1%}|{np.mean(visited_stats):.1%}"
               f",  fps: {fps:.0f}"
+              f",  total steps: {steps:.0f}"
+              f",  episodes: {episodes}"
               )
 
         if log_mlflow_metrics:

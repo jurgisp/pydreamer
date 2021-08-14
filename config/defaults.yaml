@@ -5,9 +5,9 @@ defaults:
   resume_id:
   input_dir: ./data/train
   eval_dir: ./data/eval
-  log_interval: 500
-  save_interval: 1000
-  eval_interval: 5000
+  log_interval: 200
+  save_interval: 200
+  eval_interval: 2000
   data_workers: 6  # need 6 to not bottleneck on unzipping npz, 4 is not enough
   enable_profiler: True
   verbose: False
@@ -70,10 +70,10 @@ defaults:
 
   # Actor Critic
   discount: 0.999
-  # discount_lambda: 0.95
-  # imag_horizon: 15
   actor_ent: 0.001
   target_interval: 100
+  # discount_lambda: 0.95
+  # imag_horizon: 15
 
   # Generator
   generator_run: False
