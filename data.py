@@ -3,10 +3,14 @@ import random
 import time
 from pathlib import Path
 from pathy import Pathy
-from torch.utils.data import IterableDataset
+from torch.utils.data import IterableDataset, get_worker_info
 
 from tools import *
 
+def get_worker_id():
+    worker_info = get_worker_info()
+    worker_id = worker_info.id if worker_info else 0
+    return worker_id
 
 class OfflineDataSequential(IterableDataset):
     """Offline data which processes episodes sequentially"""
@@ -21,11 +25,13 @@ class OfflineDataSequential(IterableDataset):
         self.batch_size = batch_size
         self.skip_first = skip_first
         self.reload_interval = reload_interval
-        self._reload_files()
+        self._reload_files(True)
         assert len(self._files) > 0, 'No data found'
 
-    def _reload_files(self):
-        print(f'Reading files from {str(self.input_dir)}...')
+    def _reload_files(self, is_first=False):
+        verbose = get_worker_id() == 0
+        if is_first and verbose:
+            print(f'Reading files from {str(self.input_dir)}...')
         self._files = list(sorted(self.input_dir.glob('*.npz')))
         self._last_reload = time.time()
         steps = 0
@@ -33,7 +39,8 @@ class OfflineDataSequential(IterableDataset):
             s = f.name.split('.')[0].split('-')[-1]
             if s.isnumeric():
                 steps += int(s)
-        print(f'Found {len(self._files)} files, {steps} steps')
+        if verbose:
+            print(f'Found {len(self._files)} files, {steps} steps')
 
     def _should_reload_files(self):
         return self.reload_interval and (time.time() - self._last_reload > self.reload_interval)
