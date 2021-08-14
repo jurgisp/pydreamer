@@ -5,10 +5,10 @@ RUN pip3 install --upgrade pip
 
 RUN pip3 install torch==1.8.1+cu101 torchvision==0.9.1+cu101 -f https://download.pytorch.org/whl/torch_stable.html
 
-# Atari dependencies
-# RUN apt-get install -y libglu1-mesa-dev libgl1-mesa-dev libosmesa6-dev xvfb ffmpeg curl patchelf libglfw3 libglfw3-dev cmake zlib1g zlib1g-dev swig
 # MiniWorld dependencies
 RUN apt-get install -y freeglut3-dev xvfb mesa-utils
+# Atari dependencies
+RUN apt-get install -y libglu1-mesa-dev libgl1-mesa-dev libosmesa6-dev xvfb ffmpeg curl patchelf libglfw3 libglfw3-dev cmake zlib1g zlib1g-dev swig
 
 WORKDIR /app
 ENV OMP_NUM_THREADS 1
