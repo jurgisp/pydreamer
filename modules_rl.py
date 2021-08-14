@@ -38,7 +38,7 @@ class ActorCritic(nn.Module):
             self.update_critic_target()
         self._train_steps += 1
 
-        reward: TensorHM = F.softmax(rewards[1:], -1).select(-1, 1)  # select(-1,1) => probability of getting reward=1
+        reward: TensorHM = -1.0 * F.softmax(rewards[1:], -1).select(-1, 1)  # select(-1,1) => probability of getting reward=-1  # TODO: hack
         terminal: TensorHM = F.softmax(terminals[1:], -1).select(-1, 1)  # select(-1,) => probability of terminal state
         policy = self.forward_act(features[:-1])
         value: TensorHM = self._critic.forward(features[:-1])
