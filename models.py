@@ -249,7 +249,7 @@ class WorldModel(nn.Module):
                                                min_prob=conf.image_decoder_min_prob)
 
         self._decoder_reward = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.reward_decoder_layers)
-        self._decoder_terminal = DenseDecoder(in_dim=state_dim, out_shape=(2, ), hidden_layers=conf.terminal_decoder_layers)
+        self._decoder_terminal = DenseBernoulliHead(in_dim=state_dim, hidden_layers=conf.terminal_decoder_layers)
 
         # Memory model
 
@@ -332,9 +332,9 @@ class WorldModel(nn.Module):
         if do_image_pred:
             prior_samples = diag_normal(prior).sample()
             features_prior = self._core.feature_replace_z(features, prior_samples)
-            image_pred = self._decoder_image(features_prior)
-            reward_pred = self._decoder_reward(features_prior)
-            terminal_pred = self._decoder_terminal(features_prior)
+            image_pred = self._decoder_image.forward(features_prior)
+            reward_pred = self._decoder_reward.forward(features_prior)
+            terminal_pred = self._decoder_terminal.forward(features_prior)
 
         return (
             features,
