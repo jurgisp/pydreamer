@@ -61,20 +61,20 @@ class ActorCritic(nn.Module):
         loss_value = torch.square(advantage_fixed + value0_fixed - value0)  # TODO: is this right?
         loss_value = loss_value.mean()
 
-        loss_critic = - (policy.logits * actions).sum(-1) * advantage_fixed
-        loss_critic = loss_critic.mean()
+        loss_policy = - (policy.logits * actions).sum(-1) * advantage_fixed
+        loss_policy = loss_policy.mean()
 
         policy_entropy = policy.entropy().mean()
         loss_entropy = - self._temperature * policy_entropy
 
         with torch.no_grad():
             metrics = dict(loss_ac_value=loss_value.detach(),
-                           loss_ac_critic=loss_critic.detach(),
+                           loss_ac_policy=loss_policy.detach(),
                            policy_entropy=policy_entropy.detach(),
                            policy_value=value0.mean()
                            )
 
-        loss = loss_value + loss_critic + loss_entropy
+        loss = loss_value + loss_policy + loss_entropy
         return loss, metrics
 
     def update_critic_target(self):
