@@ -72,8 +72,8 @@ defaults:
   discount: 0.999
   actor_ent: 0.001
   target_interval: 100
+  imag_horizon: 15
   # discount_lambda: 0.95
-  # imag_horizon: 15
 
   # Generator
   generator_run: False

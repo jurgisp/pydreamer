@@ -139,6 +139,7 @@ def run(conf):
                         losses, loss_metrics, loss_tensors, new_state, out_tensors = \
                             model.train(image, reward, terminal, action, reset, map, map_coord, state,
                                         I=conf.iwae_samples,
+                                        H=conf.imag_horizon,
                                         do_output_tensors=steps % conf.log_interval == 1)
                         if conf.keep_state:
                             states[wid] = new_state
@@ -310,6 +311,7 @@ def evaluate(prefix: str,
                     _, _, loss_tensors_im, _, out_tensors_im = \
                         model.train(0 * image, 0 * reward, 0 * terminal, action, reset, map, map_coord, state,
                                     I=eval_samples,
+                                    H=conf.imag_horizon,
                                     imagine=True,
                                     do_image_pred=True,
                                     do_output_tensors=i_batch == 1)  # just one batch
@@ -330,6 +332,7 @@ def evaluate(prefix: str,
                 _, loss_metrics, loss_tensors, state, out_tensors = \
                     model.train(image, reward, terminal, action, reset, map, map_coord, state,
                                 I=eval_samples,
+                                H=conf.imag_horizon,
                                 do_image_pred=True,
                                 do_output_tensors=n_finished_episodes[0] == 0)  # log predictions until first episode is finished
 
