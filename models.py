@@ -157,8 +157,10 @@ class Dreamer(nn.Module):
         metrics.update(**metrics_map)
         loss_tensors.update(**loss_tensors_map)
 
-        loss_ac, metrics_ac = self.ac.train(features_dream, rewards_dream, terminals_dream, actions_dream)
+        loss_ac, metrics_ac, loss_tensors_ac = self.ac.train(features_dream, rewards_dream, terminals_dream, actions_dream)
         metrics.update(**metrics_ac)
+        loss_tensors_ac = {k: unflatten_batch(v, (N, B, I)).mean(dim=-1) for k, v in loss_tensors_ac.items()}  # (N,B)
+        loss_tensors.update(**loss_tensors_ac)
 
         # Predict
 

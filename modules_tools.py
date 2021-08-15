@@ -51,7 +51,7 @@ def flatten_batch(x: Tensor, nonbatch_dims=1) -> Tuple[Tensor, Size]:
         return x, batch_dim
 
 
-def unflatten_batch(x: Tensor, batch_dim: Size) -> Tensor:
+def unflatten_batch(x: Tensor, batch_dim: Union[Size, Tuple]) -> Tensor:
     # (B, X) => (b1,b2,..., X)
     x = torch.reshape(x, batch_dim + x.shape[1:])
     return x

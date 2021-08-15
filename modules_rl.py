@@ -28,7 +28,7 @@ class ActorCritic(nn.Module):
         p = D.OneHotCategorical(logits=y)
         return p
 
-    def train(self, features: TensorJMF, rewards: D.Distribution, terminals: D.Distribution, actions: TensorHMA) -> Tuple[Tensor, Dict[str, Tensor]]:
+    def train(self, features: TensorJMF, rewards: D.Distribution, terminals: D.Distribution, actions: TensorHMA):
         if self._train_steps % self._target_interval == 0:
             self.update_critic_target()
         self._train_steps += 1
@@ -97,11 +97,13 @@ class ActorCritic(nn.Module):
             metrics = dict(loss_ac_value=loss_value.detach(),
                            loss_ac_policy=loss_policy.detach(),
                            policy_entropy=policy_entropy.detach(),
-                           policy_value=value0.mean()
+                           policy_value=value0[0].mean(),  # Value of real states
+                           policy_value_im=value0.mean(),  # Value of imagined states
                            )
+            tensors = dict(policy_value=value0[0].detach())
 
         loss = loss_value + loss_policy + loss_entropy
-        return loss, metrics
+        return loss, metrics, tensors
 
     def update_critic_target(self):
         self._critic_target.load_state_dict(self._critic.state_dict())  # type: ignore
