@@ -58,7 +58,8 @@ class ActorCritic(nn.Module):
         advantage_gae = torch.stack(advantage_gae)
         assert not advantage_gae.requires_grad
 
-        loss_value = torch.square(advantage_fixed + value0_fixed - value0)  # TODO: is this right?
+        value_target = advantage_gae + value0_fixed
+        loss_value = torch.square(value_target - value0)
         loss_value = loss_value.mean()
 
         loss_policy = - (policy.logits * actions).sum(-1) * advantage_fixed
