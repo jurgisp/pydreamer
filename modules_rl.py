@@ -14,8 +14,8 @@ class ActorCritic(nn.Module):
         super().__init__()
         self.in_dim = in_dim
         self.out_actions = out_actions
-        self._discount = discount
-        self._discount_lambda = discount_lambda
+        self._gamma = discount
+        self._lambda = discount_lambda
         self._temperature = temperature
         self._target_interval = target_interval
         self._actor = MLP(in_dim, out_actions, hidden_dim, hidden_layers)
@@ -37,32 +37,53 @@ class ActorCritic(nn.Module):
         terminal: TensorHM = terminals.mean[1:]
         policy = self.forward_act(features[:-1])
         value0: TensorHM = self._critic.forward(features[:-1])
-        value0_fixed: TensorHM = self._critic_target.forward(features[:-1]).detach()
-        value1_fixed: TensorHM = self._critic_target.forward(features[1:]).detach()
-
-        advantage_fixed = - value0_fixed + reward + self._discount * (1.0 - terminal) * value1_fixed
-        assert not advantage_fixed.requires_grad
+        value0t: TensorHM = self._critic_target.forward(features[:-1]).detach()
+        value1t: TensorHM = self._critic_target.forward(features[1:]).detach()
+        advantage = - value0t + reward + self._gamma * (1.0 - terminal) * value1t
+        assert not advantage.requires_grad
 
         # GAE from https://arxiv.org/abs/1506.02438 eq (16)
         #   advantage_gae[t] = advantage[t] + (gamma lambda) advantage[t+1] + (gamma lambda)^2 advantage[t+2] + ...
         advantage_gae = []
         agae = None
-        for a in reversed(advantage_fixed.unbind()):
-            if agae is None or self._discount_lambda == 0:
-                agae = a
+        for adv, term in zip(reversed(advantage.unbind()), reversed(terminal.unbind())):
+            if agae is None:
+                agae = adv
             else:
-                # TODO: need terminal weights here; even for H=1, weight=terminals[0]
-                agae = a + (self._discount * self._discount_lambda) * agae
+                agae = adv + self._lambda * self._gamma * (1.0 - term) * agae
             advantage_gae.append(agae)
         advantage_gae.reverse()
         advantage_gae = torch.stack(advantage_gae)
         assert not advantage_gae.requires_grad
 
-        value_target = advantage_gae + value0_fixed
+        # Sanity check #1: if lambda=0, then advantage_gae=advantage, then
+        #   value_target = advantage + value0t
+        #                = reward + gamma * value1t
+        value_target = advantage_gae + value0t
+
+        # Sanity check #2: if lambda=1 then
+        #   advantage_gae[t] = value_target_mc[t]
+        #                    = reward[t] + g[t] reward[t+1] + g[t]g[t+1] reward[t+2] + ... + g[t]g[t+1]g[t+2]g[..] value1t[-1]
+        # where
+        #   g[t] = gamma * (1 - terminal[t])
+        # is the adjusted discount
+        
+        # if self._lambda == 1:
+        #     value_target_mc = []
+        #     v = value1t[-1]
+        #     for rew, term in zip(reversed(reward.unbind()), reversed(terminal.unbind())):
+        #         v = rew + self._gamma * (1.0 - term) * v
+        #         value_target_mc.append(v)
+        #     value_target_mc.reverse()
+        #     value_target_mc = torch.stack(value_target_mc)
+        #     assert torch.allclose(value_target, value_target_mc)
+
+        # TODO: weigh losses, even for H=1 weight=terminals[0]
+
         loss_value = torch.square(value_target - value0)
         loss_value = loss_value.mean()
 
-        loss_policy = - (policy.logits * actions).sum(-1) * advantage_fixed
+        loss_policy = - (policy.logits * actions).sum(-1) * advantage
         loss_policy = loss_policy.mean()
 
         policy_entropy = policy.entropy().mean()
