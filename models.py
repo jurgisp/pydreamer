@@ -221,7 +221,12 @@ class WorldModel(nn.Module):
 
         # Encoder
 
-        encoder_channels = conf.image_channels + 2  # + reward, terminal
+        self._reward_input = conf.reward_input
+        if conf.reward_input:
+            encoder_channels = conf.image_channels + 2  # + reward, terminal
+        else:
+            encoder_channels = conf.image_channels
+
         if conf.image_encoder == 'cnn':
             self._encoder = ConvEncoder(in_channels=encoder_channels,
                                         out_dim=conf.embed_dim)
@@ -302,12 +307,15 @@ class WorldModel(nn.Module):
 
         # Encoder
 
-        reward_plane = reward.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
-        terminal_plane = terminal.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
-        observation = torch.cat([  # (N,B,C+2,H,W)
-            image,
-            reward_plane.to(image.dtype),
-            terminal_plane.to(image.dtype)], dim=-3)
+        if self._reward_input:
+            reward_plane = reward.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
+            terminal_plane = terminal.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
+            observation = torch.cat([image,  # (N,B,C+2,H,W)
+                                     reward_plane.to(image.dtype),
+                                     terminal_plane.to(image.dtype)], dim=-3)
+        else:
+            observation = image
+
         embed = self._encoder.forward(observation)  # (N,B,E)
         if self._input_rnn:
             embed_rnn, _ = self._input_rnn.forward(embed, action)  # (N,B,2E)
