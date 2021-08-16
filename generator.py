@@ -44,6 +44,9 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         env = Atari(env_id.split('-')[1].lower())
         # TODO: max_steps wrapper
 
+    if env_id.startswith('AtariGray-'):
+        env = Atari(env_id.split('-')[1].lower(), grayscale=True)
+
     elif env_id.startswith('MiniWorld-'):
         import gym_miniworld.wrappers as wrap
         env = env_raw = gym.make(env_id, max_steps=env_max_steps)
