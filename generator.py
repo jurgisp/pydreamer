@@ -40,11 +40,11 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     if env_id.startswith('MiniGrid-'):
         env = MiniGrid(env_id, max_steps=env_max_steps, seed=seed)
 
-    if env_id.startswith('Atari-'):
+    elif env_id.startswith('Atari-'):
         env = Atari(env_id.split('-')[1].lower())
         # TODO: max_steps wrapper
 
-    if env_id.startswith('AtariGray-'):
+    elif env_id.startswith('AtariGray-'):
         env = Atari(env_id.split('-')[1].lower(), grayscale=True)
 
     elif env_id.startswith('MiniWorld-'):
