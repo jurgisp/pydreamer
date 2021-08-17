@@ -99,6 +99,8 @@ class ActorCritic(nn.Module):
                            policy_entropy=policy_entropy.detach(),
                            policy_value=value0[0].mean(),  # Value of real states
                            policy_value_im=value0.mean(),  # Value of imagined states
+                           policy_reward=reward1.mean(),
+                           policy_reward_std=reward1.std(),
                            )
             tensors = dict(policy_value=value0[0].detach())
 
