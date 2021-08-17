@@ -155,6 +155,9 @@ atari:
   generator_run: True
   generator_prefill_steps: 100_000
 
+  # Job
+  data_workers: 3
+
   # Env
   image_key: image
   image_size: 64
