@@ -457,24 +457,24 @@ class WorldModel(nn.Module):
                 logprob_reward = self._decoder_reward.loss(reward_pred, reward)
                 logprob_reward = -logavgexp(-logprob_reward, dim=-1)
                 log_tensors.update(logprob_reward=logprob_reward)
-                metrics.update(logprob_reward=logprob_reward.mean())
 
                 reward_pos = (reward.select(-1, 0) > 0)  # mask where reward is *positive*
                 logprob_reward_pos = (logprob_reward * reward_pos).sum() / reward_pos.sum()
                 reward_neg = (reward.select(-1, 0) < 0)  # mask where reward is *negative*
                 logprob_reward_neg = (logprob_reward * reward_neg).sum() / reward_neg.sum()
-                metrics.update(logprob_reward_pos=logprob_reward_pos,
+                metrics.update(logprob_reward=logprob_reward.mean(),
+                               logprob_reward_pos=logprob_reward_pos,
                                logprob_reward_neg=logprob_reward_neg)
 
             if terminal_pred is not None:
                 logprob_terminal = self._decoder_terminal.loss(terminal_pred, terminal)
                 logprob_terminal = -logavgexp(-logprob_terminal, dim=-1)
                 log_tensors.update(logprob_terminal=logprob_terminal)
-                metrics.update(logprob_terminal=logprob_terminal.mean())
 
                 terminal_1 = (terminal.select(-1, 0) == 1)  # mask where terminal is 1
                 logprob_terminal_1 = (logprob_terminal * terminal_1).sum() / terminal_1.sum()
-                metrics.update(logprob_terminal_1=logprob_terminal_1)
+                metrics.update(logprob_terminal=logprob_terminal.mean(),
+                               logprob_terminal_1=logprob_terminal_1)
 
         return loss_model.mean(), metrics, log_tensors
 

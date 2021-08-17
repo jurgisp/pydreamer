@@ -303,7 +303,7 @@ def evaluate(prefix: str,
                 logprob_map_last = (loss_tensors['loss_map'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
                 metrics_eval['logprob_map_last'].append(logprob_map_last.item())
 
-            # Forward (prior) & unseen logprob
+            # Open loop & unseen logprob
 
             if n_reset_episodes == 0:
                 with autocast(enabled=conf.amp):
@@ -323,7 +323,7 @@ def evaluate(prefix: str,
                     if out_tensors_im is not None:
                         log_batch_npz(batch, loss_tensors_im, *out_tensors_im, f'{steps:07}.npz', subdir=f'd2_wm_predict_{prefix}_im', verbose=True)
 
-            # Forward (posterior) & loss
+            # Closed loop & loss
 
             with autocast(enabled=conf.amp):
                 if state is None or not keep_state:
