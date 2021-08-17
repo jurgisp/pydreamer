@@ -273,6 +273,7 @@ def evaluate(prefix: str,
     loss_tensors = None
     npz_datas = []
     n_finished_episodes = np.zeros(1)
+    do_output_tensors = True
 
     for i_batch in range(eval_batches):
         with torch.no_grad():
@@ -334,7 +335,7 @@ def evaluate(prefix: str,
                                 I=eval_samples,
                                 H=conf.imag_horizon,
                                 do_image_pred=True,
-                                do_output_tensors=n_finished_episodes[0] == 0)  # log predictions until first episode is finished
+                                do_output_tensors=do_output_tensors)
 
                 for k, v in loss_metrics.items():
                     if not np.isnan(v.item()):
@@ -344,6 +345,9 @@ def evaluate(prefix: str,
 
             if out_tensors:
                 npz_datas.append(prepare_batch_npz(batch, loss_tensors, *out_tensors, take_b=1))
+            if n_finished_episodes[0] > 0:
+                # log predictions until first episode is finished
+                do_output_tensors = False
 
     metrics_eval = {f'{prefix}/{k}': np.mean(v) for k, v in metrics_eval.items()}
     mlflow.log_metrics(metrics_eval, step=steps)
