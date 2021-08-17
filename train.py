@@ -80,9 +80,9 @@ def run(conf):
 
     # Training
 
-    optimizer_wm = torch.optim.Adam(model.wm.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
-    optimizer_map = torch.optim.Adam(model.map_model.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
-    optimizer_ac = torch.optim.Adam(model.ac.parameters(), lr=conf.adam_lr_ac, eps=conf.adam_eps)  # type: ignore
+    optimizer_wm = torch.optim.AdamW(model.wm.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
+    optimizer_map = torch.optim.AdamW(model.map_model.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
+    optimizer_ac = torch.optim.AdamW(model.ac.parameters(), lr=conf.adam_lr_ac, eps=conf.adam_eps)  # type: ignore
 
     resume_step = tools.mlflow_load_checkpoint(model, optimizer_wm, optimizer_map, optimizer_ac)
     if resume_step:
