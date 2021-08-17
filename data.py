@@ -6,11 +6,14 @@ from pathy import Pathy
 from torch.utils.data import IterableDataset, get_worker_info
 
 from tools import *
+from modules_tools import *
+
 
 def get_worker_id():
     worker_info = get_worker_info()
     worker_id = worker_info.id if worker_info else 0
     return worker_id
+
 
 class OfflineDataSequential(IterableDataset):
     """Offline data which processes episodes sequentially"""
@@ -57,13 +60,36 @@ class OfflineDataSequential(IterableDataset):
 
     def _iter_single(self, ix):
         # Iterates "single thread" forever
-        is_first = True
-        for file in self._iter_shuffled_files():
-            for batch in self._iter_file(file, self.batch_length, ix, skip_random=is_first and self.skip_first):
-                yield batch
-            is_first = False
+        skip_random = self.skip_first
+        last_partial_batch = None
 
-    def _iter_file(self, file, batch_length, ix, skip_random=False):
+        for file in self._iter_shuffled_files():
+            if last_partial_batch:
+                first_shorter_length = self.batch_length - lenb(last_partial_batch)
+            else:
+                first_shorter_length = None
+
+            it = self._iter_file(file, self.batch_length, skip_random, first_shorter_length)
+
+            # Concatenate the last batch of previous file and the first batch of new file to make a
+            # full batch of length batch_size.
+            if last_partial_batch is not None:
+                batch, partial = next(it)
+                assert not partial, 'First batch must be full. Is episode_length < batch_size?'
+                batch = cat_structure_np([last_partial_batch, batch])
+                assert lenb(batch) == self.batch_length
+                last_partial_batch = None
+                yield batch
+
+            for batch, partial in it:
+                if partial:
+                    last_partial_batch = batch
+                    break  # partial will always be last
+                yield batch
+
+            skip_random = False
+
+    def _iter_file(self, file, batch_length, skip_random=False, first_shorter_length=None):
         try:
             with Timer(f'Reading {file}', verbose=False):
                 data = load_npz(file)
@@ -71,6 +97,14 @@ class OfflineDataSequential(IterableDataset):
             print('Error reading file - skipping')
             print(e)
             return
+
+        n = lenb(data)
+        if n < batch_length:
+            print(f'Skipping too short file: {file}, len={n}')
+            return
+
+        i = 0 if not skip_random else np.random.randint(n - batch_length + 1)
+        l = first_shorter_length or batch_length
 
         # Undo the transformation for better compression
         if 'image' not in data and 'image_t' in data:
@@ -80,21 +114,16 @@ class OfflineDataSequential(IterableDataset):
         if 'map_centered' in data and data['map_centered'].dtype == np.float64:
             data['map_centered'] = (data['map_centered'] * 255).clip(0, 255).astype(np.uint8)
 
-        n = data['image'].shape[0]
         if not 'reset' in data:
             data['reset'] = np.zeros(n, bool)
             data['reset'][0] = True  # Indicate episode start
 
-        i_start = 0
-        if skip_random:
-            # i_start = np.random.randint(n - batch_length)
-            i_start = n * ix // self.batch_size
-
-        for i in range(i_start, n - batch_length + 1, batch_length):
-            # TODO: should return last shorter batch
-            j = i + batch_length
-            batch = {key: data[key][i:j] for key in data}
-            yield batch
+        while i < n:
+            batch = {key: data[key][i:i + l] for key in data}
+            is_partial = lenb(batch) < l
+            i += l
+            l = batch_length
+            yield batch, is_partial
 
     def _iter_shuffled_files(self):
         while True:
@@ -104,3 +133,7 @@ class OfflineDataSequential(IterableDataset):
                 self._reload_files()
             else:
                 yield self._files[i]
+
+
+def lenb(batch):
+    return batch['reward'].shape[0]

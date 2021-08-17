@@ -112,5 +112,14 @@ def stack_structure(data: List[Tuple[Tensor, ...]]) -> Tuple[Tensor, ...]:
     )
 
 
+def cat_structure_np(datas: List[Dict[str, np.ndarray]]) -> Dict[str, np.ndarray]:
+    assert isinstance(datas[0], dict), 'Not implemented for other types'
+    keys = datas[0].keys()
+    return {
+        k: np.concatenate([d[k] for d in datas])
+        for k in keys
+    }
+
+
 def nanmean(x: Tensor) -> Tensor:
     return torch.nansum(x) / (~torch.isnan(x)).sum()
