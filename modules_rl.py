@@ -85,7 +85,7 @@ class ActorCritic(nn.Module):
         reality_weight = (1 - terminal0).log().cumsum(dim=0).exp()
 
         loss_value = torch.square(value_target - value0)
-        loss_policy = - (policy.logits * actions).sum(-1) * advantage
+        loss_policy = - (policy.logits * actions).sum(-1) * advantage_gae
         policy_entropy = policy.entropy()
 
         real_loss = False  # TODO: conf
