@@ -310,7 +310,8 @@ def evaluate(prefix: str,
                 with autocast(enabled=conf.amp):
 
                     _, _, loss_tensors_im, _, out_tensors_im = \
-                        model.train(0 * image, 0 * reward, 0 * terminal, action, reset, map, map_coord, state,
+                        model.train(image, reward, terminal,  # (image, reward, terminal) will be ignored in forward pass because of imagine=True
+                                    action, reset, map, map_coord, state,
                                     I=eval_samples,
                                     H=conf.imag_horizon,
                                     imagine=True,

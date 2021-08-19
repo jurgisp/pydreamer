@@ -464,7 +464,6 @@ class WorldModel(nn.Module):
                 metrics.update(logprob_reward=logprob_reward.mean(),
                                logprob_reward_pos=logprob_reward_pos,
                                logprob_reward_neg=logprob_reward_neg)
-
                 log_tensors.update(reward_pred=reward_pred.mean.mean(dim=-1))  # not quite loss tensor, but fine
 
             if terminal_pred is not None:
@@ -474,7 +473,6 @@ class WorldModel(nn.Module):
                 logprob_terminal_1 = (logprob_terminal * terminal_1).sum() / terminal_1.sum()
                 metrics.update(logprob_terminal=logprob_terminal.mean(),
                                logprob_terminal_1=logprob_terminal_1)
-
                 log_tensors.update(terminal_pred=terminal_pred.mean.mean(dim=-1))  # not quite loss tensor, but fine
 
         return loss_model.mean(), metrics, log_tensors
