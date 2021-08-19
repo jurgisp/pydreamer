@@ -105,6 +105,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     datas = []
     visited_stats = []
     first_save = True
+    first_episode = True
     last_model_load = 0
     model_step = 0
 
@@ -140,6 +141,10 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
         episodes += 1
         data = info['episode']  # type: ignore
+        if 'policy_value' in metrics:
+            data['policy_value'] = np.array(metrics['policy_value'] + [np.nan])     # last terminal value is null
+            data['policy_entropy'] = np.array(metrics['policy_entropy'] + [np.nan]) # last policy is null
+            data['action_prob'] = np.array([np.nan] + metrics['action_prob'])       # first action is null
 
         # Calculate visited (for MiniGrid/MiniWorld)
 
@@ -155,8 +160,9 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         # Log
 
         fps = epsteps / (time.time() - timer + 1e-6)
-        if episodes == 1:
+        if first_episode:
             print('Episode data sample: ', {k: v.shape for k, v in data.items()})
+            first_episode = False
 
         print(f"Episode recorded:"
               f"  steps: {epsteps}"
@@ -180,7 +186,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 'agent/episodes': episodes,
                 'agent/return': data['reward'].sum(),
                 'agent/return_discounted': discount(data['reward']).mean(),
-            })
+            })  # type: ignore
             mlflow.log_metrics(metrics, step=log_step)
 
         # Save to npz
