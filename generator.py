@@ -1,9 +1,11 @@
 import os
+from collections import defaultdict
 from preprocessing import MinigridPreprocess
 from models import Dreamer
 from typing import Tuple, Optional, Dict, List
 import argparse
 import numpy as np
+import scipy.signal
 import datetime
 import time
 import pathlib
@@ -122,13 +124,20 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
         # Unroll one episode
 
-        obs, done = env.reset(), False
-        epsteps, timer = 0, time.time()
+        epsteps = 0
+        timer = time.time()
+        obs = env.reset()
+        done = False
+        metrics = defaultdict(list)
+
         while not done:
-            action = policy(obs)
+            action, mets = policy(obs)
             obs, reward, done, info = env.step(action)
             steps += 1
             epsteps += 1
+            for k, v in mets.items():
+                metrics[k].append(v)
+
         episodes += 1
         data = info['episode']  # type: ignore
 
@@ -142,16 +151,6 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             visited_stats.append(visited_pct)
         else:
             visited_pct = np.nan
-
-        # Calculate discounted return
-
-        rewards = data['reward']
-        values = np.zeros_like(rewards)
-        discount = 0.999
-        v = 0.
-        for i in reversed(range(len(rewards) - 1)):
-            v = rewards[i + 1] + discount * v
-            values[i] = v
 
         # Log
 
@@ -168,16 +167,21 @@ def main(env_id='MiniGrid-MazeS11N-v0',
               f",  episodes: {episodes}"
               )
 
+        def discount(x: np.ndarray, gamma: float = 0.999):
+            return scipy.signal.lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]
+
         if log_mlflow_metrics:
             log_step = model_step if model else steps
-            mlflow.log_metrics({
+            metrics = {f'agent/{k}': np.mean(v) for k, v in metrics.items()}
+            metrics.update({
                 'agent/episode_length': epsteps,
-                'agent/episode_reward': data['reward'].sum(),
                 'agent/fps': fps,
                 'agent/steps': steps,
                 'agent/episodes': episodes,
-                'agent/value': values.mean(),
-            }, step=log_step)
+                'agent/return': data['reward'].sum(),
+                'agent/return_discounted': discount(data['reward']).mean(),
+            })
+            mlflow.log_metrics(metrics, step=log_step)
 
         # Save to npz
 
@@ -236,8 +240,8 @@ class RandomPolicy:
     def __init__(self, action_space):
         self.action_space = action_space
 
-    def __call__(self, obs):
-        return self.action_space.sample()
+    def __call__(self, obs) -> Tuple[int, dict]:
+        return self.action_space.sample(), {}
 
 
 class NetworkPolicy:
@@ -246,7 +250,7 @@ class NetworkPolicy:
         self.preprocess = preprocess
         self._state = model.wm.init_state(1)
 
-    def __call__(self, obs):
+    def __call__(self, obs) -> Tuple[int, dict]:
         batch = self.preprocess.apply(obs, expandTB=True)
 
         image = torch.from_numpy(batch['image'])
@@ -255,16 +259,21 @@ class NetworkPolicy:
         reset = torch.from_numpy(batch['reset'])
 
         with torch.no_grad():
-            action_p, new_state = self.model.forward(image, reward, action, reset, self._state)
+            action_distr, value, new_state = self.model.forward(image, reward, action, reset, self._state)
             self._state = new_state
 
-        action = action_p.sample()
-        action = action.argmax(-1)  # one-hot => int
-        return action.squeeze().item()
+        action = action_distr.sample()
+        action = action.argmax(-1)[0]  # one-hot => int
+
+        metrics = dict(policy_value=value[0].item(),
+                       action_prob=action_distr.probs[0, action].item(),
+                       policy_entropy=action_distr.entropy()[0].item())
+
+        return action.item(), metrics
 
 
 class MinigridWanderPolicy:
-    def __call__(self, obs):
+    def __call__(self, obs) -> Tuple[int, dict]:
         if obs['image'].shape == (7, 7):
             (ax, ay) = (3, 6)  # agent is here
             front = MiniGrid.GRID_VALUES[obs['image'][ax, ay - 1]]  # front is up
@@ -282,43 +291,43 @@ class MinigridWanderPolicy:
 
         # Door on left => turn with 50%
         if left[0] == 4 and np.random.rand() < 0.50:
-            return 0
+            return 0, {}
 
         # Door on right => turn with 50%
         if right[0] == 4 and np.random.rand() < 0.50:
-            return 1
+            return 1, {}
 
         # Empty left  => turn with 10%
         if left[0] in empty and np.random.rand() < 0.10:
-            return 0
+            return 0, {}
 
         # Empty right => turn with 10%
         if right[0] in empty and np.random.rand() < 0.10:
-            return 1
+            return 1, {}
 
         # Closed door => open
         if front[0] == 4 and front[2] == 1:
-            return 5
+            return 5, {}
 
         # Empty or open door => forward
         if front[0] in empty or (front[0] == 4 and front[2] == 0):
-            return 2
+            return 2, {}
 
         # If forward blocked...
 
         # If wall left and not right => turn right
         if left[0] == 2 and right[0] != 2:
-            return 1
+            return 1, {}
 
         # If wall right and not left => turn left
         if right[0] == 2 and left[0] != 2:
-            return 0
+            return 0, {}
 
         # Left-right 50%
         if np.random.rand() < 0.50:
-            return 0
+            return 0, {}
         else:
-            return 1
+            return 1, {}
 
 
 class MazeBouncingBallPolicy:
@@ -331,7 +340,7 @@ class MazeBouncingBallPolicy:
         self.pos = None
         self.turns_remaining = 0
 
-    def __call__(self, obs):
+    def __call__(self, obs) -> Tuple[int, dict]:
         assert 'agent_pos' in obs, f'Need agent position'
         pos = obs['agent_pos']
         action = -1
@@ -364,7 +373,7 @@ class MazeBouncingBallPolicy:
             self.turns_remaining += 1
 
         assert action >= 0
-        return action
+        return action, {}
 
 
 class MazeDijkstraPolicy:
@@ -380,7 +389,7 @@ class MazeDijkstraPolicy:
         self._goal = None
         self._expected_pos = None
 
-    def __call__(self, obs):
+    def __call__(self, obs) -> Tuple[int, dict]:
         assert 'agent_pos' in obs, 'Need agent position'
         assert 'map_agent' in obs, 'Need map'
 
@@ -415,10 +424,10 @@ class MazeDijkstraPolicy:
             if len(actions) > 0:
                 if np.random.rand() < self.epsilon:
                     self._expected_pos = None
-                    return np.random.randint(3)  # random action
+                    return np.random.randint(3), {}  # random action
                 else:
                     self._expected_pos = path[0]
-                    return actions[0]  # best action
+                    return actions[0], {}  # best action
             else:
                 self._goal = self._generate_goal(map)
 

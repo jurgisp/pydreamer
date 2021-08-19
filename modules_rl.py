@@ -23,10 +23,14 @@ class ActorCritic(nn.Module):
         self._critic_target = MLP(in_dim, 1, hidden_dim, hidden_layers)
         self._train_steps = 0
 
-    def forward_act(self, features: Tensor) -> D.OneHotCategorical:
+    def forward_actor(self, features: Tensor) -> D.OneHotCategorical:
         y = self._actor.forward(features)
         p = D.OneHotCategorical(logits=y)
         return p
+
+    def forward_value(self, features: Tensor) -> Tensor:
+        y = self._critic.forward(features)
+        return y
 
     def train(self, features: TensorJMF, rewards: D.Distribution, terminals: D.Distribution, actions: TensorHMA):
         if self._train_steps % self._target_interval == 0:
@@ -36,7 +40,7 @@ class ActorCritic(nn.Module):
         reward1: TensorHM = rewards.mean[1:]
         terminal0: TensorHM = terminals.mean[:-1]
         terminal1: TensorHM = terminals.mean[1:]
-        policy = self.forward_act(features[:-1])
+        policy = self.forward_actor(features[:-1])
         value0: TensorHM = self._critic.forward(features[:-1])
         value0t: TensorHM = self._critic_target.forward(features[:-1]).detach()
         value1t: TensorHM = self._critic_target.forward(features[1:]).detach()
