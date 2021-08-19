@@ -145,6 +145,11 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             data['policy_value'] = np.array(metrics['policy_value'] + [np.nan])     # last terminal value is null
             data['policy_entropy'] = np.array(metrics['policy_entropy'] + [np.nan]) # last policy is null
             data['action_prob'] = np.array([np.nan] + metrics['action_prob'])       # first action is null
+        else:
+            # Need to fill with placeholders, so all batches have the same keys
+            data['policy_value'] = np.full(data['reward'].shape, np.nan)
+            data['policy_entropy'] = np.full(data['reward'].shape, np.nan)
+            data['action_prob'] = np.full(data['reward'].shape, np.nan)
 
         # Calculate visited (for MiniGrid/MiniWorld)
 
