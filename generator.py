@@ -28,6 +28,9 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          model_conf=dict(),
          log_mlflow_metrics=True,
          ):
+
+    # Mlflow
+
     if 'MLFLOW_RUN_ID' in os.environ:
         run = mlflow.active_run()
         if run is None:
@@ -36,6 +39,14 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     else:
         run = mlflow.start_run(run_name=f'{env_id}-s{seed}')
         print(f'Mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
+
+    artifact_dir = run.info.artifact_uri.replace('file://', '') + '/episodes'
+    if artifact_dir.startswith('gs:/') or artifact_dir.startswith('s3:/'):
+        artifact_dir = Pathy(artifact_dir)
+    else:
+        artifact_dir = Path(artifact_dir)
+
+    # Env
 
     if env_id.startswith('MiniGrid-'):
         env = MiniGrid(env_id, max_steps=env_max_steps, seed=seed)
@@ -61,6 +72,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     env = ActionRewardResetWrapper(env, env_max_steps)
     env = CollectWrapper(env)
 
+    # Policy
+
     model = None
     if policy == 'network':
         conf = model_conf
@@ -84,7 +97,9 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     else:
         assert False, 'Unknown policy'
 
-    steps, episodes = 0, 0
+    # RUN
+
+    steps, episodes = count_steps(artifact_dir)
     datas = []
     visited_stats = []
     first_save = True
@@ -114,6 +129,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             obs, reward, done, info = env.step(action)
             steps += 1
             epsteps += 1
+        episodes += 1
         data = info['episode']  # type: ignore
 
         # Calculate visited (for MiniGrid/MiniWorld)
@@ -140,13 +156,13 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         # Log
 
         fps = epsteps / (time.time() - timer + 1e-6)
-        if episodes == 0:
+        if episodes == 1:
             print('Episode data sample: ', {k: v.shape for k, v in data.items()})
 
         print(f"Episode recorded:"
               f"  steps: {epsteps}"
               f",  reward: {data['reward'].sum()}"
-            #   f",  explored%: {visited_pct:.1%}|{np.mean(visited_stats):.1%}"
+              #   f",  explored%: {visited_pct:.1%}|{np.mean(visited_stats):.1%}"
               f",  fps: {fps:.0f}"
               f",  total steps: {steps:.0f}"
               f",  episodes: {episodes}"
@@ -159,16 +175,15 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 'agent/episode_reward': data['reward'].sum(),
                 'agent/fps': fps,
                 'agent/steps': steps,
-                'agent/episodes': episodes + 1,
+                'agent/episodes': episodes,
                 'agent/value': values.mean(),
             }, step=log_step)
 
         # Save to npz
 
-        episodes += 1
         datas.append(data)
         datas_episodes = len(datas)
-        datas_steps = sum(len(d['reset']) for d in datas)
+        datas_steps = sum(len(d['reset']) - 1 for d in datas)
 
         if datas_steps >= steps_per_npz:
 
@@ -198,6 +213,23 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             mlflow_log_npz(data, fname, 'episodes', verbose=True)
 
     print(f'Generator {seed} done.')
+
+
+def count_steps(artifact_dir):
+    files = list(sorted(artifact_dir.glob('*.npz')))
+    steps = 0
+    episodes = 0
+    for f in files:
+        # Example: f.name == '.../s1-ep0000_0003-1500.npz'
+        sstep = f.name.split('.')[0].split('-')[-1]
+        if sstep.isnumeric():
+            steps += int(sstep)
+        sepisode = f.name.split('.')[0].split('-')[-2].replace('ep', '').split('_')[-1]
+        if sepisode.isnumeric():
+            episodes = max(episodes, int(sepisode) + 1)
+
+    print(f'Found existing {len(files)} files, {episodes} episodes, {steps} steps in {artifact_dir}')
+    return steps, episodes
 
 
 class RandomPolicy:
