@@ -143,7 +143,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         data = info['episode']  # type: ignore
         if 'policy_value' in metrics:
             data['policy_value'] = np.array(metrics['policy_value'] + [np.nan])     # last terminal value is null
-            data['policy_entropy'] = np.array(metrics['policy_entropy'] + [np.nan]) # last policy is null
+            data['policy_entropy'] = np.array(metrics['policy_entropy'] + [np.nan])  # last policy is null
             data['action_prob'] = np.array([np.nan] + metrics['action_prob'])       # first action is null
         else:
             # Need to fill with placeholders, so all batches have the same keys
@@ -178,9 +178,6 @@ def main(env_id='MiniGrid-MazeS11N-v0',
               f",  episodes: {episodes}"
               )
 
-        def discount(x: np.ndarray, gamma: float = 0.999):
-            return scipy.signal.lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]
-
         if log_mlflow_metrics:
             log_step = model_step if model else steps
             metrics = {f'agent/{k}': np.mean(v) for k, v in metrics.items()}
@@ -190,7 +187,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 'agent/steps': steps,
                 'agent/episodes': episodes,
                 'agent/return': data['reward'].sum(),
-                'agent/return_discounted': discount(data['reward']).mean(),
+                'agent/return_discounted': discount(data['reward'], gamma=model_conf.discount).mean(),
             })  # type: ignore
             mlflow.log_metrics(metrics, step=log_step)
 
@@ -228,6 +225,10 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             mlflow_log_npz(data, fname, 'episodes', verbose=True)
 
     print(f'Generator {seed} done.')
+
+
+def discount(x: np.ndarray, gamma: float):
+    return scipy.signal.lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]
 
 
 def count_steps(artifact_dir):

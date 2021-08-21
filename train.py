@@ -309,6 +309,9 @@ def evaluate(prefix: str,
             if n_reset_episodes == 0:
                 with autocast(enabled=conf.amp):
 
+                    # TODO: is there still point to do this on every batch?
+                    # The only benefit is to calculate logprob_img_1step, but we're not looking at that
+                    # And the tensors are logged only when i_batch==1
                     _, _, loss_tensors_im, _, out_tensors_im = \
                         model.train(image, reward, terminal,  # (image, reward, terminal) will be ignored in forward pass because of imagine=True
                                     action, reset, map, map_coord, state,
