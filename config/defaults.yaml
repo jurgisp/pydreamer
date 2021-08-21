@@ -171,3 +171,26 @@ atari:
   image_decoder: cnn
   embed_dim: 1024
   map_model: none
+
+dmlab:
+  # Generator
+  env_id: DmLab-rooms_watermaze
+  generator_run: True
+  generator_prefill_steps: 100_000
+
+  # Job
+  data_workers: 3
+
+  # Env
+  image_key: image
+  image_size: 64
+  image_channels: 3
+  image_categorical: False
+  map_key:
+  action_dim: 9
+
+  # Model
+  image_encoder: cnn
+  image_decoder: cnn
+  embed_dim: 1024
+  map_model: none

@@ -20,6 +20,45 @@ from tools import *
 WALL = 2
 
 
+def create_env(env_id: str, max_steps: int, seed: int = 0):
+
+    if env_id.startswith('MiniGrid-'):
+        env = MiniGrid(env_id, max_steps=max_steps, seed=seed)
+
+    elif env_id.startswith('Atari-'):
+        env = Atari(env_id.split('-')[1].lower())
+        # TODO: max_steps wrapper
+
+    elif env_id.startswith('AtariGray-'):
+        env = Atari(env_id.split('-')[1].lower(), grayscale=True)
+
+    elif env_id.startswith('MiniWorld-'):
+        import gym_miniworld.wrappers as wrap
+        env = env_raw = gym.make(env_id, max_steps=max_steps)
+        env = wrap.DictWrapper(env)
+        env = wrap.MapWrapper(env)
+        env = wrap.PixelMapWrapper(env)
+        env = wrap.AgentPosWrapper(env)
+
+    elif env_id.startswith('DmLab-'):
+        from envs_dmlab import DmLab
+        env = DmLab(env_id.split('-')[1].lower(),
+                    num_action_repeats=1,
+                    seed=seed,
+                    is_test=False,
+                    config={'width': 64, 'height': 64, 'logLevel': 'WARN'})
+        # TODO: max_steps wrapper
+        env = DictWrapper(env)
+
+    else:
+        env = gym.make(env_id, max_steps=max_steps)
+        env = DictWrapper(env)
+
+    env = ActionRewardResetWrapper(env, max_steps)
+    env = CollectWrapper(env)
+    return env
+
+
 def main(env_id='MiniGrid-MazeS11N-v0',
          seed=0,
          policy='random',
@@ -50,29 +89,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
     # Env
 
-    if env_id.startswith('MiniGrid-'):
-        env = MiniGrid(env_id, max_steps=env_max_steps, seed=seed)
-
-    elif env_id.startswith('Atari-'):
-        env = Atari(env_id.split('-')[1].lower())
-        # TODO: max_steps wrapper
-
-    elif env_id.startswith('AtariGray-'):
-        env = Atari(env_id.split('-')[1].lower(), grayscale=True)
-
-    elif env_id.startswith('MiniWorld-'):
-        import gym_miniworld.wrappers as wrap
-        env = env_raw = gym.make(env_id, max_steps=env_max_steps)
-        env = wrap.DictWrapper(env)
-        env = wrap.MapWrapper(env)
-        env = wrap.PixelMapWrapper(env)
-        env = wrap.AgentPosWrapper(env)
-
-    else:
-        env = gym.make(env_id, max_steps=env_max_steps)
-
-    env = ActionRewardResetWrapper(env, env_max_steps)
-    env = CollectWrapper(env)
+    env = create_env(env_id, env_max_steps, seed)
 
     # Policy
 
@@ -521,6 +538,15 @@ def find_shortest(map, start, goal, step_size=1.0, turn_size=45.0):
         print('WARN: no path found')
 
     return actions, path, len(visited)
+
+
+class DictWrapper(gym.ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        # self.observation_space = ...  # TODO
+
+    def observation(self, obs_img):
+        return {'image': obs_img}
 
 
 class ActionRewardResetWrapper:
