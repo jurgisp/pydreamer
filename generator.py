@@ -213,6 +213,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         datas.append(data)
         datas_episodes = len(datas)
         datas_steps = sum(len(d['reset']) - 1 for d in datas)
+        datas_reward = sum(d['reward'].sum() for d in datas)
 
         if datas_steps >= steps_per_npz:
 
@@ -235,9 +236,9 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 first_save = False
 
             if datas_episodes > 1:
-                fname = f's{seed}-ep{episodes-datas_episodes:06}_{episodes-1:06}-{datas_steps:04}.npz'
+                fname = f's{seed}-ep{episodes-datas_episodes:06}_{episodes-1:06}-r{int(datas_reward)}-{datas_steps:04}.npz'
             else:
-                fname = f's{seed}-ep{episodes-1:06}-{datas_steps:04}.npz'
+                fname = f's{seed}-ep{episodes-1:06}-r{int(datas_reward)}-{datas_steps:04}.npz'
 
             mlflow_log_npz(data, fname, 'episodes', verbose=True)
 
@@ -253,11 +254,11 @@ def count_steps(artifact_dir):
     steps = 0
     episodes = 0
     for f in files:
-        # Example: f.name == '.../s1-ep0000_0003-1500.npz'
+        # Example: f.name == '.../s1-ep0000_0003-r5-1500.npz'
         sstep = f.name.split('.')[0].split('-')[-1]
         if sstep.isnumeric():
             steps += int(sstep)
-        sepisode = f.name.split('.')[0].split('-')[-2].replace('ep', '').split('_')[-1]
+        sepisode = f.name.split('.')[0].split('-')[-3].replace('ep', '').split('_')[-1]
         if sepisode.isnumeric():
             episodes = max(episodes, int(sepisode) + 1)
 
