@@ -37,7 +37,7 @@ def create_env(env_id: str, max_steps: int, seed: int = 0):
         env = env_raw = gym.make(env_id, max_steps=max_steps)
         env = wrap.DictWrapper(env)
         env = wrap.MapWrapper(env)
-        env = wrap.PixelMapWrapper(env)
+        # env = wrap.PixelMapWrapper(env)
         env = wrap.AgentPosWrapper(env)
 
     elif env_id.startswith('DmLab-'):
