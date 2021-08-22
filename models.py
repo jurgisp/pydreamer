@@ -122,7 +122,8 @@ class Dreamer(nn.Module):
               H: int = 1,        # Imagination horizon
               imagine=False,      # If True, will imagine sequence, not using observations to form posterior
               do_image_pred=False,
-              do_output_tensors=False
+              do_output_tensors=False,
+              do_dream_tensors=False,
               ):
         N, B = image.shape[:2]
 
@@ -141,11 +142,11 @@ class Dreamer(nn.Module):
         map_features = map_features.detach()
         map_out = self.map_model.forward(map_features, map, do_image_pred=do_image_pred)
 
-        # Forward (actor critic)
+        # Forward (dream)
 
         with torch.no_grad():  # Not using dynamics gradients for now, just Reinforce
             in_state_dream: StateB = map_structure(states, lambda x: flatten_batch(x.detach())[0])  # type: ignore  # (N,B,I) => (NBI)
-            features_dream, actions_dream = self.dream(in_state_dream, H)                       # (H+1,NBI,D)
+            features_dream, actions_dream = self.dream(in_state_dream, H)        # (H+1,NBI,D) - features_dream includes the starting "real" features at features_dream[0]
             rewards_dream = self.wm._decoder_reward.forward(features_dream)      # (H+1,NBI)
             terminals_dream = self.wm._decoder_terminal.forward(features_dream)  # (H+1,NBI)
 
@@ -160,8 +161,7 @@ class Dreamer(nn.Module):
 
         loss_ac, metrics_ac, loss_tensors_ac = self.ac.train(features_dream, rewards_dream, terminals_dream, actions_dream)
         metrics.update(**metrics_ac)
-        loss_tensors_ac = {k: unflatten_batch(v, (N, B, I)).mean(dim=-1) for k, v in loss_tensors_ac.items()}  # (N,B)
-        loss_tensors.update(**loss_tensors_ac)
+        loss_tensors.update(policy_value=unflatten_batch(loss_tensors_ac['value'][0], (N, B, I)).mean(-1))
 
         # Predict
 
@@ -170,21 +170,35 @@ class Dreamer(nn.Module):
             with torch.no_grad():
                 image_pred, image_rec = self.wm.predict(*output)
                 map_rec = self.map_model.predict(*map_out)
-                out_tensors.update(image_rec=image_rec, map_rec=map_rec)
+                out_tensors = dict(image_rec=image_rec, map_rec=map_rec)
                 if image_pred is not None:
                     out_tensors.update(image_pred=image_pred)
 
-                # Dream for a log sample.
+        # Dream for a log sample.
+
+        dream_tensors = {}
+        if do_dream_tensors:
+            with torch.no_grad():
                 # The reason we don't just take real features_dream is because it's really big (H*N*B*I),
-                # and here for inspection purposes we only dream from first step, so it's (H*B)
-                # in_state_dream: StateB = map_structure(states, lambda x: x.detach()[0, :, 0])  # type: ignore  # (N,B,I) => (B)
-                # features_dream, actions_dream = self.dream(in_state_dream, H)
-                # rewards_dream = self.wm._decoder_reward.forward(features_dream)      # (H+1,B)
-                # terminals_dream = self.wm._decoder_terminal.forward(features_dream)  # (H+1,B)
-                # image_dream = self.wm._decoder_image.forward(features_dream)
+                # and here for inspection purposes we only dream from first step, so it's (H*B).
+                # Oh, and we set here H=N-1, so we get (N,B), and the dreamed experience aligns with actual.
+                in_state_dream: StateB = map_structure(states, lambda x: x.detach()[0, :, 0])  # type: ignore  # (N,B,I) => (B)
+                features_dream, actions_dream = self.dream(in_state_dream, N-1)      # H = N-1
+                rewards_dream = self.wm._decoder_reward.forward(features_dream)      # (H+1,B) = (N,B)
+                terminals_dream = self.wm._decoder_terminal.forward(features_dream)  # (H+1,B) = (N,B)
+                image_dream = self.wm._decoder_image.forward(features_dream)
+                _, _, loss_tensors_ac = self.ac.train(features_dream, rewards_dream, terminals_dream, actions_dream, log_only=True)  # TODO
+                # The tensors are intentionally named same as in out_tensors, so the logged npz looks the same for dreamed or not
+                dream_tensors = dict(action_pred=torch.cat([action[:1], actions_dream]),  # first action is real from previous step
+                                     reward_pred=rewards_dream.mean,  # reward_pred is also set in loss_tensors, if do_image_pred==True
+                                     terminal_pred=terminals_dream.mean,
+                                     image_pred=image_dream,
+                                     **loss_tensors_ac)
+                assert dream_tensors['action_pred'].shape == action.shape
+                assert dream_tensors['image_pred'].shape == image.shape
 
         losses = (loss_model, loss_map, loss_ac)
-        return losses, metrics, loss_tensors, out_state, out_tensors
+        return losses, metrics, loss_tensors, out_state, out_tensors, dream_tensors
 
     def dream(self, in_state: StateB, H: int):
         NBI = len(in_state[0])  # Imagine batch size = N*B*I

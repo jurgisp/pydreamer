@@ -138,11 +138,12 @@ def run(conf):
                     with autocast(enabled=conf.amp):
 
                         state = states.get(wid) or model.wm.init_state(image.size(1) * conf.iwae_samples)
-                        losses, loss_metrics, loss_tensors, new_state, out_tensors = \
+                        losses, loss_metrics, loss_tensors, new_state, out_tensors, dream_tensors = \
                             model.train(image, reward, terminal, action, reset, map, map_coord, state,
                                         I=conf.iwae_samples,
                                         H=conf.imag_horizon,
-                                        do_output_tensors=steps % conf.log_interval == 1)
+                                        do_output_tensors=steps % conf.log_interval == 1,
+                                        do_dream_tensors=steps % conf.log_interval == 1)
                         if conf.keep_state:
                             states[wid] = new_state
 
@@ -189,7 +190,9 @@ def run(conf):
                     # Log sample
 
                     if out_tensors:
-                        log_batch_npz(batch, loss_tensors, out_tensors, f'{steps:07}.npz', verbose=conf.verbose)
+                        log_batch_npz(batch, loss_tensors, out_tensors, f'{steps:07}.npz', subdir='d2_wm_closed', verbose=conf.verbose)
+                    if dream_tensors:
+                        log_batch_npz(batch, loss_tensors, dream_tensors, f'{steps:07}.npz', subdir='d2_wm_dream', verbose=conf.verbose)
 
                     # Log metrics
 
@@ -307,27 +310,22 @@ def evaluate(prefix: str,
 
             # Open loop & unseen logprob
 
-            if n_reset_episodes == 0:
+            if n_reset_episodes == 0 and i_batch == 1:  # just one batch
                 with autocast(enabled=conf.amp):
-
-                    # TODO: is there still point to do this on every batch?
-                    # The only benefit is to calculate logprob_img_1step, but we're not looking at that
-                    # And the tensors are logged only when i_batch==1
-                    _, _, loss_tensors_im, _, out_tensors_im = \
+                    _, _, loss_tensors_im, _, out_tensors_im, _ = \
                         model.train(image, reward, terminal,  # (image, reward, terminal) will be ignored in forward pass because of imagine=True
                                     action, reset, map, map_coord, state,
                                     I=eval_samples,
                                     H=conf.imag_horizon,
                                     imagine=True,
                                     do_image_pred=True,
-                                    do_output_tensors=i_batch == 1)  # just one batch
+                                    do_output_tensors=True)
 
-                    if 'logprob_img' in loss_tensors_im:
-                        metrics_eval['logprob_img_1step'].append(loss_tensors_im['logprob_img'][0].mean().item())
-                        metrics_eval['logprob_img_2step'].append(loss_tensors_im['logprob_img'][1].mean().item())
+                    log_batch_npz(batch, loss_tensors_im, out_tensors_im, f'{steps:07}.npz', subdir=f'd2_wm_open_{prefix}', verbose=True)
 
-                    if out_tensors_im:
-                        log_batch_npz(batch, loss_tensors_im, out_tensors_im, f'{steps:07}.npz', subdir=f'd2_wm_predict_{prefix}_im', verbose=True)
+                    # if 'logprob_img' in loss_tensors_im:
+                    #     metrics_eval['logprob_img_1step'].append(loss_tensors_im['logprob_img'][0].mean().item())
+                    #     metrics_eval['logprob_img_2step'].append(loss_tensors_im['logprob_img'][1].mean().item())
 
             # Closed loop & loss
 
@@ -335,7 +333,7 @@ def evaluate(prefix: str,
                 if state is None or not keep_state:
                     state = model.wm.init_state(image.size(1) * eval_samples)
 
-                _, loss_metrics, loss_tensors, state, out_tensors = \
+                _, loss_metrics, loss_tensors, state, out_tensors, _ = \
                     model.train(image, reward, terminal, action, reset, map, map_coord, state,
                                 I=eval_samples,
                                 H=conf.imag_horizon,
@@ -358,8 +356,8 @@ def evaluate(prefix: str,
     mlflow.log_metrics(metrics_eval, step=steps)
 
     npz_data = {k: np.concatenate([d[k] for d in npz_datas], 1) for k in npz_datas[0]}
-    print_once(f'Saving batch d2_wm_predict_{prefix}: ', {k: tuple(v.shape) for k, v in npz_data.items()})
-    tools.mlflow_log_npz(npz_data, f'{steps:07}.npz', subdir=f'd2_wm_predict_{prefix}', verbose=True)
+    print_once(f'Saving batch d2_wm_closed_{prefix}: ', {k: tuple(v.shape) for k, v in npz_data.items()})
+    tools.mlflow_log_npz(npz_data, f'{steps:07}.npz', subdir=f'd2_wm_closed_{prefix}', verbose=True)
 
     print(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_finished_episodes.sum()} episodes')
 
@@ -368,7 +366,7 @@ def log_batch_npz(batch: Dict[str, Tensor],
                   loss_tensors: Dict[str, Tensor],
                   out_tensors: Dict[str, Tensor],
                   filename: str,
-                  subdir='d2_wm_predict',
+                  subdir: str,
                   verbose=False):
 
     data = dict(**batch, **loss_tensors, **out_tensors)
@@ -392,7 +390,7 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
             pass
 
         elif len(x.shape) == 3:  # 1D vector
-            assert key in ['action', 'map_coord', 'agent_pos', 'agent_dir'], \
+            assert key in ['action', 'action_pred', 'map_coord', 'agent_pos', 'agent_dir'], \
                 f'Unexpected 1D tensor: {key}: {x.shape}, {x.dtype}'
 
         elif len(x.shape) == 4:  # 2D tensor - categorical image

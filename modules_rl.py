@@ -32,20 +32,24 @@ class ActorCritic(nn.Module):
         y = self._critic.forward(features)
         return y
 
-    def train(self, features: TensorJMF, rewards: D.Distribution, terminals: D.Distribution, actions: TensorHMA):
-        if self._train_steps % self._target_interval == 0:
-            self.update_critic_target()
-        self._train_steps += 1
+    def train(self, features: TensorJMF, rewards: D.Distribution, terminals: D.Distribution, actions: TensorHMA, log_only=False):
+        if not log_only:
+            if self._train_steps % self._target_interval == 0:
+                self.update_critic_target()
+            self._train_steps += 1
 
         reward1: TensorHM = rewards.mean[1:]
         terminal0: TensorHM = terminals.mean[:-1]
         terminal1: TensorHM = terminals.mean[1:]
         policy = self.forward_actor(features[:-1])
-        value0: TensorHM = self._critic.forward(features[:-1])
-        value0t: TensorHM = self._critic_target.forward(features[:-1]).detach()
-        value1t: TensorHM = self._critic_target.forward(features[1:]).detach()
-        advantage = - value0t + reward1 + self._gamma * (1.0 - terminal1) * value1t
-        assert not advantage.requires_grad
+        value: TensorJM = self._critic.forward(features)
+        value0: TensorHM = value[:-1]
+        with torch.no_grad():
+            value_t: TensorJM = self._critic_target.forward(features)
+            value0t: TensorHM = value_t[:-1]
+            value1t: TensorHM = value_t[1:]
+            advantage = - value0t + reward1 + self._gamma * (1.0 - terminal1) * value1t
+            assert not advantage.requires_grad
 
         # GAE from https://arxiv.org/abs/1506.02438 eq (16)
         #   advantage_gae[t] = advantage[t] + (gamma lambda) advantage[t+1] + (gamma lambda)^2 advantage[t+2] + ...
@@ -89,7 +93,8 @@ class ActorCritic(nn.Module):
         reality_weight = (1 - terminal0).log().cumsum(dim=0).exp()
 
         loss_value = torch.square(value_target - value0)
-        loss_policy = - (policy.logits * actions).sum(-1) * advantage_gae
+        action_logprob = (policy.logits * actions).sum(-1)
+        loss_policy = - action_logprob * advantage_gae
         policy_entropy = policy.entropy()
 
         real_loss = False  # TODO: conf
@@ -111,7 +116,13 @@ class ActorCritic(nn.Module):
                            policy_reward=reward1.mean(),
                            policy_reward_std=reward1.std(),
                            )
-            tensors = dict(policy_value=value0[0].detach())
+            tensors = dict(value=value.detach(),
+                           value_target=value_target.detach(),
+                           value_advantage=advantage.detach(),
+                           value_advantage_gae=advantage_gae.detach(),
+                           value_weight=reality_weight.detach(),
+                           action_prob=action_logprob.exp().detach(),
+                           )
 
         loss = loss_value + loss_policy - self._temperature * policy_entropy
         return loss, metrics, tensors

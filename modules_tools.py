@@ -23,6 +23,7 @@ TensorJMF = Tensor
 TensorJM2 = Tensor
 TensorHMA = Tensor
 TensorHM = Tensor
+TensorJM = Tensor
 
 IntTensorNBIHW = Tensor
 StateB = Tuple[Tensor, Tensor]
