@@ -170,10 +170,9 @@ class Dreamer(nn.Module):
             with torch.no_grad():
                 image_pred, image_rec = self.wm.predict(*output)
                 map_rec = self.map_model.predict(*map_out)
-                out_tensors.update(image_rec=image_rec.mean(dim=2),  # (N,B,I,*) => (N,B,*)
-                                   map_rec=map_rec.mean(dim=2))
+                out_tensors.update(image_rec=image_rec, map_rec=map_rec)
                 if image_pred is not None:
-                    out_tensors.update(image_pred=image_pred.mean(dim=2))
+                    out_tensors.update(image_pred=image_pred)
 
                 # Dream for a log sample.
                 # The reason we don't just take real features_dream is because it's really big (H*N*B*I),
@@ -376,16 +375,12 @@ class WorldModel(nn.Module):
 
     def predict(self,
                 features, prior, post, post_samples, image_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, states, out_state,     # forward() output
-                ):
+                ) -> Tuple[Tensor, Tensor]:
         # TODO: obsolete this method
+        if image_pred is not None:
+            image_pred = image_pred.mean(dim=2)
+        image_rec = image_rec.mean(dim=2)  # (N,B,I,C.H,W) => (N,B,C.H,W)
         return (image_pred, image_rec)
-        # if image_pred is not None:
-        #     image_pred = self._decoder_image.to_distr(image_pred)
-        # image_rec = self._decoder_image.to_distr(image_rec)
-        # return (
-        #     image_pred,    # categorical(N,B,H,W,C)
-        #     image_rec,     # categorical(N,B,H,W,C)
-        # )
 
     def loss(self,
              features, prior, post, post_samples, image_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, states, out_state,     # forward() output
@@ -590,10 +585,9 @@ class DirectHead(nn.Module):
                            acc_map=nanmean(acc_map))
         return loss.mean(), metrics, tensors
 
-    def predict(self, obs_pred):
+    def predict(self, obs_pred) -> Tensor:
         # TODO: obsolete this method
-        return obs_pred
-        # return self._decoder.to_distr(obs_pred)
+        return self._decoder.to_distr(obs_pred)
 
 
 class VAEHead(nn.Module):
@@ -657,13 +651,12 @@ class VAEHead(nn.Module):
 
         return loss.mean(), metrics, tensors
 
-    def predict(self, obs_rec, prior, post, obs_pred):
+    def predict(self, obs_rec, prior, post, obs_pred) -> Tensor:
         # TODO: obsolete this method
-        return obs_pred if obs_pred is not None else obs_rec
-        # if obs_pred is not None:
-        #     return self._decoder.to_distr(obs_pred)
-        # else:
-        #     return self._decoder.to_distr(obs_rec)
+        if obs_pred is not None:
+            return self._decoder.to_distr(obs_pred)
+        else:
+            return self._decoder.to_distr(obs_rec)
 
 
 class NoHead(nn.Module):
@@ -681,8 +674,5 @@ class NoHead(nn.Module):
 
     def predict(self, output):
         # TODO: obsolete this method
-        return output
-        # assert len(output.shape) == 6  # (N,B,I,C,H,W)
-        # x = output.mean(dim=2)  # (N,B,I,C,H,W) => (N,B,C,H,W)
-        # x = x.permute(0, 1, 3, 4, 2)  # (N,B,C,H,W) => (N,B,H,W,C)
-        # return D.Normal(x, torch.ones_like(x) / 255.0)
+        assert len(output.shape) == 6  # (N,B,I,C,H,W)
+        return output.mean(dim=2)  # (N,B,I,C,H,W) => (N,B,C,H,W)

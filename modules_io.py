@@ -95,11 +95,9 @@ class ConvDecoder(nn.Module):
         acc = unflatten_batch(acc, bd)  # (N,B)
         return acc
 
-    def to_distr(self, output: Tensor) -> D.Distribution:
+    def to_distr(self, output: Tensor) -> Tensor:  # Return mean
         assert len(output.shape) == 6  # (N,B,I,C,H,W)
-        x = output.mean(dim=2)  # (N,B,I,C,H,W) => (N,B,C,H,W)
-        x = x.permute(0, 1, 3, 4, 2)  # (N,B,C,H,W) => (N,B,H,W,C)
-        return D.Normal(x, torch.ones_like(x) / 255.0)
+        return output.mean(dim=2)  # (N,B,I,C,H,W) => (N,B,C,H,W)
 
 
 class DenseEncoder(nn.Module):
@@ -223,12 +221,13 @@ class DenseDecoder(nn.Module):
         acc = unflatten_batch(acc, bd)  # (N,B)
         return acc
 
-    def to_distr(self, output: Tensor) -> D.Distribution:
+    def to_distr(self, output: Tensor) -> Tensor:  # Return logits
         assert len(output.shape) == 6
         logits = output.permute(2, 0, 1, 4, 5, 3)  # (N,B,I,C,H,W) => (I,N,B,H,W,C)
         # Normalize probability
         logits = logits - logits.logsumexp(dim=-1, keepdim=True)
         # Aggregate prob=avg(prob_i)
         logits_agg = torch.logsumexp(logits, dim=0)  # (I,N,B,H,W,C) => (N,B,H,W,C)
-        return D.Categorical(logits=logits_agg)
+        logits_agg = D.Categorical(logits=logits_agg).logits  # Normalize
+        return logits_agg.permute(0, 1, 4, 2, 3)  # (N,B,H,W,C) => (N,B,C,H,W)
 
