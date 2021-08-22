@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import IterableDataset, get_worker_info
+from tools import *
 
 
 def to_onehot(x: np.ndarray, n_categories) -> np.ndarray:
@@ -60,19 +61,23 @@ class MinigridPreprocess:
         self._map_categorical = map_categorical
         self._map_key = map_key
         self._amp = amp
-        self._first = True
 
     def __call__(self, dataset: IterableDataset) -> IterableDataset:
         return TransformedDataset(dataset, self.apply)
 
     def apply(self, batch: Dict[str, np.ndarray], expandTB=False) -> Dict[str, np.ndarray]:
-        if self._first:
-            print('Preprocess batch (before): ', {k: v.shape for k, v in batch.items()})
+        print_once('Preprocess batch (before): ', {k: v.shape for k, v in batch.items()})
 
         # expand
 
         if expandTB:
             batch = {k: v[np.newaxis, np.newaxis] for k, v in batch.items()}  # (*) => (T=1,B=1,*)
+
+        # cleanup policy info logged by actor, not to be confused with current values
+
+        for key in ['policy_value', 'policy_entropy', 'action_prob']:
+            if key in batch:
+                del batch[key]
 
         # image
 
@@ -120,10 +125,6 @@ class MinigridPreprocess:
                 if key in batch:
                     batch[key] = batch[key].astype(np.float16)
 
-        #
 
-        if self._first:
-            print('Preprocess batch (after): ', {k: v.shape for k, v in batch.items()})
-            self._first = False
-
+        print_once('Preprocess batch (after): ', {k: v.shape for k, v in batch.items()})
         return batch

@@ -5,6 +5,7 @@ from pathlib import Path
 from multiprocessing import Process
 from collections import defaultdict
 from typing import Iterator
+from itertools import chain
 import numpy as np
 import time
 import torch
@@ -15,6 +16,7 @@ from torch.profiler import ProfilerActivity
 import mlflow
 from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
+import scipy.special
 
 import tools
 from tools import *
@@ -186,9 +188,8 @@ def run(conf):
 
                     # Log sample
 
-                    if out_tensors is not None:
-                        image_pred, image_rec, map_rec = out_tensors
-                        log_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec, f'{steps:07}.npz', verbose=conf.verbose)
+                    if out_tensors:
+                        log_batch_npz(batch, loss_tensors, out_tensors, f'{steps:07}.npz', verbose=conf.verbose)
 
                     # Log metrics
 
@@ -325,8 +326,8 @@ def evaluate(prefix: str,
                         metrics_eval['logprob_img_1step'].append(loss_tensors_im['logprob_img'][0].mean().item())
                         metrics_eval['logprob_img_2step'].append(loss_tensors_im['logprob_img'][1].mean().item())
 
-                    if out_tensors_im is not None:
-                        log_batch_npz(batch, loss_tensors_im, *out_tensors_im, f'{steps:07}.npz', subdir=f'd2_wm_predict_{prefix}_im', verbose=True)
+                    if out_tensors_im:
+                        log_batch_npz(batch, loss_tensors_im, out_tensors_im, f'{steps:07}.npz', subdir=f'd2_wm_predict_{prefix}_im', verbose=True)
 
             # Closed loop & loss
 
@@ -348,7 +349,7 @@ def evaluate(prefix: str,
             # Log one episode batch
 
             if out_tensors:
-                npz_datas.append(prepare_batch_npz(batch, loss_tensors, *out_tensors, take_b=1))
+                npz_datas.append(prepare_batch_npz(dict(**batch, **loss_tensors, **out_tensors), take_b=1))
             if n_finished_episodes[0] > 0:
                 # log predictions until first episode is finished
                 do_output_tensors = False
@@ -357,64 +358,70 @@ def evaluate(prefix: str,
     mlflow.log_metrics(metrics_eval, step=steps)
 
     npz_data = {k: np.concatenate([d[k] for d in npz_datas], 1) for k in npz_datas[0]}
+    print_once(f'Saving batch d2_wm_predict_{prefix}: ', {k: tuple(v.shape) for k, v in npz_data.items()})
     tools.mlflow_log_npz(npz_data, f'{steps:07}.npz', subdir=f'd2_wm_predict_{prefix}', verbose=True)
 
     print(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_finished_episodes.sum()} episodes')
 
 
-def log_batch_npz(batch,
-                  loss_tensors,
-                  image_pred: Optional[D.Distribution],
-                  image_rec: Optional[D.Distribution],
-                  map_rec: Optional[D.Distribution],
+def log_batch_npz(batch: Dict[str, Tensor],
+                  loss_tensors: Dict[str, Tensor],
+                  out_tensors: Dict[str, Tensor],
                   filename: str,
                   subdir='d2_wm_predict',
                   verbose=False):
-    data = prepare_batch_npz(batch, loss_tensors, image_pred, image_rec, map_rec)
+
+    data = dict(**batch, **loss_tensors, **out_tensors)
+    print_once(f'Saving batch {subdir} (input): ', {k: tuple(v.shape) for k, v in data.items()})
+    data = prepare_batch_npz(data)
+    print_once(f'Saving batch {subdir} (proc.): ', {k: tuple(v.shape) for k, v in data.items()})
     tools.mlflow_log_npz(data, filename, subdir, verbose=verbose)
 
 
-def prepare_batch_npz(batch,
-                      loss_tensors,
-                      image_pred: Optional[D.Distribution],
-                      image_rec: Optional[D.Distribution],
-                      map_rec: Optional[D.Distribution],
-                      take_b=999):
-    # "Unpreprocess" batch
-    data = {}
-    for k, v in batch.items():
-        x = v.cpu().numpy()
-        if len(x.shape) == 5 and x.dtype == np.float32 and x.shape[-3] == 3:
-            # RGB (image)
-            x = x.transpose(0, 1, 3, 4, 2)
-            x = ((x + 0.5) * 255.0).clip(0, 255).astype('uint8')
-        if len(x.shape) == 5 and x.dtype == np.float32 and not x.shape[-3] == 3:  # Hacky detection, based on 3 channels
-            # One-hot (image or map)
-            x = x.argmax(axis=-3)
-        data[k] = x
+def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
 
-    # Loss tensors
-    data.update({k: v.cpu().numpy() for k, v in loss_tensors.items()})
+    def unpreprocess(key: str, val: Tensor) -> np.ndarray:
+        if take_b < val.shape[1]:
+            val = val[:, :take_b]
 
-    # Predictions
-    if image_pred is not None:
-        if isinstance(image_pred, D.Categorical):
-            data['image_pred_p'] = image_pred.probs.cpu().numpy()
-        else:
-            data['image_pred'] = ((image_pred.mean.cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
-    if image_rec is not None:
-        if isinstance(image_rec, D.Categorical):
-            data['image_rec_p'] = image_rec.probs.cpu().numpy()
-        else:
-            data['image_rec'] = ((image_rec.mean.cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
-    if map_rec is not None:
-        if isinstance(map_rec, D.Categorical):
-            data['map_rec_p'] = map_rec.probs.cpu().numpy()
-        else:
-            data['map_rec'] = ((map_rec.mean.cpu().numpy() + 0.5) * 255.0).clip(0, 255).astype('uint8')
+        x = val.cpu().numpy()  # (N,B,*)
+        if x.dtype in [np.float16, np.float64]:
+            x = x.astype(np.float32)
 
-    data = {k: v.swapaxes(0, 1)[:take_b] for k, v in data.items()}  # (N,B,...) => (B,N,...)
-    return data
+        if len(x.shape) == 2:  # Scalar
+            pass
+
+        elif len(x.shape) == 3:  # 1D vector
+            assert key in ['action', 'map_coord', 'agent_pos', 'agent_dir'], \
+                f'Unexpected 1D tensor: {key}: {x.shape}, {x.dtype}'
+
+        elif len(x.shape) == 4:  # 2D tensor - categorical image
+            assert x.dtype == np.int64 and key.startswith('map'), \
+                f'Unexpected 2D tensor: {key}: {x.shape}, {x.dtype}'
+
+        elif len(x.shape) == 5:  # 3D tensor - image
+            assert x.dtype == np.float32 and (key.startswith('image') or key.startswith('map')), \
+                f'Unexpected 3D tensor: {key}: {x.shape}, {x.dtype}'
+
+            if x.shape[-1] == x.shape[-2]:  # (N,B,C,W,W)
+                x = x.transpose(0, 1, 3, 4, 2)  # => (N,B,W,W,C)
+            assert x.shape[-2] == x.shape[-3], 'Assuming rectangular images, otherwise need to improve logic'
+
+            if x.shape[-1] in [1, 3]:
+                # RGB or grayscale
+                x = ((x + 0.5) * 255.0).clip(0, 255).astype('uint8')
+            elif np.allclose(x.sum(axis=-1), 1.0) and np.allclose(x.max(axis=-1), 1.0):
+                # One-hot
+                x = x.argmax(axis=-1)
+            else:
+                # Categorical logits
+                assert key in ['map_rec'], f'Unexpected 3D categorical logits: {key}: {x.shape}'
+                x = scipy.special.softmax(x, axis=-1)
+
+        x = x.swapaxes(0, 1)  # (N,B,*) => (B,N,*)
+        return x
+
+    return {k: unpreprocess(k, v) for k, v in data.items()}
 
 
 def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=False):

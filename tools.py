@@ -13,6 +13,13 @@ import torch
 
 warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
 
+print_once_keys = set()
+
+def print_once(key, obj):
+    if key not in print_once_keys:
+        print_once_keys.add(key)
+        print(key, obj)
+
 
 def read_yamls(dir):
     conf = {}

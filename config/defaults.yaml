@@ -78,7 +78,7 @@ defaults:
 
   # Generator
   generator_run: False
-  generator_prefill_steps: 100000
+  generator_prefill_steps: 100_000
   env_id:
   env_max_steps: 1500
 
@@ -153,7 +153,6 @@ atari:
   # Generator
   env_id: Atari-Pong
   generator_run: True
-  generator_prefill_steps: 100_000
 
   # Job
   data_workers: 3
@@ -176,7 +175,6 @@ dmlab:
   # Generator
   env_id: DmLab-rooms_watermaze
   generator_run: True
-  generator_prefill_steps: 100_000
 
   # Job
   data_workers: 3
