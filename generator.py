@@ -206,6 +206,10 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 'agent/return': data['reward'].sum(),
                 'agent/return_discounted': discount(data['reward'], gamma=model_conf.discount).mean(),
             })  # type: ignore
+            if data['terminal'][-1]:
+                value_terminal = data['policy_value'][-2] - data['reward'][-1]  # This should be zero, because value[last] = reward[last]
+                metrics.update({'agent/policy_value_terminal': value_terminal})
+
             mlflow.log_metrics(metrics, step=log_step)
 
         # Save to npz
