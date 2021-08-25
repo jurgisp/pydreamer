@@ -249,8 +249,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     print(f'Generator {seed} done.')
 
 
-def discount(x: np.ndarray, gamma: float):
-    return scipy.signal.lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]
+def discount(x: np.ndarray, gamma: float) -> np.ndarray:
+    return scipy.signal.lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]  # type: ignore
 
 
 def count_steps(artifact_dir):

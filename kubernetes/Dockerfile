@@ -1,4 +1,7 @@
 FROM nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04
+
+# Python
+
 RUN apt-get update -y
 RUN apt-get install -y python3-dev python3-pip python3-venv git
 RUN pip3 install --upgrade pip

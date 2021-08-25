@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import Optional
 import argparse
 from pathlib import Path
@@ -202,6 +203,7 @@ def run(conf):
                         metrics['train/steps'] = steps  # type: ignore
                         metrics['_step'] = steps  # type: ignore
                         metrics['_loss'] = metrics['train/loss']
+                        metrics['_timestamp'] = datetime.now().timestamp()
 
                         t = time.time()
                         fps = (steps - last_steps) / (t - last_time)
