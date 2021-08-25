@@ -68,6 +68,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          model_reload_interval=60,
          model_conf=dict(),
          log_mlflow_metrics=True,
+         episodes_dir='episodes'
          ):
 
     # Mlflow
@@ -81,7 +82,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         run = mlflow.start_run(run_name=f'{env_id}-s{seed}')
         print(f'Mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
 
-    artifact_dir = run.info.artifact_uri.replace('file://', '') + '/episodes'
+    artifact_dir = run.info.artifact_uri.replace('file://', '') + '/' + episodes_dir
     if artifact_dir.startswith('gs:/') or artifact_dir.startswith('s3:/'):
         artifact_dir = Pathy(artifact_dir)
     else:
@@ -244,7 +245,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             else:
                 fname = f's{seed}-ep{episodes-1:06}-r{int(datas_reward)}-{datas_steps:04}.npz'
 
-            mlflow_log_npz(data, fname, 'episodes', verbose=True)
+            mlflow_log_npz(data, fname, episodes_dir, verbose=True)
 
     print(f'Generator {seed} done.')
 

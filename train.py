@@ -40,20 +40,18 @@ def run(conf):
 
     data_reload_interval = 0
     if conf.generator_run:
-        generator_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes'  # type: ignore
-        conf.input_dir = generator_dir
-        conf.eval_dir = generator_dir  # TODO
+        conf.input_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes'  # type: ignore
+        conf.eval_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes_eval'  # type: ignore
         data_reload_interval = 60
         print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
         run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True)
         print('Generator random prefill done, starting agent generator...')
         run_generator(conf, seed=1, policy='network')
+        run_generator(conf, seed=2, policy='network', episodes_dir='episodes_eval')
 
     # Data
 
     data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True, reload_interval=data_reload_interval)
-    data_test = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.test_batch_size, skip_first=False, reload_interval=data_reload_interval)
-    data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.eval_batch_size, skip_first=False, reload_interval=data_reload_interval)
     preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
                                     image_key=conf.image_key,
                                     map_categorical=conf.map_channels if conf.map_categorical else None,
@@ -241,10 +239,12 @@ def run(conf):
                     if conf.eval_interval and steps % conf.eval_interval == 0:
 
                         # Same batch as train
+                        data_test = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.test_batch_size, skip_first=False)
                         test_iter = iter(DataLoader(preprocess(data_test), batch_size=None))
                         evaluate('test', steps, model, test_iter, device, conf.test_batches, conf.iwae_samples, conf.keep_state, conf)
 
                         # Full episodes
+                        data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.eval_batch_size, skip_first=False)
                         eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
                         evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.eval_samples, True, conf)
 
@@ -424,7 +424,7 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
     return {k: unpreprocess(k, v) for k, v in data.items()}
 
 
-def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=False):
+def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=False, episodes_dir='episodes'):
     os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
     p = Process(target=generator.main,
                 daemon=True,
@@ -435,7 +435,8 @@ def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=Fals
                     num_steps=num_steps,
                     seed=seed,
                     model_conf=conf,
-                    log_mlflow_metrics=(policy == 'network')  # Don't log for initial random prefill
+                    log_mlflow_metrics=(policy == 'network'),  # Don't log for initial random prefill
+                    episodes_dir=episodes_dir
                 ))
     p.start()
     if block:
