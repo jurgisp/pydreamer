@@ -70,7 +70,7 @@ defaults:
   global_dim: 0
 
   # Actor Critic
-  discount: 0.999
+  discount: 0.997
   discount_lambda: 0.95
   actor_ent: 0.001
   target_interval: 100
@@ -78,7 +78,7 @@ defaults:
 
   # Generator
   generator_run: False
-  generator_prefill_steps: 100_000
+  generator_prefill_steps: 500_000
   env_id:
   env_max_steps: 1500
 
