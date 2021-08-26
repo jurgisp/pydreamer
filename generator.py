@@ -68,7 +68,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          model_reload_interval=60,
          model_conf=dict(),
          log_mlflow_metrics=True,
-         episodes_dir='episodes'
+         episodes_dir='episodes',
+         metrics_prefix='agent',
          ):
 
     # Mlflow
@@ -198,18 +199,20 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
         if log_mlflow_metrics:
             log_step = model_step if model else steps
-            metrics = {f'agent/{k}': np.mean(v) for k, v in metrics.items()}
+            metrics = {f'{metrics_prefix}/{k}': np.mean(v) for k, v in metrics.items()}
             metrics.update({
-                'agent/episode_length': epsteps,
-                'agent/fps': fps,
-                'agent/steps': steps,
-                'agent/episodes': episodes,
-                'agent/return': data['reward'].sum(),
-                'agent/return_discounted': discount(data['reward'], gamma=model_conf.discount).mean(),
+                f'{metrics_prefix}/episode_length': epsteps,
+                f'{metrics_prefix}/fps': fps,
+                f'{metrics_prefix}/steps': steps,
+                f'{metrics_prefix}/episodes': episodes,
+                f'{metrics_prefix}/return': data['reward'].sum(),
+                f'{metrics_prefix}/return_discounted': discount(data['reward'], gamma=model_conf.discount).mean(),
             })  # type: ignore
             if data['terminal'][-1]:
                 value_terminal = data['policy_value'][-2] - data['reward'][-1]  # This should be zero, because value[last] = reward[last]
-                metrics.update({'agent/policy_value_terminal': value_terminal})
+                metrics.update({
+                    f'{metrics_prefix}/policy_value_terminal': value_terminal
+                })
 
             mlflow.log_metrics(metrics, step=log_step)
 

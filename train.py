@@ -46,8 +46,8 @@ def run(conf):
         print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
         run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True)
         print('Generator random prefill done, starting agent generator...')
-        run_generator(conf, seed=1, policy='network')
-        run_generator(conf, seed=2, policy='network', episodes_dir='episodes_eval')
+        run_generator(conf, seed=1, policy='network', episodes_dir='episodes', metrics_prefix='agent')
+        run_generator(conf, seed=2, policy='network', episodes_dir='episodes_eval', metrics_prefix='agent_eval')
 
     # Data
 
@@ -424,7 +424,7 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
     return {k: unpreprocess(k, v) for k, v in data.items()}
 
 
-def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=False, episodes_dir='episodes'):
+def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=False, episodes_dir='episodes', metrics_prefix='agent'):
     os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
     p = Process(target=generator.main,
                 daemon=True,
@@ -436,7 +436,8 @@ def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=Fals
                     seed=seed,
                     model_conf=conf,
                     log_mlflow_metrics=(policy == 'network'),  # Don't log for initial random prefill
-                    episodes_dir=episodes_dir
+                    episodes_dir=episodes_dir,
+                    metrics_prefix=metrics_prefix
                 ))
     p.start()
     if block:
