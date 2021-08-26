@@ -112,7 +112,8 @@ class MinigridPreprocess:
         # map_coord
 
         if 'agent_pos' in batch and 'agent_dir' in batch:
-            agent_pos = batch['agent_pos'] / 4.5 - 1.0  # TODO: make generic for any size
+            map_size = float(batch['map'].shape[-2])
+            agent_pos = batch['agent_pos'] / map_size * 2 - 1.0
             agent_dir = batch['agent_dir']
             batch['map_coord'] = np.concatenate([agent_pos, agent_dir], axis=-1).astype(np.float32)
         else:

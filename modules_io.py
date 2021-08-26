@@ -189,7 +189,7 @@ class DenseDecoder(nn.Module):
              output,  # (*,C,H,W)
              target   # float(*,C,H,W) or int(*,H,W)
              ):
-        if output.shape == target.shape:
+        if len(output.shape) == len(target.shape):
             target = target.argmax(dim=-3)  # float(*,C,H,W) => int(*,H,W)
         assert target.dtype == torch.int64, 'Target should be categorical'
         output, bd = flatten_batch(output, len(self.out_shape))     # (*,C,H,W) => (B,C,H,W)
@@ -208,7 +208,7 @@ class DenseDecoder(nn.Module):
         return unflatten_batch(loss, bd)
 
     def accuracy(self, output: TensorNBICHW, target: Union[TensorNBICHW, IntTensorNBIHW], map_coord: TensorNBI4):
-        if output.shape == target.shape:
+        if len(output.shape) == len(target.shape):
             target = target.argmax(dim=-3)  # float(*,I,C,H,W) => int(*,I,H,W)
         output, bd = flatten_batch(output, 4)
         target, _ = flatten_batch(target, 3)
