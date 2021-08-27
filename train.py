@@ -83,9 +83,10 @@ def run(conf):
 
     optimizer_wm = torch.optim.AdamW(model.wm.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
     optimizer_map = torch.optim.AdamW(model.map_model.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
-    optimizer_ac = torch.optim.AdamW(model.ac.parameters(), lr=conf.adam_lr_ac, eps=conf.adam_eps)  # type: ignore
+    optimizer_actor = torch.optim.AdamW(model.ac._actor.parameters(), lr=conf.adam_lr_actor, eps=conf.adam_eps)  # type: ignore
+    optimizer_critic = torch.optim.AdamW(model.ac._critic.parameters(), lr=conf.adam_lr_critic, eps=conf.adam_eps)  # type: ignore
 
-    resume_step = tools.mlflow_load_checkpoint(model, optimizer_wm, optimizer_map, optimizer_ac)
+    resume_step = tools.mlflow_load_checkpoint(model, optimizer_wm, optimizer_map, optimizer_actor, optimizer_critic)
     if resume_step:
         print(f'Loaded model from checkpoint epoch {resume_step}')
 
@@ -150,13 +151,15 @@ def run(conf):
 
                 with timer('backward'):
 
-                    loss_wm, loss_map, loss_ac = losses
+                    loss_wm, loss_map, loss_actor, loss_critic = losses
                     optimizer_wm.zero_grad()
                     optimizer_map.zero_grad()
-                    optimizer_ac.zero_grad()
+                    optimizer_actor.zero_grad()
+                    optimizer_critic.zero_grad()
                     scaler.scale(loss_wm).backward()
                     scaler.scale(loss_map).backward()
-                    scaler.scale(loss_ac).backward()
+                    scaler.scale(loss_actor).backward()
+                    scaler.scale(loss_critic).backward()
 
                 # Grad step
 
@@ -164,14 +167,22 @@ def run(conf):
 
                     scaler.unscale_(optimizer_wm)
                     scaler.unscale_(optimizer_map)
-                    scaler.unscale_(optimizer_ac)
+                    scaler.unscale_(optimizer_actor)
+                    scaler.unscale_(optimizer_critic)
                     grad_norm_model = nn.utils.clip_grad_norm_(model.wm.parameters(), conf.grad_clip)
                     grad_norm_map = nn.utils.clip_grad_norm_(model.map_model.parameters(), conf.grad_clip)
-                    grad_norm_ac = nn.utils.clip_grad_norm_(model.ac.parameters(), conf.grad_clip)
-                    grad_metrics = {'grad_norm': grad_norm_model, 'grad_norm_map': grad_norm_map, 'grad_norm_ac': grad_norm_ac}
+                    grad_norm_actor = nn.utils.clip_grad_norm_(model.ac._actor.parameters(), conf.grad_clip)
+                    grad_norm_critic = nn.utils.clip_grad_norm_(model.ac._critic.parameters(), conf.grad_clip)
+                    grad_metrics = {
+                        'grad_norm': grad_norm_model, 
+                        'grad_norm_map': grad_norm_map, 
+                        'grad_norm_actor': grad_norm_actor,
+                        'grad_norm_critic': grad_norm_critic,
+                        }
                     scaler.step(optimizer_wm)
                     scaler.step(optimizer_map)
-                    scaler.step(optimizer_ac)
+                    scaler.step(optimizer_actor)
+                    scaler.step(optimizer_critic)
                     scaler.update()
 
                 with timer('other'):
@@ -211,7 +222,7 @@ def run(conf):
                         print(f"[{steps:06}]"
                               f"  loss_wm: {metrics.get('train/loss_wm', 0):.3f}"
                               f"  loss_wm_kl: {metrics.get('train/loss_wm_kl', 0):.3f}"
-                              f"  loss_ac_value: {metrics.get('train/loss_ac_value', 0):.3f}"
+                              f"  loss_critic: {metrics.get('train/loss_critic', 0):.3f}"
                               f"  loss_map: {metrics.get('train/loss_map', 0):.3f}"
                               f"  policy_value: {metrics.get('train/policy_value',0):.3f}"
                               f"  policy_entropy: {metrics.get('train/policy_entropy',0):.3f}"
@@ -224,7 +235,7 @@ def run(conf):
                     # Save model
 
                     if steps % conf.save_interval == 0:
-                        tools.mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_ac, steps)
+                        tools.mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_actor, optimizer_critic, steps)
                         print(f'Saved model checkpoint {steps}')
 
                     # Stop

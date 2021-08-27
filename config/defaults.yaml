@@ -31,7 +31,8 @@ defaults:
   reward_weight: 1.0
   terminal_weight: 1.0
   adam_lr: 3.0e-4
-  adam_lr_ac: 1.0e-4
+  adam_lr_actor: 1.0e-4
+  adam_lr_critic: 1.0e-4
   adam_eps: 1.0e-5
   keep_state: True
   batch_length: 50

@@ -58,7 +58,7 @@ def mlflow_log_text(text, name: str, subdir=None):
         path.write_text(text)
         mlflow.log_artifact(str(path), artifact_path=subdir)
 
-def mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_ac, steps):
+def mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_actor, optimizer_critic, steps):
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / 'latest.pt'
         torch.save({
@@ -66,11 +66,12 @@ def mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_ac, ste
             'model_state_dict': model.state_dict(),
             'optimizer_wm_state_dict': optimizer_wm.state_dict(),
             'optimizer_map_state_dict': optimizer_map.state_dict(),
-            'optimizer_ac_state_dict': optimizer_ac.state_dict(),
+            'optimizer_actor_state_dict': optimizer_actor.state_dict(),
+            'optimizer_critic_state_dict': optimizer_critic.state_dict(),
         }, path)
         mlflow.log_artifact(str(path), artifact_path='checkpoints')
 
-def mlflow_load_checkpoint(model, optimizer_wm=None, optimizer_map=None, optimizer_ac=None, artifact_path='checkpoints/latest.pt'):
+def mlflow_load_checkpoint(model, optimizer_wm=None, optimizer_map=None, optimizer_actor=None, optimizer_critic=None, artifact_path='checkpoints/latest.pt'):
     with tempfile.TemporaryDirectory() as tmpdir:
         client = MlflowClient()
         run_id = mlflow.active_run().info.run_id  # type: ignore
@@ -85,8 +86,10 @@ def mlflow_load_checkpoint(model, optimizer_wm=None, optimizer_map=None, optimiz
             optimizer_wm.load_state_dict(checkpoint['optimizer_wm_state_dict'])
         if optimizer_map:
             optimizer_map.load_state_dict(checkpoint['optimizer_map_state_dict'])
-        if optimizer_ac:
-            optimizer_ac.load_state_dict(checkpoint['optimizer_ac_state_dict'])
+        if optimizer_actor:
+            optimizer_actor.load_state_dict(checkpoint['optimizer_actor_state_dict'])
+        if optimizer_critic:
+            optimizer_critic.load_state_dict(checkpoint['optimizer_critic_state_dict'])
         return checkpoint['epoch']
 
 def save_npz(data, filename):

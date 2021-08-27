@@ -107,9 +107,12 @@ class ActorCritic(nn.Module):
             loss_policy = (loss_policy * reality_weight).mean()
             policy_entropy = (policy_entropy * reality_weight).mean()
 
+        loss_critic = loss_value
+        loss_actor = loss_policy - self._temperature * policy_entropy
+
         with torch.no_grad():
-            metrics = dict(loss_ac_value=loss_value.detach(),
-                           loss_ac_policy=loss_policy.detach(),
+            metrics = dict(loss_critic=loss_critic.detach(),
+                           loss_actor=loss_actor.detach(),
                            policy_entropy=policy_entropy.detach(),
                            policy_value=value0[0].mean(),  # Value of real states
                            policy_value_im=value0.mean(),  # Value of imagined states
@@ -123,9 +126,8 @@ class ActorCritic(nn.Module):
                            value_weight=reality_weight.detach(),
                            action_prob=action_logprob.exp().detach(),
                            )
-
-        loss = loss_value + loss_policy - self._temperature * policy_entropy
-        return loss, metrics, tensors
+        
+        return (loss_actor, loss_critic), metrics, tensors
 
     def update_critic_target(self):
         self._critic_target.load_state_dict(self._critic.state_dict())  # type: ignore

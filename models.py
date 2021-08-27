@@ -162,7 +162,7 @@ class Dreamer(nn.Module):
         metrics.update(**metrics_map)
         loss_tensors.update(**loss_tensors_map)
 
-        loss_ac, metrics_ac, loss_tensors_ac = self.ac.train(features_dream, rewards_dream, terminals_dream, actions_dream)
+        losses_ac, metrics_ac, loss_tensors_ac = self.ac.train(features_dream, rewards_dream, terminals_dream, actions_dream)
         metrics.update(**metrics_ac)
         loss_tensors.update(policy_value=unflatten_batch(loss_tensors_ac['value'][0], (N, B, I)).mean(-1))
 
@@ -200,7 +200,7 @@ class Dreamer(nn.Module):
                 assert dream_tensors['action_pred'].shape == action.shape
                 assert dream_tensors['image_pred'].shape == image.shape
 
-        losses = (loss_model, loss_map, loss_ac)
+        losses = (loss_model, loss_map, *losses_ac)
         return losses, metrics, loss_tensors, out_state, out_tensors, dream_tensors
 
     def dream(self, in_state: StateB, H: int):
