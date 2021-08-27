@@ -134,6 +134,7 @@ class DenseBernoulliHead(nn.Module):
         self._model = MLP(in_dim, 1, hidden_dim, hidden_layers)
 
     def forward(self, features: Tensor) -> D.Distribution:
+        # TODO: might not work with AMP, switch to Tensor
         y = self._model.forward(features)
         p = D.Bernoulli(logits=y)
         return p

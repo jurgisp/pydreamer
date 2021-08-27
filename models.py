@@ -420,6 +420,7 @@ class WorldModel(nn.Module):
         loss_image = self._decoder_image.loss(image_rec, image)  # (N,B,I)
         loss_reward = self._decoder_reward.loss(reward_rec, reward)  # (N,B,I)
         loss_terminal = self._decoder_terminal.loss(terminal_rec, terminal)  # (N,B,I)
+        assert (loss_image.requires_grad and loss_reward.requires_grad and loss_terminal.requires_grad) or not features.requires_grad
 
         # KL
 
