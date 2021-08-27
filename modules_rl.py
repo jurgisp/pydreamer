@@ -92,7 +92,7 @@ class ActorCritic(nn.Module):
         # Note this takes care of the case when initial state features[0] is terminal - it will get weighted by (1-terminals[0]).
         reality_weight = (1 - terminal0).log().cumsum(dim=0).exp()
 
-        loss_value = torch.square(value_target - value0)
+        loss_value = 0.5 * torch.square(value_target - value0)
         action_logprob = (policy.logits * actions).sum(-1)
         loss_policy = - action_logprob * advantage_gae
         policy_entropy = policy.entropy()

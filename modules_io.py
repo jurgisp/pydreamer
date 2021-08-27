@@ -81,7 +81,7 @@ class ConvDecoder(nn.Module):
     def loss(self, output, target):
         output, bd = flatten_batch(output, 3)
         target, _ = flatten_batch(target, 3)
-        loss = torch.square(output - target).sum(dim=[-1, -2, -3])  # MSE
+        loss = 0.5 * torch.square(output - target).sum(dim=[-1, -2, -3])  # MSE
         return unflatten_batch(loss, bd)
 
     def accuracy(self, output: TensorNBICHW, target: Union[TensorNBICHW, IntTensorNBIHW], map_coord: TensorNBI4):
@@ -154,7 +154,8 @@ class DenseNormalHead(nn.Module):
         return p
 
     def loss(self, output: D.Distribution, target: Tensor) -> Tensor:
-        return -output.log_prob(target)
+        var = self._std ** 2  # var cancels denominator, which makes loss = 0.5 (target-output)^2
+        return -output.log_prob(target) * var
 
 
 class DenseDecoder(nn.Module):
