@@ -68,7 +68,10 @@ class Dreamer(nn.Module):
             deter_dim=conf.deter_dim,
             stoch_dim=conf.stoch_dim,
             hidden_dim=conf.hidden_dim,
+            kl_weight=conf.kl_weight,
             image_weight=conf.image_weight,
+            reward_weight=conf.reward_weight,
+            terminal_weight=conf.terminal_weight,
             embed_rnn=conf.embed_rnn != 'none',
             gru_layers=conf.gru_layers,
             gru_type=conf.gru_type
@@ -230,7 +233,10 @@ class WorldModel(nn.Module):
                  deter_dim=200,
                  stoch_dim=30,
                  hidden_dim=200,
+                 kl_weight=1.0,
                  image_weight=1.0,
+                 reward_weight=1.0,
+                 terminal_weight=1.0,
                  embed_rnn=False,
                  embed_rnn_dim=512,
                  gru_layers=1,
@@ -240,7 +246,10 @@ class WorldModel(nn.Module):
         self._deter_dim = deter_dim
         self._stoch_dim = stoch_dim
         self._global_dim = 0
+        self._kl_weight = kl_weight
         self._image_weight = image_weight
+        self._reward_weight = reward_weight
+        self._terminal_weight = terminal_weight
         self._embed_rnn = embed_rnn
         self._mem_model = NoMemory()
 
@@ -429,10 +438,10 @@ class WorldModel(nn.Module):
 
         assert loss_kl.shape == loss_image.shape == loss_reward.shape == loss_terminal.shape
         loss_model = -logavgexp(-(
-            loss_kl
+            self._kl_weight * loss_kl
             + self._image_weight * loss_image
-            + loss_reward
-            + loss_terminal
+            + self._reward_weight * loss_reward
+            + self._terminal_weight * loss_terminal
         ), dim=-1)
 
         # IWAE according to paper

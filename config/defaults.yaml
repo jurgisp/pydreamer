@@ -25,7 +25,10 @@ defaults:
 
   # Training
   iwae_samples: 1
+  kl_weight: 1.0
   image_weight: 1.0
+  reward_weight: 1.0
+  terminal_weight: 1.0
   adam_lr: 3.0e-4
   adam_lr_ac: 1.0e-4
   adam_eps: 1.0e-5
