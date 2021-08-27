@@ -6,6 +6,7 @@ defaults:
   input_dir: ./data/train
   eval_dir: ./data/eval
   log_interval: 200
+  logbatch_interval: 1000
   save_interval: 200
   eval_interval: 2000
   data_workers: 6  # need 6 to not bottleneck on unzipping npz, 4 is not enough

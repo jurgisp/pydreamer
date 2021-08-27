@@ -141,8 +141,8 @@ def run(conf):
                             model.train(image, reward, terminal, action, reset, map, map_coord, state,
                                         I=conf.iwae_samples,
                                         H=conf.imag_horizon,
-                                        do_output_tensors=steps % conf.log_interval == 1,
-                                        do_dream_tensors=steps % conf.log_interval == 1)
+                                        do_output_tensors=steps % conf.logbatch_interval == 1,
+                                        do_dream_tensors=steps % conf.logbatch_interval == 1)
                         if conf.keep_state:
                             states[wid] = new_state
 
