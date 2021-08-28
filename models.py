@@ -81,6 +81,7 @@ class Dreamer(nn.Module):
 
         self.ac = ActorCritic(in_dim=state_dim,
                               out_actions=conf.action_dim,
+                              layer_norm=conf.layer_norm,
                               discount=conf.discount,
                               discount_lambda=conf.discount_lambda,
                               temperature=conf.actor_ent,
@@ -294,8 +295,8 @@ class WorldModel(nn.Module):
                                                hidden_layers=conf.image_decoder_layers,
                                                min_prob=conf.image_decoder_min_prob)
 
-        self._decoder_reward = DenseNormalHead(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers)
-        self._decoder_terminal = DenseBernoulliHead(in_dim=state_dim, hidden_layers=conf.terminal_decoder_layers)
+        self._decoder_reward = DenseNormalHead(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
+        self._decoder_terminal = DenseBernoulliHead(in_dim=state_dim, hidden_layers=conf.terminal_decoder_layers, layer_norm=conf.layer_norm)
 
         # Memory model
 

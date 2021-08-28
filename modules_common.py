@@ -7,13 +7,14 @@ from modules_tools import *
 
 class MLP(nn.Module):
 
-    def __init__(self, in_dim, out_dim, hidden_dim, hidden_layers, activation=nn.ELU):
+    def __init__(self, in_dim, out_dim, hidden_dim, hidden_layers, layer_norm, activation=nn.ELU):
+        norm = nn.LayerNorm if layer_norm else NoNorm
         super().__init__()
         layers = []
         for i in range(hidden_layers):
             layers += [
                 nn.Linear(in_dim if i == 0 else hidden_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim),
+                norm(hidden_dim),
                 activation()
             ]
         layers += [
@@ -30,3 +31,12 @@ class MLP(nn.Module):
         y = self._model(x)
         y = unflatten_batch(y, bd)
         return y
+
+
+class NoNorm(nn.Module):
+
+    def __init__(self, hidden_dim=0):
+        super().__init__()
+
+    def forward(self, x: Tensor) -> Tensor:
+        return x

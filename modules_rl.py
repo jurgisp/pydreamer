@@ -10,7 +10,7 @@ from modules_common import *
 
 class ActorCritic(nn.Module):
 
-    def __init__(self, in_dim, out_actions, hidden_dim=400, hidden_layers=4, discount=0.999, discount_lambda=0.95, temperature=1e-3, target_interval=100):
+    def __init__(self, in_dim, out_actions, hidden_dim=400, hidden_layers=4, layer_norm=True, discount=0.999, discount_lambda=0.95, temperature=1e-3, target_interval=100):
         super().__init__()
         self.in_dim = in_dim
         self.out_actions = out_actions
@@ -18,9 +18,9 @@ class ActorCritic(nn.Module):
         self._lambda = discount_lambda
         self._temperature = temperature
         self._target_interval = target_interval
-        self._actor = MLP(in_dim, out_actions, hidden_dim, hidden_layers)
-        self._critic = MLP(in_dim, 1, hidden_dim, hidden_layers)
-        self._critic_target = MLP(in_dim, 1, hidden_dim, hidden_layers)
+        self._actor = MLP(in_dim, out_actions, hidden_dim, hidden_layers, layer_norm)
+        self._critic = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
+        self._critic_target = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
         self._train_steps = 0
 
     def forward_actor(self, features: Tensor) -> D.OneHotCategorical:

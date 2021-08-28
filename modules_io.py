@@ -129,9 +129,9 @@ class DenseEncoder(nn.Module):
 
 class DenseBernoulliHead(nn.Module):
 
-    def __init__(self, in_dim, hidden_dim=400, hidden_layers=2):
+    def __init__(self, in_dim, hidden_dim=400, hidden_layers=2, layer_norm=True):
         super().__init__()
-        self._model = MLP(in_dim, 1, hidden_dim, hidden_layers)
+        self._model = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
 
     def forward(self, features: Tensor) -> D.Distribution:
         # TODO: might not work with AMP, switch to Tensor
@@ -144,9 +144,9 @@ class DenseBernoulliHead(nn.Module):
 
 class DenseNormalHead(nn.Module):
 
-    def __init__(self, in_dim, hidden_dim=400, hidden_layers=2, std=0.3989422804):
+    def __init__(self, in_dim, hidden_dim=400, hidden_layers=2, layer_norm=True, std=0.3989422804):
         super().__init__()
-        self._model = MLP(in_dim, 1, hidden_dim, hidden_layers)
+        self._model = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
         self._std = std
 
     def forward(self, features: Tensor) -> D.Distribution:
