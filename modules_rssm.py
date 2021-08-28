@@ -7,14 +7,15 @@ import torch.distributions as D
 from torch import Tensor
 
 from modules_tools import *
+from modules_common import *
 import modules_rnn as my
 
 
 class RSSMCore(nn.Module):
 
-    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers, gru_type):
+    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers, gru_type, layer_norm):
         super().__init__()
-        self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers, gru_type)
+        self._cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers, gru_type, layer_norm)
 
     def forward(self,
                 embed: Tensor,       # tensor(N, B, E)
@@ -94,26 +95,27 @@ class RSSMCore(nn.Module):
 
 class RSSMCell(nn.Module):
 
-    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers, gru_type):
+    def __init__(self, embed_dim, action_dim, deter_dim, stoch_dim, hidden_dim, global_dim, gru_layers, gru_type, layer_norm):
         super().__init__()
         self._stoch_dim = stoch_dim
         self._deter_dim = deter_dim
         self._global_dim = global_dim
+        norm = nn.LayerNorm if layer_norm else NoNorm
 
         self._z_mlp = nn.Linear(stoch_dim, hidden_dim)
         self._a_mlp = nn.Linear(action_dim, hidden_dim, bias=False)  # No bias, because outputs are added
-        self._in_norm = nn.LayerNorm(hidden_dim)
+        self._in_norm = norm(hidden_dim)
         # self._g_mlp = nn.Linear(global_dim, hidden_dim, bias=False)
 
         self._gru = my.GRUCellStack(hidden_dim, deter_dim, gru_layers, gru_type)
 
         self._prior_mlp_h = nn.Linear(deter_dim, hidden_dim)
-        self._prior_norm = nn.LayerNorm(hidden_dim)
+        self._prior_norm = norm(hidden_dim)
         self._prior_mlp = nn.Linear(hidden_dim, 2 * stoch_dim)
 
         self._post_mlp_h = nn.Linear(deter_dim, hidden_dim)
         self._post_mlp_e = nn.Linear(embed_dim, hidden_dim, bias=False)
-        self._post_norm = nn.LayerNorm(hidden_dim)
+        self._post_norm = norm(hidden_dim)
         self._post_mlp = nn.Linear(hidden_dim, 2 * stoch_dim)
 
     def init_state(self, batch_size):

@@ -324,7 +324,8 @@ class WorldModel(nn.Module):
                               hidden_dim=hidden_dim,
                               global_dim=self._global_dim,
                               gru_layers=gru_layers,
-                              gru_type=gru_type)
+                              gru_type=gru_type,
+                              layer_norm=conf.layer_norm)
 
         # Init
 
