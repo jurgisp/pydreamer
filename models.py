@@ -86,7 +86,7 @@ class Dreamer(nn.Module):
                               out_actions=conf.action_dim,
                               layer_norm=conf.layer_norm,
                               gamma=conf.gamma,
-                              discount_lambda=conf.discount_lambda,
+                              lambda_gae=conf.lambda_gae,
                               temperature=conf.entropy,
                               target_interval=conf.target_interval,
                               )

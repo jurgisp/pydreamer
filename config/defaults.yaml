@@ -77,7 +77,7 @@ defaults:
 
   # Actor Critic
   gamma: 0.997
-  discount_lambda: 0.95
+  lambda_gae: 0.95
   entropy: 0.001
   target_interval: 100
   imag_horizon: 15
