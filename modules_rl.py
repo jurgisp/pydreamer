@@ -96,7 +96,7 @@ class ActorCritic(nn.Module):
         action_logprob = (policy.logits * actions).sum(-1)
         loss_policy = - action_logprob * advantage_gae
         policy_entropy = policy.entropy()
-        assert (loss_policy.requires_grad and policy_entropy.requires_grad) or log_only
+        assert (loss_policy.requires_grad and policy_entropy.requires_grad) or not loss_value.requires_grad
 
         real_loss = False  # TODO: conf
         if real_loss:
