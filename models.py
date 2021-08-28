@@ -147,9 +147,13 @@ class Dreamer(nn.Module):
 
         # Forward (dream)
 
+        in_state_dream: StateB = map_structure(states, lambda x: flatten_batch(x.detach())[0])  # type: ignore  # (N,B,I) => (NBI)
+        features_dream, actions_dream = self.dream(in_state_dream, H)        # (H+1,NBI,D) - features_dream includes the starting "real" features at features_dream[0]
+        features_dream = features_dream.detach()
         with torch.no_grad():  # Not using dynamics gradients for now, just Reinforce
-            in_state_dream: StateB = map_structure(states, lambda x: flatten_batch(x.detach())[0])  # type: ignore  # (N,B,I) => (NBI)
-            features_dream, actions_dream = self.dream(in_state_dream, H)        # (H+1,NBI,D) - features_dream includes the starting "real" features at features_dream[0]
+            # NOTE: need to be careful with AMP and no_grad() because of this: https://github.com/pytorch/pytorch/issues/60164
+            # We should invoke every Module first with gradients, only later under no_grad().
+            # This is OK, because decoder_reward.forward() has already been called in self.wm.forward() earlier
             rewards_dream = self.wm._decoder_reward.forward(features_dream)      # (H+1,NBI)
             terminals_dream = self.wm._decoder_terminal.forward(features_dream)  # (H+1,NBI)
 
