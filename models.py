@@ -32,6 +32,7 @@ class Dreamer(nn.Module):
                                         out_dim=conf.embed_dim),
                     decoder=ConvDecoder(in_dim=map_state_dim + conf.map_stoch_dim,
                                         mlp_layers=2,
+                                        layer_norm=conf.layer_norm,
                                         out_channels=conf.map_channels),
                     state_dim=map_state_dim,
                     latent_dim=conf.map_stoch_dim,
@@ -45,6 +46,7 @@ class Dreamer(nn.Module):
                 map_model = DirectHead(
                     decoder=ConvDecoder(in_dim=map_state_dim,
                                         mlp_layers=2,
+                                        layer_norm=conf.layer_norm,
                                         out_channels=conf.map_channels))
 
             else:
@@ -52,7 +54,8 @@ class Dreamer(nn.Module):
                     decoder=DenseDecoder(in_dim=map_state_dim,
                                          out_shape=(conf.map_channels, conf.map_size, conf.map_size),
                                          hidden_dim=conf.map_hidden_dim,
-                                         hidden_layers=conf.map_hidden_layers))    # type: ignore
+                                         hidden_layers=conf.map_hidden_layers,
+                                         layer_norm=conf.layer_norm))    # type: ignore
         elif conf.map_model == 'none':
             map_model = NoHead(out_shape=(conf.map_channels, conf.map_size, conf.map_size))
         else:
@@ -272,7 +275,8 @@ class WorldModel(nn.Module):
         else:
             self._encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * encoder_channels,
                                          out_dim=conf.embed_dim,
-                                         hidden_layers=conf.image_encoder_layers)
+                                         hidden_layers=conf.image_encoder_layers,
+                                         layer_norm=conf.layer_norm)
 
         if self._embed_rnn:
             self._input_rnn = GRU2Inputs(input1_dim=self._encoder.out_dim,
@@ -293,6 +297,7 @@ class WorldModel(nn.Module):
             self._decoder_image = DenseDecoder(in_dim=state_dim,
                                                out_shape=(conf.image_channels, conf.image_size, conf.image_size),
                                                hidden_layers=conf.image_decoder_layers,
+                                               layer_norm=conf.layer_norm,
                                                min_prob=conf.image_decoder_min_prob)
 
         self._decoder_reward = DenseNormalHead(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)

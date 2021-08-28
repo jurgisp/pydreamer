@@ -37,7 +37,7 @@ class ConvEncoder(nn.Module):
 
 class ConvDecoder(nn.Module):
 
-    def __init__(self, in_dim, out_channels=3, mlp_layers=0, activation=nn.ELU):
+    def __init__(self, in_dim, out_channels=3, mlp_layers=0, layer_norm=True, activation=nn.ELU):
         super().__init__()
         self.in_dim = in_dim
         kernels = (5, 5, 6, 6)
@@ -48,15 +48,16 @@ class ConvDecoder(nn.Module):
             ]
         else:
             hidden_dim = 1024
+            norm = nn.LayerNorm if layer_norm else NoNorm
             layers = [
                 nn.Linear(in_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim),
+                norm(hidden_dim),
                 activation()
             ]
             for _ in range(mlp_layers - 1):
                 layers += [
                     nn.Linear(hidden_dim, hidden_dim),
-                    nn.LayerNorm(hidden_dim),
+                    norm(hidden_dim),
                     activation()]
 
         self._model = nn.Sequential(
@@ -102,19 +103,20 @@ class ConvDecoder(nn.Module):
 
 class DenseEncoder(nn.Module):
 
-    def __init__(self, in_dim, out_dim=256, activation=nn.ELU, hidden_dim=400, hidden_layers=2):
+    def __init__(self, in_dim, out_dim=256, activation=nn.ELU, hidden_dim=400, hidden_layers=2, layer_norm=True):
         super().__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
+        norm = nn.LayerNorm if layer_norm else NoNorm
         layers = [nn.Flatten()]
         layers += [
             nn.Linear(in_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
+            norm(hidden_dim),
             activation()]
         for _ in range(hidden_layers - 1):
             layers += [
                 nn.Linear(hidden_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim),
+                norm(hidden_dim),
                 activation()]
         layers += [
             nn.Linear(hidden_dim, out_dim),
@@ -161,19 +163,20 @@ class DenseNormalHead(nn.Module):
 
 class DenseDecoder(nn.Module):
 
-    def __init__(self, in_dim, out_shape=(33, 7, 7), activation=nn.ELU, hidden_dim=400, hidden_layers=2, min_prob=0):
+    def __init__(self, in_dim, out_shape=(33, 7, 7), activation=nn.ELU, hidden_dim=400, hidden_layers=2, layer_norm=True, min_prob=0):
         super().__init__()
         self.in_dim = in_dim
         self.out_shape = out_shape
+        norm = nn.LayerNorm if layer_norm else NoNorm
         layers = []
         layers += [
             nn.Linear(in_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
+            norm(hidden_dim),
             activation()]
         for _ in range(hidden_layers - 1):
             layers += [
                 nn.Linear(hidden_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim),
+                norm(hidden_dim),
                 activation()]
         layers += [
             nn.Linear(hidden_dim, np.prod(out_shape)),
