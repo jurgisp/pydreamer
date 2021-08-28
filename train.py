@@ -228,7 +228,8 @@ def run(conf):
                               f"  policy_entropy: {metrics.get('train/policy_entropy',0):.3f}"
                               f"  fps: {metrics['train/fps']:.3f}"
                               )
-                        mlflow.log_metrics(metrics, step=steps)
+                        if steps > conf.log_interval:  # Skip the first batch, because the losses are very high and mess up y axis
+                            mlflow.log_metrics(metrics, step=steps)
                         metrics = defaultdict(list)
                         metrics_max = defaultdict(list)
 
