@@ -85,9 +85,9 @@ class Dreamer(nn.Module):
         self.ac = ActorCritic(in_dim=state_dim,
                               out_actions=conf.action_dim,
                               layer_norm=conf.layer_norm,
-                              discount=conf.discount,
+                              gamma=conf.gamma,
                               discount_lambda=conf.discount_lambda,
-                              temperature=conf.actor_ent,
+                              temperature=conf.entropy,
                               target_interval=conf.target_interval,
                               )
 

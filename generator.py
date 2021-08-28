@@ -206,7 +206,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 f'{metrics_prefix}/steps': steps,
                 f'{metrics_prefix}/episodes': episodes,
                 f'{metrics_prefix}/return': data['reward'].sum(),
-                f'{metrics_prefix}/return_discounted': discount(data['reward'], gamma=model_conf.discount).mean(),
+                f'{metrics_prefix}/return_discounted': discount(data['reward'], gamma=model_conf.gamma).mean(),
             })  # type: ignore
             if data['terminal'][-1]:
                 value_terminal = data['policy_value'][-2] - data['reward'][-1]  # This should be zero, because value[last] = reward[last]

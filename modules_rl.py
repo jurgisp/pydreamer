@@ -10,11 +10,11 @@ from modules_common import *
 
 class ActorCritic(nn.Module):
 
-    def __init__(self, in_dim, out_actions, hidden_dim=400, hidden_layers=4, layer_norm=True, discount=0.999, discount_lambda=0.95, temperature=1e-3, target_interval=100):
+    def __init__(self, in_dim, out_actions, hidden_dim=400, hidden_layers=4, layer_norm=True, gamma=0.999, discount_lambda=0.95, temperature=1e-3, target_interval=100):
         super().__init__()
         self.in_dim = in_dim
         self.out_actions = out_actions
-        self._gamma = discount
+        self._gamma = gamma
         self._lambda = discount_lambda
         self._temperature = temperature
         self._target_interval = target_interval

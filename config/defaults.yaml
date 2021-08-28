@@ -76,9 +76,9 @@ defaults:
   global_dim: 0
 
   # Actor Critic
-  discount: 0.997
+  gamma: 0.997
   discount_lambda: 0.95
-  actor_ent: 0.001
+  entropy: 0.001
   target_interval: 100
   imag_horizon: 15
 
