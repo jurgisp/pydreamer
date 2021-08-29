@@ -26,6 +26,7 @@ defaults:
 
   # Training
   iwae_samples: 1
+  kl_balance: 0.5
   kl_weight: 1.0
   image_weight: 1.0
   reward_weight: 1.0

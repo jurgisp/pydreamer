@@ -77,7 +77,8 @@ class Dreamer(nn.Module):
             terminal_weight=conf.terminal_weight,
             embed_rnn=conf.embed_rnn != 'none',
             gru_layers=conf.gru_layers,
-            gru_type=conf.gru_type
+            gru_type=conf.gru_type,
+            kl_balance=conf.kl_balance,
         )
 
         # Actor critic
@@ -245,7 +246,8 @@ class WorldModel(nn.Module):
                  embed_rnn=False,
                  embed_rnn_dim=512,
                  gru_layers=1,
-                 gru_type='gru'
+                 gru_type='gru',
+                 kl_balance=0.5,
                  ):
         super().__init__()
         self._deter_dim = deter_dim
@@ -256,6 +258,7 @@ class WorldModel(nn.Module):
         self._reward_weight = reward_weight
         self._terminal_weight = terminal_weight
         self._embed_rnn = embed_rnn
+        self._kl_balance = None if kl_balance == 0.5 else kl_balance
         self._mem_model = NoMemory()
 
         # Encoder
@@ -434,14 +437,18 @@ class WorldModel(nn.Module):
 
         prior_d = diag_normal(prior)
         post_d = diag_normal(post)
+        loss_kl_exact = D.kl.kl_divergence(post_d, prior_d)  # (N,B,I)
         if I == 1:
             # Analytic KL loss, standard for VAE
-            loss_kl = loss_kl_metric = D.kl.kl_divergence(post_d, prior_d)  # (N,B,I)
+            if not self._kl_balance:
+                loss_kl = loss_kl_exact
+            else:
+                loss_kl_postgrad = D.kl.kl_divergence(diag_normal(post),  diag_normal(prior.detach()))
+                loss_kl_priograd = D.kl.kl_divergence(diag_normal(post.detach()),  diag_normal(prior))
+                loss_kl = (1 - self._kl_balance) * loss_kl_postgrad + self._kl_balance * loss_kl_priograd
         else:
             # Sampled KL loss, for IWAE
             loss_kl = post_d.log_prob(post_samples) - prior_d.log_prob(post_samples)
-            # Log analytic KL loss for metrics, it's nicer and avoids negative values
-            loss_kl_metric = D.kl.kl_divergence(post_d, prior_d)
 
         # Total loss
 
@@ -465,7 +472,7 @@ class WorldModel(nn.Module):
             loss_image = -logavgexp(-loss_image, dim=-1)
             loss_reward = -logavgexp(-loss_reward, dim=-1)
             loss_terminal = -logavgexp(-loss_terminal, dim=-1)
-            loss_kl = -logavgexp(-loss_kl_metric, dim=-1)
+            loss_kl = -logavgexp(-loss_kl_exact, dim=-1)  # Log exact KL loss even when using IWAE, it avoids random negative values
             entropy_prior = prior_d.entropy().mean(dim=-1)
             entropy_post = post_d.entropy().mean(dim=-1)
 
