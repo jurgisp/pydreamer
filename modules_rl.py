@@ -27,6 +27,7 @@ class ActorCritic(nn.Module):
         # Would be nice to return D.OneHotCategorical here, but there's a potential problem with AMP:
         # D.Categorical(logits=y).logits remains float16, because logsumexp() doesn't autocast to float32,
         # whereas y.log_softmax(-1) does autocast
+        # TODO: D.OneHotCategorical(logits=y.float()) seems to work fine to force float32
         y = self._actor.forward(features)
         logits = y.log_softmax(-1)
         return logits

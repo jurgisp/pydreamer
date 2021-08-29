@@ -19,7 +19,7 @@ class Dreamer(nn.Module):
     def __init__(self, conf):
         super().__init__()
 
-        state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim
+        state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1) + conf.global_dim
         n_map_coords = 4
         map_state_dim = state_dim + n_map_coords
 
@@ -70,6 +70,7 @@ class Dreamer(nn.Module):
             action_dim=conf.action_dim,
             deter_dim=conf.deter_dim,
             stoch_dim=conf.stoch_dim,
+            stoch_discrete=conf.stoch_discrete,
             hidden_dim=conf.hidden_dim,
             kl_weight=conf.kl_weight,
             image_weight=conf.image_weight,
@@ -196,7 +197,7 @@ class Dreamer(nn.Module):
                 rewards_dream = self.wm._decoder_reward.forward(features_dream)      # (H+1,B) = (N,B)
                 terminals_dream = self.wm._decoder_terminal.forward(features_dream)  # (H+1,B) = (N,B)
                 image_dream = self.wm._decoder_image.forward(features_dream)
-                _, _, loss_tensors_ac = self.ac.train(features_dream, rewards_dream, terminals_dream, actions_dream, log_only=True)  # TODO
+                _, _, loss_tensors_ac = self.ac.train(features_dream, rewards_dream, terminals_dream, actions_dream, log_only=True)
                 # The tensors are intentionally named same as in out_tensors, so the logged npz looks the same for dreamed or not
                 dream_tensors = dict(action_pred=torch.cat([action[:1], actions_dream]),  # first action is real from previous step
                                      reward_pred=rewards_dream.mean,  # reward_pred is also set in loss_tensors, if do_image_pred==True
@@ -238,6 +239,7 @@ class WorldModel(nn.Module):
                  action_dim=7,
                  deter_dim=200,
                  stoch_dim=30,
+                 stoch_discrete=0,
                  hidden_dim=200,
                  kl_weight=1.0,
                  image_weight=1.0,
@@ -252,6 +254,7 @@ class WorldModel(nn.Module):
         super().__init__()
         self._deter_dim = deter_dim
         self._stoch_dim = stoch_dim
+        self._stoch_discrete = stoch_discrete
         self._global_dim = 0
         self._kl_weight = kl_weight
         self._image_weight = image_weight
@@ -289,7 +292,7 @@ class WorldModel(nn.Module):
 
         # Decoders
 
-        state_dim = conf.deter_dim + conf.stoch_dim + conf.global_dim
+        state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1) + conf.global_dim
         if conf.image_decoder == 'cnn':
             self._decoder_image = ConvDecoder(in_dim=state_dim,
                                               out_channels=conf.image_channels)
@@ -321,6 +324,7 @@ class WorldModel(nn.Module):
                               action_dim=action_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
+                              stoch_discrete=stoch_discrete,
                               hidden_dim=hidden_dim,
                               global_dim=self._global_dim,
                               gru_layers=gru_layers,
@@ -386,7 +390,7 @@ class WorldModel(nn.Module):
 
         image_pred, reward_pred, terminal_pred = None, None, None
         if do_image_pred:
-            prior_samples = diag_normal(prior).sample()
+            prior_samples = self._core.zdistr(prior).sample().reshape(post_samples.shape)
             features_prior = self._core.feature_replace_z(features, prior_samples)
             image_pred = self._decoder_image.forward(features_prior)
             reward_pred = self._decoder_reward.forward(features_prior)
@@ -435,20 +439,22 @@ class WorldModel(nn.Module):
 
         # KL
 
-        prior_d = diag_normal(prior)
-        post_d = diag_normal(post)
-        loss_kl_exact = D.kl.kl_divergence(post_d, prior_d)  # (N,B,I)
+        d = self._core.zdistr
+        dprior = d(prior)
+        dpost = d(post)
+        loss_kl_exact = D.kl.kl_divergence(dpost, dprior)  # (N,B,I)
         if I == 1:
             # Analytic KL loss, standard for VAE
             if not self._kl_balance:
                 loss_kl = loss_kl_exact
             else:
-                loss_kl_postgrad = D.kl.kl_divergence(diag_normal(post),  diag_normal(prior.detach()))
-                loss_kl_priograd = D.kl.kl_divergence(diag_normal(post.detach()),  diag_normal(prior))
+                loss_kl_postgrad = D.kl.kl_divergence(dpost,  d(prior.detach()))
+                loss_kl_priograd = D.kl.kl_divergence(d(post.detach()),  dprior)
                 loss_kl = (1 - self._kl_balance) * loss_kl_postgrad + self._kl_balance * loss_kl_priograd
         else:
             # Sampled KL loss, for IWAE
-            loss_kl = post_d.log_prob(post_samples) - prior_d.log_prob(post_samples)
+            z = post_samples.reshape(dpost.batch_shape + dpost.event_shape)
+            loss_kl = dpost.log_prob(z) - dprior.log_prob(z)
 
         # Total loss
 
@@ -473,8 +479,8 @@ class WorldModel(nn.Module):
             loss_reward = -logavgexp(-loss_reward, dim=-1)
             loss_terminal = -logavgexp(-loss_terminal, dim=-1)
             loss_kl = -logavgexp(-loss_kl_exact, dim=-1)  # Log exact KL loss even when using IWAE, it avoids random negative values
-            entropy_prior = prior_d.entropy().mean(dim=-1)
-            entropy_post = post_d.entropy().mean(dim=-1)
+            entropy_prior = dprior.entropy().mean(dim=-1)
+            entropy_post = dpost.entropy().mean(dim=-1)
 
             log_tensors = dict(loss_kl=loss_kl.detach(),
                                loss_image=loss_image.detach(),
