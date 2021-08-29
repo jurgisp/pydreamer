@@ -95,7 +95,11 @@ def init_weights_tf2(m):
 
 
 def logavgexp(x: Tensor, dim: int) -> Tensor:
-    return x.logsumexp(dim=dim) - np.log(x.size(dim))
+    if x.size(dim) > 1:
+        # TODO: cast to float32 here for IWAE?
+        return x.logsumexp(dim=dim) - np.log(x.size(dim))
+    else:
+        return x.squeeze(dim)
 
 
 def map_structure(data: Tuple[Tensor, ...], f: Callable[[Tensor], Tensor]) -> Tuple[Tensor, ...]:
