@@ -86,7 +86,7 @@ defaults:
   generator_run: False
   generator_prefill_steps: 500_000
   env_id:
-  env_max_steps: 10_000
+  env_max_steps: 100_000  # not used
 
 minigrid:
   # Data
@@ -159,7 +159,7 @@ atari:
   # Generator
   env_id: Atari-Pong
   generator_run: True
-  env_max_steps: 27_000  # =108_000/action_repeat = 30 minutes of game play.
+  # env_max_steps: 27_000  # =108_000/action_repeat = 30 minutes of game play.
 
   # Job
   data_workers: 3

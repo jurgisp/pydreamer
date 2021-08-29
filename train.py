@@ -442,7 +442,7 @@ def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=Fals
                 daemon=True,
                 kwargs=dict(
                     env_id=conf.env_id,
-                    env_max_steps=conf.env_max_steps,
+                    # env_max_steps=conf.env_max_steps,
                     policy=policy,
                     num_steps=num_steps,
                     seed=seed,

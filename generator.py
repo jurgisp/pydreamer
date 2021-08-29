@@ -23,18 +23,17 @@ WALL = 2
 def create_env(env_id: str, max_steps: int, seed: int = 0):
 
     if env_id.startswith('MiniGrid-'):
-        env = MiniGrid(env_id, max_steps=max_steps, seed=seed)
+        env = MiniGrid(env_id, seed=seed)
 
     elif env_id.startswith('Atari-'):
         env = Atari(env_id.split('-')[1].lower())
-        # TODO: max_steps wrapper
 
     elif env_id.startswith('AtariGray-'):
         env = Atari(env_id.split('-')[1].lower(), grayscale=True)
 
     elif env_id.startswith('MiniWorld-'):
         import gym_miniworld.wrappers as wrap
-        env = env_raw = gym.make(env_id, max_steps=max_steps)
+        env = env_raw = gym.make(env_id)
         env = wrap.DictWrapper(env)
         env = wrap.MapWrapper(env)
         # env = wrap.PixelMapWrapper(env)
@@ -47,14 +46,14 @@ def create_env(env_id: str, max_steps: int, seed: int = 0):
                     seed=seed,
                     is_test=False,
                     config={'width': 64, 'height': 64, 'logLevel': 'WARN'})
-        # TODO: max_steps wrapper
         env = DictWrapper(env)
 
     else:
-        env = gym.make(env_id, max_steps=max_steps)
+        env = gym.make(env_id)
         env = DictWrapper(env)
 
-    env = ActionRewardResetWrapper(env, max_steps)
+    env = ActionRewardResetWrapper(env)
+    # TODO: TimeLimit(max_steps) wrapper, which wouldn't set the `terminal`
     env = CollectWrapper(env)
     return env
 
@@ -63,7 +62,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          seed=0,
          policy='random',
          num_steps=int(1e6),
-         env_max_steps=500,
+         env_max_steps=int(1e5),
          steps_per_npz=2_000,
          model_reload_interval=60,
          model_conf=dict(),
@@ -560,10 +559,8 @@ class DictWrapper(gym.ObservationWrapper):
 
 class ActionRewardResetWrapper:
 
-    def __init__(self, env, max_steps: int):
+    def __init__(self, env):
         self._env = env
-        self._max_steps = max_steps
-        self._epstep = 0
         # Handle environments with one-hot or discrete action, but collect always as one-hot
         self._action_size = env.action_space.shape[0] if env.action_space.shape != () else env.action_space.n
 
@@ -571,7 +568,6 @@ class ActionRewardResetWrapper:
         return getattr(self._env, name)
 
     def step(self, action):
-        self._epstep += 1
         obs, reward, done, info = self._env.step(action)
         if isinstance(action, int):
             action_onehot = np.zeros(self._action_size)
@@ -581,8 +577,7 @@ class ActionRewardResetWrapper:
             action_onehot = action
         obs['action'] = action_onehot
         obs['reward'] = np.array(reward)
-        # Only True if actual terminal state, not done because of max_steps
-        obs['terminal'] = np.array(done if self._epstep < self._max_steps else False)
+        obs['terminal'] = np.array(done)
         obs['reset'] = np.array(False)
         return obs, reward, done, info
 
@@ -592,7 +587,6 @@ class ActionRewardResetWrapper:
         obs['reward'] = np.array(0.0)
         obs['terminal'] = np.array(False)
         obs['reset'] = np.array(True)
-        self._epstep = 0
         return obs
 
 
@@ -625,6 +619,6 @@ if __name__ == '__main__':
     parser.add_argument('--policy', type=str, required=True)
     parser.add_argument('--num_steps', type=int, default=1_000_000)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--env_max_steps', type=int, default=500)
+    parser.add_argument('--env_max_steps', type=int, default=int(1e5))
     args = parser.parse_args()
     main(**vars(args))
