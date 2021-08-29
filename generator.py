@@ -14,6 +14,8 @@ from numba import njit
 import gym
 from envs import MiniGrid, Atari
 import mlflow
+import torch
+import torch.distributions as D
 
 from tools import *
 
@@ -296,7 +298,8 @@ class NetworkPolicy:
         reset = torch.from_numpy(batch['reset'])
 
         with torch.no_grad():
-            action_distr, value, new_state = self.model.forward(image, reward, action, reset, self._state)
+            action_logits, value, new_state = self.model.forward(image, reward, action, reset, self._state)
+            action_distr = D.OneHotCategorical(logits=action_logits)
             self._state = new_state
 
         action = action_distr.sample()

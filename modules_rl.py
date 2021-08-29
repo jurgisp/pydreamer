@@ -23,10 +23,13 @@ class ActorCritic(nn.Module):
         self._critic_target = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
         self._train_steps = 0
 
-    def forward_actor(self, features: Tensor) -> D.OneHotCategorical:
+    def forward_actor(self, features: Tensor) -> Tensor:
+        # Would be nice to return D.OneHotCategorical here, but there's a potential problem with AMP:
+        # D.Categorical(logits=y).logits remains float16, because logsumexp() doesn't autocast to float32,
+        # whereas y.log_softmax(-1) does autocast
         y = self._actor.forward(features)
-        p = D.OneHotCategorical(logits=y)
-        return p
+        logits = y.log_softmax(-1)
+        return logits
 
     def forward_value(self, features: Tensor) -> Tensor:
         y = self._critic.forward(features)
@@ -41,7 +44,7 @@ class ActorCritic(nn.Module):
         reward1: TensorHM = rewards.mean[1:]
         terminal0: TensorHM = terminals.mean[:-1]
         terminal1: TensorHM = terminals.mean[1:]
-        policy = self.forward_actor(features[:-1])
+        policy_logits = self.forward_actor(features[:-1])
         value: TensorJM = self._critic.forward(features)
         value0: TensorHM = value[:-1]
         with torch.no_grad():
@@ -93,9 +96,9 @@ class ActorCritic(nn.Module):
         reality_weight = (1 - terminal0).log().cumsum(dim=0).exp()
 
         loss_value = 0.5 * torch.square(value_target - value0)
-        action_logprob = (policy.logits * actions).sum(-1)
+        action_logprob = (policy_logits * actions).sum(-1)
         loss_policy = - action_logprob * advantage_gae
-        policy_entropy = policy.entropy()
+        policy_entropy = - (policy_logits * policy_logits.exp()).sum(-1)
         assert (loss_policy.requires_grad and policy_entropy.requires_grad) or not loss_value.requires_grad
 
         real_loss = False  # TODO: conf
@@ -127,7 +130,7 @@ class ActorCritic(nn.Module):
                            value_weight=reality_weight.detach(),
                            action_prob=action_logprob.exp().detach(),
                            )
-        
+
         return (loss_actor, loss_critic), metrics, tensors
 
     def update_critic_target(self):

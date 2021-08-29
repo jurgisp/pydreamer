@@ -111,10 +111,10 @@ class Dreamer(nn.Module):
         # Forward (actor critic)
 
         feature = features[0, :, 0]  # (N=1,B,I=1,F) => (B,F)
-        action_distr = self.ac.forward_actor(feature)
+        action_logits = self.ac.forward_actor(feature)
         value = self.ac.forward_value(feature)
 
-        return action_distr, value, out_state
+        return action_logits, value, out_state
 
     def train(self,
               image: TensorNBCHW,
@@ -217,7 +217,7 @@ class Dreamer(nn.Module):
 
         for i in range(H):
             feature = self.wm._core.to_feature(*state)
-            action = self.ac.forward_actor(feature).sample()
+            action = D.OneHotCategorical(logits=self.ac.forward_actor(feature)).sample()
             features.append(feature)
             actions.append(action)
             _, state = self.wm._core._cell.forward_prior(action, state, noises[i])
