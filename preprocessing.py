@@ -24,6 +24,12 @@ def to_image(x: np.ndarray) -> np.ndarray:
     return x
 
 
+def remove_keys(data: dict, keys: list):
+    for key in keys:
+        if key in data:
+            del data[key]
+
+
 class WorkerInfoPreprocess(IterableDataset):
 
     def __init__(self, dataset: IterableDataset):
@@ -74,10 +80,7 @@ class MinigridPreprocess:
             batch = {k: v[np.newaxis, np.newaxis] for k, v in batch.items()}  # (*) => (T=1,B=1,*)
 
         # cleanup policy info logged by actor, not to be confused with current values
-
-        for key in ['policy_value', 'policy_entropy', 'action_prob']:
-            if key in batch:
-                del batch[key]
+        remove_keys(batch, ['policy_value', 'policy_entropy', 'action_prob'])
 
         # image
 
@@ -96,6 +99,8 @@ class MinigridPreprocess:
                 batch['map'] = to_onehot(batch['map'], self._map_categorical)
             else:
                 batch['map'] = to_image(batch['map'])
+            # cleanup unused
+            remove_keys(batch, ['map_centered'])
         else:
             batch['map'] = np.zeros((T, B, 1, 1, 1))
 
@@ -125,7 +130,6 @@ class MinigridPreprocess:
             for key in ['image', 'action', 'map', 'map_coord']:
                 if key in batch:
                     batch[key] = batch[key].astype(np.float16)
-
 
         print_once('Preprocess batch (after): ', {k: v.shape for k, v in batch.items()})
         return batch
