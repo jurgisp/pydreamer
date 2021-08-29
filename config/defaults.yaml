@@ -5,7 +5,7 @@ defaults:
   resume_id:
   input_dir: ./data/train
   eval_dir: ./data/eval
-  log_interval: 200
+  log_interval: 100
   logbatch_interval: 1000
   save_interval: 200
   eval_interval: 2000
@@ -175,8 +175,13 @@ atari:
   # Model
   image_encoder: cnn
   image_decoder: cnn
-  embed_dim: 1024
+  embed_dim: 1024  # TODO: increase
   map_model: none
+  deter_dim: 1024
+  # hidden_dim: 1024
+
+  # Optimizer
+  kl_weight: 0.1
 
 dmlab:
   # Generator
