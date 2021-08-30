@@ -43,7 +43,8 @@ class OfflineDataSequential(IterableDataset):
             if s.isnumeric():
                 steps += int(s)
         if verbose:
-            print(f'Found {len(self._files)} files, {steps} steps')
+            print(f'[TRAIN]  Found {len(self._files)} files, {steps} steps')
+        self.stats_steps = steps
 
     def _should_reload_files(self):
         return self.reload_interval and (time.time() - self._last_reload > self.reload_interval)

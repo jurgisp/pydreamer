@@ -136,11 +136,11 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 while True:
                     model_step = mlflow_load_checkpoint(policy.model)  # type: ignore
                     if model_step:
-                        print(f'Generator loaded model checkpoint {model_step}')
+                        print(f'[GEN{seed:>2}]  Generator loaded model checkpoint {model_step}')
                         last_model_load = time.time()
                         break
                     else:
-                        print('Generator model checkpoint not found, waiting...')
+                        print(f'[GEN{seed:>2}]  Generator model checkpoint not found, waiting...')
                         time.sleep(10)
 
         # Unroll one episode
@@ -189,7 +189,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             print('Episode data sample: ', {k: v.shape for k, v in data.items()})
             first_episode = False
 
-        print(f"Episode recorded:"
+        print(f"[GEN{seed:>2}]  Episode recorded:"
               f"  steps: {epsteps}"
               f",  reward: {data['reward'].sum()}"
               #   f",  explored%: {visited_pct:.1%}|{np.mean(visited_stats):.1%}"
@@ -214,7 +214,6 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 metrics.update({
                     f'{metrics_prefix}/policy_value_terminal': value_terminal
                 })
-
             mlflow.log_metrics(metrics, step=log_step)
 
         # Save to npz
@@ -249,9 +248,9 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             else:
                 fname = f's{seed}-ep{episodes-1:06}-r{int(datas_reward)}-{datas_steps:04}.npz'
 
-            mlflow_log_npz(data, fname, episodes_dir, verbose=True)
+            mlflow_log_npz(data, fname, episodes_dir, verbose=False)
 
-    print(f'Generator {seed} done.')
+    print(f'[GEN{seed:>2}]  Generator done.')
 
 
 def discount(x: np.ndarray, gamma: float) -> np.ndarray:

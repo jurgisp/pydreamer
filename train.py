@@ -220,7 +220,7 @@ def run(conf):
                         metrics['train/fps'] = fps  # type: ignore
                         last_time, last_steps = t, steps
 
-                        print(f"[{steps:06}]"
+                        print(f"[TRAIN]  [{steps:06}]"
                               f"  loss_wm: {metrics.get('train/loss_wm', 0):.3f}"
                               f"  loss_wm_kl: {metrics.get('train/loss_wm_kl', 0):.3f}"
                               f"  loss_critic: {metrics.get('train/loss_critic', 0):.3f}"
@@ -238,12 +238,12 @@ def run(conf):
 
                     if steps % conf.save_interval == 0:
                         tools.mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_actor, optimizer_critic, steps)
-                        print(f'Saved model checkpoint {steps}')
+                        print(f'[TRAIN]  Saved model checkpoint {steps}')
 
                     # Stop
 
                     if steps >= conf.n_steps:
-                        print('Stopping')
+                        print('[TRAIN]  Stopping')
                         break
 
                 # Evaluate
@@ -261,11 +261,15 @@ def run(conf):
                         eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
                         evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.eval_samples, True, conf)
 
+                        # This is just to count steps in the buffer
+                        data_train = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size)
+                        mlflow.log_metrics({'data/steps': data_train.stats_steps}, step=steps)
+
             for k, v in timers.items():
                 metrics[f'timer_{k}'].append(v.dt_ms)
 
             if conf.verbose:
-                print(f"[{steps:06}] timers"
+                print(f"[TRAIN]  [{steps:06}] timers"
                       f"  TOTAL: {timer('total').dt_ms:>4}"
                       f"  data: {timer('data').dt_ms:>4}"
                       f"  forward: {timer('forward').dt_ms:>4}"
@@ -308,7 +312,7 @@ def evaluate(prefix: str,
             N, B = image.shape[:2]
 
             if i_batch == 0:
-                print(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
+                print(f'[TRAIN]  Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
 
             reset_episodes = reset.any(dim=0)  # (B,)
             n_reset_episodes = reset_episodes.sum().item()
@@ -374,7 +378,7 @@ def evaluate(prefix: str,
     print_once(f'Saving batch d2_wm_closed_{prefix}: ', {k: tuple(v.shape) for k, v in npz_data.items()})
     tools.mlflow_log_npz(npz_data, f'{steps:07}.npz', subdir=f'd2_wm_closed_{prefix}', verbose=True)
 
-    print(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_finished_episodes.sum()} episodes')
+    print(f'[TRAIN]  Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_finished_episodes.sum()} episodes')
 
 
 def log_batch_npz(batch: Dict[str, Tensor],
