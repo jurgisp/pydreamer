@@ -121,7 +121,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
     # RUN
 
-    steps, episodes = count_steps(artifact_dir)
+    steps, episodes = count_steps(artifact_dir, seed)
     datas = []
     visited_stats = []
     first_save = True
@@ -258,12 +258,15 @@ def discount(x: np.ndarray, gamma: float) -> np.ndarray:
     return scipy.signal.lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]  # type: ignore
 
 
-def count_steps(artifact_dir):
+def count_steps(artifact_dir, seed):
     files = list(sorted(artifact_dir.glob('*.npz')))
     steps = 0
     episodes = 0
     for f in files:
         # Example: f.name == '.../s1-ep0000_0003-r5-1500.npz'
+        sseed = f.name.split('-')[0][1:]
+        if sseed != str(seed):
+            continue  # Belongs to another generator
         sstep = f.name.split('.')[0].split('-')[-1]
         if sstep.isnumeric():
             steps += int(sstep)
@@ -271,7 +274,7 @@ def count_steps(artifact_dir):
         if sepisode.isnumeric():
             episodes = max(episodes, int(sepisode) + 1)
 
-    print(f'Found existing {len(files)} files, {episodes} episodes, {steps} steps in {artifact_dir}')
+    print(f'Found existing {len(files)} files, {episodes} episodes, {steps} steps in {artifact_dir} (seed {seed})')
     return steps, episodes
 
 

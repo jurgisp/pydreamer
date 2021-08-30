@@ -44,10 +44,11 @@ def run(conf):
         conf.eval_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes_eval'  # type: ignore
         data_reload_interval = 60
         print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
-        run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True)
+        run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True, log_mlflow_metrics=False)
         print('Generator random prefill done, starting agent generator...')
-        run_generator(conf, seed=1, policy='network', episodes_dir='episodes', metrics_prefix='agent')
-        run_generator(conf, seed=2, policy='network', episodes_dir='episodes_eval', metrics_prefix='agent_eval')
+        for i in range(conf.generator_workers):
+            run_generator(conf, seed=1 + i, policy='network', episodes_dir='episodes', log_mlflow_metrics=i == 0)
+        run_generator(conf, seed=99, policy='network', episodes_dir='episodes_eval', log_mlflow_metrics=False)
 
     # Data
 
@@ -174,11 +175,11 @@ def run(conf):
                     grad_norm_actor = nn.utils.clip_grad_norm_(model.ac._actor.parameters(), conf.grad_clip)
                     grad_norm_critic = nn.utils.clip_grad_norm_(model.ac._critic.parameters(), conf.grad_clip)
                     grad_metrics = {
-                        'grad_norm': grad_norm_model, 
-                        'grad_norm_map': grad_norm_map, 
+                        'grad_norm': grad_norm_model,
+                        'grad_norm_map': grad_norm_map,
                         'grad_norm_actor': grad_norm_actor,
                         'grad_norm_critic': grad_norm_critic,
-                        }
+                    }
                     scaler.step(optimizer_wm)
                     scaler.step(optimizer_map)
                     scaler.step(optimizer_actor)
@@ -436,7 +437,7 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
     return {k: unpreprocess(k, v) for k, v in data.items()}
 
 
-def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=False, episodes_dir='episodes', metrics_prefix='agent'):
+def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=False, episodes_dir='episodes', metrics_prefix='agent', log_mlflow_metrics=True):
     os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
     p = Process(target=generator.main,
                 daemon=True,
@@ -447,7 +448,7 @@ def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=Fals
                     num_steps=num_steps,
                     seed=seed,
                     model_conf=conf,
-                    log_mlflow_metrics=(policy == 'network'),  # Don't log for initial random prefill
+                    log_mlflow_metrics=log_mlflow_metrics,
                     episodes_dir=episodes_dir,
                     metrics_prefix=metrics_prefix
                 ))

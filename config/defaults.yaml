@@ -86,6 +86,7 @@ defaults:
 
   # Generator
   generator_run: False
+  generator_workers: 1
   generator_prefill_steps: 500_000
   env_id:
   env_max_steps: 100_000  # not used
