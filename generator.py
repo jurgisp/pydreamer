@@ -437,7 +437,7 @@ class MazeDijkstraPolicy:
 
         x, y = obs['agent_pos']
         dx, dy = obs['agent_dir']
-        d = np.arctan2(dy, dx) / np.pi * 180
+        d = np.arctan2(dy, dx) / np.pi * 180  # type: ignore
         map = obs['map_agent']
         # assert map[int(x), int(y)] >= 3, 'Agent should be here'
 
