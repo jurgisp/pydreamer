@@ -143,6 +143,7 @@ def run(conf):
                             model.train(image, reward, terminal, action, reset, map, map_coord, state,
                                         I=conf.iwae_samples,
                                         H=conf.imag_horizon,
+                                        imagine_dropout=conf.imagine_dropout,
                                         do_output_tensors=steps % conf.logbatch_interval == 1,
                                         do_dream_tensors=steps % conf.logbatch_interval == 1)
                         if conf.keep_state:
@@ -336,7 +337,7 @@ def evaluate(prefix: str,
                                     action, reset, map, map_coord, state,
                                     I=eval_samples,
                                     H=conf.imag_horizon,
-                                    imagine=True,
+                                    imagine_dropout=1,
                                     do_image_pred=True,
                                     do_output_tensors=True)
 
@@ -356,6 +357,7 @@ def evaluate(prefix: str,
                     model.train(image, reward, terminal, action, reset, map, map_coord, state,
                                 I=eval_samples,
                                 H=conf.imag_horizon,
+                                imagine_dropout=0,
                                 do_image_pred=True,
                                 do_output_tensors=do_output_tensors)
 
@@ -375,7 +377,7 @@ def evaluate(prefix: str,
     mlflow.log_metrics(metrics_eval, step=steps)
 
     npz_data = {k: np.concatenate([d[k] for d in npz_datas], 1) for k in npz_datas[0]}
-    print_once(f'Saving batch d2_wm_closed_{prefix}: ', {k: tuple(v.shape) for k, v in npz_data.items()})
+    print_once(f'Saving batch d2_wm_closed_{prefix}: ', {k: tuple(v.shape) for k, v in npz_data.items()})  # type: ignore
     tools.mlflow_log_npz(npz_data, f'{steps:07}.npz', subdir=f'd2_wm_closed_{prefix}', verbose=True)
 
     print(f'[TRAIN]  Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_finished_episodes.sum()} episodes')
@@ -435,7 +437,7 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
                 assert key in ['map_rec'], f'Unexpected 3D categorical logits: {key}: {x.shape}'
                 x = scipy.special.softmax(x, axis=-1)
 
-        x = x.swapaxes(0, 1)  # (N,B,*) => (B,N,*)
+        x = x.swapaxes(0, 1)  # type: ignore  # (N,B,*) => (B,N,*)
         return x
 
     return {k: unpreprocess(k, v) for k, v in data.items()}

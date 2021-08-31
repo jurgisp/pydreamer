@@ -1,14 +1,15 @@
-from typing import Tuple, Any
+from typing import Any, Optional, Tuple
+
 import numpy as np
 import torch
+import torch.distributions as D
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributions as D
 from torch import Tensor
 
-from modules_tools import *
-from modules_common import *
 import modules_rnn as my
+from modules_common import *
+from modules_tools import *
 
 
 class RSSMCore(nn.Module):
@@ -28,7 +29,7 @@ class RSSMCore(nn.Module):
                 glob_state: Any,
                 noises: List[Tensor],      # (N,B,I)
                 I: int = 1,
-                imagine=False,       # If True, will imagine sequence, not using observations to form posterior
+                imagine_dropout=0,       # If 1, will imagine sequence, not using observations to form posterior
                 ):
 
         n, b = embed.shape[:2]
@@ -50,10 +51,16 @@ class RSSMCore(nn.Module):
         (h, z) = in_state
 
         for i in range(n):
+            if imagine_dropout == 0:
+                imagine = False
+            elif imagine_dropout == 1:
+                imagine = True
+            else:
+                imagine = np.random.rand() < imagine_dropout
             if not imagine:
                 post, (h, z) = self._cell.forward(embeds[i], actions[i], reset_masks[i], (h, z), noises[i])
             else:
-                post, (h, z) = self._cell.forward_prior(actions[i], (h, z), noises[i])  # post=prior in this case
+                post, (h, z) = self._cell.forward_prior(actions[i], reset_masks[i], (h, z), noises[i])  # post=prior in this case
             posts.append(post)
             states_h.append(h)
             samples.append(z)
@@ -163,12 +170,16 @@ class RSSMCell(nn.Module):
 
     def forward_prior(self,
                       action: Tensor,                   # tensor(B,A)
+                      reset_mask: Optional[Tensor],               # tensor(B,1)
                       in_state: Tuple[Tensor, Tensor],  # tensor(B,D+S)
                       noise: Tensor,                    # tensor(B,S)
                       ) -> Tuple[Tensor,
                                  Tuple[Tensor, Tensor]]:
 
         in_h, in_z = in_state
+        if reset_mask is not None:
+            in_h = in_h * reset_mask
+            in_z = in_z * reset_mask
 
         x = self._z_mlp(in_z) + self._a_mlp(action)  # (B,H)
         x = self._in_norm(x)
@@ -266,12 +277,17 @@ class RSSMCellDiscrete(nn.Module):
 
     def forward_prior(self,
                       action: Tensor,                   # tensor(B,A)
+                      reset_mask: Optional[Tensor],               # tensor(B,1)
                       in_state: Tuple[Tensor, Tensor],  # tensor(B,D+S)
                       _noise: Tensor,                    # tensor(B,S)
                       ) -> Tuple[Tensor,
                                  Tuple[Tensor, Tensor]]:
 
         in_h, in_z = in_state
+        if reset_mask is not None:
+            in_h = in_h * reset_mask
+            in_z = in_z * reset_mask
+
         B = action.shape[0]
 
         x = self._z_mlp(in_z) + self._a_mlp(action)  # (B,H)

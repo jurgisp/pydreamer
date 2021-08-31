@@ -129,7 +129,7 @@ class Dreamer(nn.Module):
               in_state: Any,
               I: int = 1,         # IWAE samples
               H: int = 1,        # Imagination horizon
-              imagine=False,      # If True, will imagine sequence, not using observations to form posterior
+              imagine_dropout=0,      # If True, will imagine sequence, not using observations to form posterior
               do_image_pred=False,
               do_output_tensors=False,
               do_dream_tensors=False,
@@ -138,7 +138,7 @@ class Dreamer(nn.Module):
 
         # Forward (world model)
 
-        output = self.wm.forward(image, reward, terminal, action, reset, in_state, I, imagine, do_image_pred)
+        output = self.wm.forward(image, reward, terminal, action, reset, in_state, I=I, imagine_dropout=imagine_dropout, do_image_pred=do_image_pred)
         features = output[0]
         states = output[-2]
         out_state = output[-1]
@@ -222,7 +222,7 @@ class Dreamer(nn.Module):
             action = D.OneHotCategorical(logits=self.ac.forward_actor(feature)).sample()
             features.append(feature)
             actions.append(action)
-            _, state = self.wm._core._cell.forward_prior(action, state, noises[i])
+            _, state = self.wm._core._cell.forward_prior(action, None, state, noises[i])
 
         feature = self.wm._core.to_feature(*state)
         features.append(feature)
@@ -347,7 +347,7 @@ class WorldModel(nn.Module):
                 reset: Tensor,     # tensor(N, B)
                 in_state: Any,
                 I: int = 1,
-                imagine=False,     # If True, will imagine sequence, not using observations to form posterior
+                imagine_dropout=0,     # If 1, will imagine sequence, not using observations to form posterior
                 do_image_pred=False,
                 ):
 
@@ -378,7 +378,7 @@ class WorldModel(nn.Module):
 
         # RSSM
 
-        prior, post, post_samples, features, states, out_state = self._core.forward(embed, action, reset, in_state, None, noises, I=I, imagine=imagine)
+        prior, post, post_samples, features, states, out_state = self._core.forward(embed, action, reset, in_state, None, noises, I=I, imagine_dropout=imagine_dropout)
 
         # Decoder
 
