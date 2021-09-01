@@ -134,7 +134,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         if model is not None:
             if time.time() - last_model_load > model_reload_interval:
                 while True:
-                    model_step = mlflow_load_checkpoint(policy.model)  # type: ignore
+                    model_step = mlflow_load_checkpoint(policy.model, map_location='cpu')  # type: ignore
                     if model_step:
                         print(f'[GEN{seed:>2}]  Generator loaded model checkpoint {model_step}')
                         last_model_load = time.time()

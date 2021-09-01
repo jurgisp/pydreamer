@@ -71,7 +71,7 @@ def mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_actor, 
         }, path)
         mlflow.log_artifact(str(path), artifact_path='checkpoints')
 
-def mlflow_load_checkpoint(model, optimizer_wm=None, optimizer_map=None, optimizer_actor=None, optimizer_critic=None, artifact_path='checkpoints/latest.pt'):
+def mlflow_load_checkpoint(model, optimizer_wm=None, optimizer_map=None, optimizer_actor=None, optimizer_critic=None, artifact_path='checkpoints/latest.pt', map_location=None):
     with tempfile.TemporaryDirectory() as tmpdir:
         client = MlflowClient()
         run_id = mlflow.active_run().info.run_id  # type: ignore
@@ -80,7 +80,7 @@ def mlflow_load_checkpoint(model, optimizer_wm=None, optimizer_map=None, optimiz
         except:
             # Checkpoint not found
             return None
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, map_location=map_location)
         model.load_state_dict(checkpoint['model_state_dict'])
         if optimizer_wm:
             optimizer_wm.load_state_dict(checkpoint['optimizer_wm_state_dict'])
