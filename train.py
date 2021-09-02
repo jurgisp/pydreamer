@@ -52,7 +52,7 @@ def run(conf):
 
     # Data
 
-    data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True, reload_interval=data_reload_interval, buffer_size=conf.buffer_size)
+    data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True, reload_interval=data_reload_interval, buffer_size=conf.buffer_size, state_reset_prob=conf.state_reset_prob)
     preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
                                     image_key=conf.image_key,
                                     map_categorical=conf.map_channels if conf.map_categorical else None,

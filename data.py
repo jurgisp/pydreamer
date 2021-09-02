@@ -19,7 +19,7 @@ def get_worker_id():
 class OfflineDataSequential(IterableDataset):
     """Offline data which processes episodes sequentially"""
 
-    def __init__(self, input_dir: str, batch_length, batch_size, skip_first=True, reload_interval=0, buffer_size=int(1e9)):
+    def __init__(self, input_dir: str, batch_length, batch_size, skip_first=True, reload_interval=0, buffer_size=int(1e9), state_reset_prob=0):
         super().__init__()
         if input_dir.startswith('gs:/') or input_dir.startswith('s3:/'):
             self.input_dir = Pathy(input_dir)
@@ -27,9 +27,10 @@ class OfflineDataSequential(IterableDataset):
             self.input_dir = Path(input_dir)
         self.batch_length = batch_length
         self.batch_size = batch_size
-        self.buffer_size = buffer_size
         self.skip_first = skip_first
         self.reload_interval = reload_interval
+        self.buffer_size = buffer_size
+        self.state_reset_prob = state_reset_prob
         self._reload_files(True)
         assert len(self._files) > 0, 'No data found'
 
@@ -133,6 +134,8 @@ class OfflineDataSequential(IterableDataset):
 
         while i < n:
             batch = {key: data[key][i:i + l] for key in data}
+            if self.state_reset_prob and np.random.rand() < self.state_reset_prob:
+                batch['reset'][0] = True  # Reset state with some probability, to randomize sequence starts
             is_partial = lenb(batch) < l
             i += l
             l = batch_length
