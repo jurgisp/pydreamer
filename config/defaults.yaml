@@ -91,6 +91,7 @@ defaults:
   generator_prefill_steps: 500_000
   env_id:
   env_max_steps: 100_000  # not used
+  env_no_terminal: False
 
 minigrid:
   # Data
@@ -191,6 +192,7 @@ dmlab:
   # Generator
   env_id: DmLab-rooms_watermaze
   generator_run: True
+  env_no_terminal: True
 
   # Job
   data_workers: 3

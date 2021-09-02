@@ -22,7 +22,7 @@ from tools import *
 WALL = 2
 
 
-def create_env(env_id: str, max_steps: int, seed: int = 0):
+def create_env(env_id: str, max_steps: int, no_terminal: bool, seed: int):
 
     if env_id.startswith('MiniGrid-'):
         env = MiniGrid(env_id, seed=seed)
@@ -54,7 +54,7 @@ def create_env(env_id: str, max_steps: int, seed: int = 0):
         env = gym.make(env_id)
         env = DictWrapper(env)
 
-    env = ActionRewardResetWrapper(env)
+    env = ActionRewardResetWrapper(env, no_terminal)
     # TODO: TimeLimit(max_steps) wrapper, which wouldn't set the `terminal`
     env = CollectWrapper(env)
     return env
@@ -65,6 +65,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          policy='random',
          num_steps=int(1e6),
          env_max_steps=int(1e5),
+         env_no_terminal=False,
          steps_per_npz=2_000,
          model_reload_interval=60,
          model_conf=dict(),
@@ -92,7 +93,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
     # Env
 
-    env = create_env(env_id, env_max_steps, seed)
+    env = create_env(env_id, env_max_steps, env_no_terminal, seed)
 
     # Policy
 
@@ -173,14 +174,14 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
         # Calculate visited (for MiniGrid/MiniWorld)
 
-        if 'agent_pos' in data:
-            agent_pos = data['agent_pos']
-            agent_pos = np.floor(agent_pos / 2)
-            agent_pos_visited = len(np.unique(agent_pos, axis=0))
-            visited_pct = agent_pos_visited / 25
-            visited_stats.append(visited_pct)
-        else:
-            visited_pct = np.nan
+        # if 'agent_pos' in data:
+        #     agent_pos = data['agent_pos']
+        #     agent_pos = np.floor(agent_pos / 2)
+        #     agent_pos_visited = len(np.unique(agent_pos, axis=0))
+        #     visited_pct = agent_pos_visited / 25
+        #     visited_stats.append(visited_pct)
+        # else:
+        #     visited_pct = np.nan
 
         # Log
 
@@ -192,7 +193,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         print(f"[GEN{seed:>2}]  Episode recorded:"
               f"  steps: {epsteps}"
               f",  reward: {data['reward'].sum()}"
-              #   f",  explored%: {visited_pct:.1%}|{np.mean(visited_stats):.1%}"
+              f",  terminal: {data['terminal'].sum()}"
               f",  fps: {fps:.0f}"
               f",  total steps: {steps:.0f}"
               f",  episodes: {episodes}"
@@ -564,8 +565,9 @@ class DictWrapper(gym.ObservationWrapper):
 
 class ActionRewardResetWrapper:
 
-    def __init__(self, env):
+    def __init__(self, env, no_terminal):
         self._env = env
+        self._no_terminal = no_terminal
         # Handle environments with one-hot or discrete action, but collect always as one-hot
         self._action_size = env.action_space.shape[0] if env.action_space.shape != () else env.action_space.n
 
@@ -582,7 +584,7 @@ class ActionRewardResetWrapper:
             action_onehot = action
         obs['action'] = action_onehot
         obs['reward'] = np.array(reward)
-        obs['terminal'] = np.array(done)
+        obs['terminal'] = np.array(False if self._no_terminal else done)
         obs['reset'] = np.array(False)
         return obs, reward, done, info
 
