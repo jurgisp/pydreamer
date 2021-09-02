@@ -52,7 +52,7 @@ def run(conf):
 
     # Data
 
-    data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True, reload_interval=data_reload_interval)
+    data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True, reload_interval=data_reload_interval, buffer_size=conf.buffer_size)
     preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
                                     image_key=conf.image_key,
                                     map_categorical=conf.map_channels if conf.map_categorical else None,
@@ -263,7 +263,7 @@ def run(conf):
                         evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.eval_samples, True, conf)
 
                         # This is just to count steps in the buffer
-                        data_train = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size)
+                        data_train = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, buffer_size=conf.buffer_size)
                         mlflow.log_metrics({'data/steps': data_train.stats_steps}, step=steps)
 
             for k, v in timers.items():

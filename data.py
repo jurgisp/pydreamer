@@ -7,6 +7,7 @@ from torch.utils.data import IterableDataset, get_worker_info
 
 from tools import *
 from modules_tools import *
+from generator import parse_episode_name
 
 
 def get_worker_id():
@@ -18,7 +19,7 @@ def get_worker_id():
 class OfflineDataSequential(IterableDataset):
     """Offline data which processes episodes sequentially"""
 
-    def __init__(self, input_dir: str, batch_length, batch_size, skip_first=True, reload_interval=0):
+    def __init__(self, input_dir: str, batch_length, batch_size, skip_first=True, reload_interval=0, buffer_size=int(1e9)):
         super().__init__()
         if input_dir.startswith('gs:/') or input_dir.startswith('s3:/'):
             self.input_dir = Pathy(input_dir)
@@ -26,6 +27,7 @@ class OfflineDataSequential(IterableDataset):
             self.input_dir = Path(input_dir)
         self.batch_length = batch_length
         self.batch_size = batch_size
+        self.buffer_size = buffer_size
         self.skip_first = skip_first
         self.reload_interval = reload_interval
         self._reload_files(True)
@@ -35,16 +37,26 @@ class OfflineDataSequential(IterableDataset):
         verbose = get_worker_id() == 0
         if is_first and verbose:
             print(f'Reading files from {str(self.input_dir)}...')
-        self._files = list(sorted(self.input_dir.glob('*.npz')))
+
+        files = list(sorted(self.input_dir.glob('*.npz')))
+        files_parsed = [(f, parse_episode_name(f.name)) for f in files]
+        files_parsed.sort(key=lambda f__seed_ep_steps: -f__seed_ep_steps[1][1])  # Sort by episode number
+
+        files_filtered = []
+        steps_total = 0
+        steps_filtered = 0
+        for f, (seed, ep, steps) in files_parsed:
+            steps_total += steps
+            if steps_total < self.buffer_size:
+                files_filtered.append(f)
+                steps_filtered = steps_total
+
+        self._files = files_filtered
         self._last_reload = time.time()
-        steps = 0
-        for f in self._files:
-            s = f.name.split('.')[0].split('-')[-1]
-            if s.isnumeric():
-                steps += int(s)
+        self.stats_steps = steps_total
+
         if verbose:
-            print(f'[TRAIN]  Found {len(self._files)} files, {steps} steps')
-        self.stats_steps = steps
+            print(f'[TRAIN]  Found total files|steps: {len(files)}|{steps_total}, filtered: {len(self._files)}|{steps_filtered}')
 
     def _should_reload_files(self):
         return self.reload_interval and (time.time() - self._last_reload > self.reload_interval)
@@ -56,7 +68,7 @@ class OfflineDataSequential(IterableDataset):
         for batches in zip(*iters):
             batch = {}
             for key in batches[0]:
-                batch[key] = np.stack([b[key] for b in batches]).swapaxes(0, 1)
+                batch[key] = np.stack([b[key] for b in batches]).swapaxes(0, 1)  # type: ignore
             yield batch
 
     def _iter_single(self, ix):
@@ -77,7 +89,7 @@ class OfflineDataSequential(IterableDataset):
             if last_partial_batch is not None:
                 batch, partial = next(it)
                 assert not partial, 'First batch must be full. Is episode_length < batch_size?'
-                batch = cat_structure_np([last_partial_batch, batch])
+                batch = cat_structure_np([last_partial_batch, batch])  # type: ignore
                 assert lenb(batch) == self.batch_length
                 last_partial_batch = None
                 yield batch
@@ -109,11 +121,11 @@ class OfflineDataSequential(IterableDataset):
 
         # Undo the transformation for better compression
         if 'image' not in data and 'image_t' in data:
-            data['image'] = data['image_t'].transpose(3, 0, 1, 2)  # HWCN => NHWC
+            data['image'] = data['image_t'].transpose(3, 0, 1, 2)  # type: ignore  # HWCN => NHWC
             del data['image_t']
 
-        if 'map_centered' in data and data['map_centered'].dtype == np.float64:
-            data['map_centered'] = (data['map_centered'] * 255).clip(0, 255).astype(np.uint8)
+        if 'map_centered' in data and data['map_centered'].dtype == np.float64:  # type: ignore
+            data['map_centered'] = (data['map_centered'] * 255).clip(0, 255).astype(np.uint8)  # type: ignore
 
         if not 'reset' in data:
             data['reset'] = np.zeros(n, bool)

@@ -244,11 +244,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 print('Saved data sample: ', {k: v.shape for k, v in data.items()})
                 first_save = False
 
-            if datas_episodes > 1:
-                fname = f's{seed}-ep{episodes-datas_episodes:06}_{episodes-1:06}-r{int(datas_reward)}-{datas_steps:04}.npz'
-            else:
-                fname = f's{seed}-ep{episodes-1:06}-r{int(datas_reward)}-{datas_steps:04}.npz'
-
+            fname = build_episode_name(seed, episodes - datas_episodes, episodes - 1, int(datas_reward), datas_steps)
             mlflow_log_npz(data, fname, episodes_dir, verbose=False)
 
     print(f'[GEN{seed:>2}]  Generator done.')
@@ -258,21 +254,35 @@ def discount(x: np.ndarray, gamma: float) -> np.ndarray:
     return scipy.signal.lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]  # type: ignore
 
 
+def build_episode_name(seed, episode_from, episode, reward, steps):
+    if episode_from < episode:
+        return f's{seed}-ep{episode_from:06}_{episode:06}-r{reward}-{steps:04}.npz'
+    else:
+        return f's{seed}-ep{episode:06}-r{reward}-{steps:04}.npz'
+
+
+def parse_episode_name(fname):
+    # fname = 's{seed}-ep{epfrom}_{episode}-r{reward}-{steps}.npz'
+    #       | 's{seed}-ep{episode}-r{reward}-{steps}.npz'
+    seed = fname.split('-')[0][1:]
+    seed = int(seed) if seed.isnumeric() else 0
+    steps = fname.split('.')[0].split('-')[-1]
+    steps = int(steps) if steps.isnumeric() else 0
+    episode = fname.split('.')[0].split('-')[-3].replace('ep', '').split('_')[-1]
+    episode = int(episode) if episode.isnumeric() else 0
+    return (seed, episode, steps)
+
+
 def count_steps(artifact_dir, seed):
     files = list(sorted(artifact_dir.glob('*.npz')))
     steps = 0
     episodes = 0
     for f in files:
-        # Example: f.name == '.../s1-ep0000_0003-r5-1500.npz'
-        sseed = f.name.split('-')[0][1:]
-        if sseed != str(seed):
+        fseed, fepisode, fsteps = parse_episode_name(f.name)
+        if fseed != seed:
             continue  # Belongs to another generator
-        sstep = f.name.split('.')[0].split('-')[-1]
-        if sstep.isnumeric():
-            steps += int(sstep)
-        sepisode = f.name.split('.')[0].split('-')[-3].replace('ep', '').split('_')[-1]
-        if sepisode.isnumeric():
-            episodes = max(episodes, int(sepisode) + 1)
+        steps += fsteps
+        episodes = max(episodes, fepisode + 1)
 
     print(f'Found existing {len(files)} files, {episodes} episodes, {steps} steps in {artifact_dir} (seed {seed})')
     return steps, episodes

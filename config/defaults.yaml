@@ -25,6 +25,7 @@ defaults:
   action_dim: 7
 
   # Training
+  buffer_size: 2_000_000
   iwae_samples: 1
   imagine_dropout: 0
   kl_balance: 0.8
