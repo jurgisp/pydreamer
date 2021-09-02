@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-kubectl config use-context gke_human-ui_europe-west4-b_mlflow-cluster
+kubectl config use-context mlflow-cluster
 
 MLFLOW_EXPERIMENT_NAME=$1
 CONFIG=$2
