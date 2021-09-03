@@ -208,13 +208,20 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 f'{metrics_prefix}/steps': steps,
                 f'{metrics_prefix}/episodes': episodes,
                 f'{metrics_prefix}/return': data['reward'].sum(),
-                f'{metrics_prefix}/return_discounted': discount(data['reward'], gamma=model_conf.gamma).mean(),
             })  # type: ignore
+
+            # Calculate return_discounted
+            rewards_v = data['reward'].copy()
+            if not data['terminal'][-1]:
+                avg_value = rewards_v.mean() / (1.0 - model_conf.gamma)
+                rewards_v[-1] += avg_value
+            returns_discounted = discount(rewards_v, gamma=model_conf.gamma)
+            metrics[f'{metrics_prefix}/return_discounted'] = returns_discounted.mean()
+
+            # Calculate policy_value_terminal
             if data['terminal'][-1]:
                 value_terminal = data['policy_value'][-2] - data['reward'][-1]  # This should be zero, because value[last] = reward[last]
-                metrics.update({
-                    f'{metrics_prefix}/policy_value_terminal': value_terminal
-                })
+                metrics[f'{metrics_prefix}/policy_value_terminal'] = value_terminal
             mlflow.log_metrics(metrics, step=log_step)
 
         # Save to npz
