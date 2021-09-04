@@ -43,11 +43,7 @@ def create_env(env_id: str, max_steps: int, no_terminal: bool, seed: int):
 
     elif env_id.startswith('DmLab-'):
         from envs_dmlab import DmLab
-        env = DmLab(env_id.split('-')[1].lower(),
-                    num_action_repeats=4,
-                    seed=seed,
-                    is_test=False,
-                    config={'width': 64, 'height': 64, 'logLevel': 'WARN'})
+        env = DmLab(env_id.split('-')[1].lower(), num_action_repeats=4)
         env = DictWrapper(env)
 
     else:

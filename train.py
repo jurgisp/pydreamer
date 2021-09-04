@@ -200,7 +200,6 @@ def run(conf):
                             metrics_max[k].append(v.item())
                     for k, v in {'reward': reward, 'reset': reset, 'terminal': terminal}.items():
                         metrics[f'data_{k}'].append(v.float().mean().item())
-                        metrics[f'data_{k}_std'].append(v.float().std().item())
 
                     # Log sample
 

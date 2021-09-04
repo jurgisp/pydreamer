@@ -13,103 +13,74 @@
 
 """DeepMind Lab Gym wrapper."""
 
-import hashlib
-import os
 import gym
 import numpy as np
 
-import deepmind_lab
+import deepmind_lab  # type: ignore
 
 
-DEFAULT_ACTION_SET = (
-    (0, 0, 0, 1, 0, 0, 0),    # Forward
-    (0, 0, 0, -1, 0, 0, 0),   # Backward
-    (0, 0, -1, 0, 0, 0, 0),   # Strafe Left
-    (0, 0, 1, 0, 0, 0, 0),    # Strafe Right
-    (-20, 0, 0, 0, 0, 0, 0),  # Look Left
-    (20, 0, 0, 0, 0, 0, 0),   # Look Right
-    (-20, 0, 0, 1, 0, 0, 0),  # Look Left + Forward
-    (20, 0, 0, 1, 0, 0, 0),   # Look Right + Forward
-    (0, 0, 0, 0, 1, 0, 0),    # Fire.
-)
+# Default (action_dim=9)
+# ACTION_SET = (
+#     (0, 0, 0, 1, 0, 0, 0),    # Forward
+#     (0, 0, 0, -1, 0, 0, 0),   # Backward
+#     (0, 0, -1, 0, 0, 0, 0),   # Strafe Left
+#     (0, 0, 1, 0, 0, 0, 0),    # Strafe Right
+#     (-20, 0, 0, 0, 0, 0, 0),  # Look Left
+#     (20, 0, 0, 0, 0, 0, 0),   # Look Right
+#     (-20, 0, 0, 1, 0, 0, 0),  # Look Left + Forward
+#     (20, 0, 0, 1, 0, 0, 0),   # Look Right + Forward
+#     (0, 0, 0, 0, 1, 0, 0),    # Fire.
+# )
 
-ALL_GAMES = frozenset([
-    'rooms_collect_good_objects_train',
-    'rooms_collect_good_objects_test',
-    'rooms_exploit_deferred_effects_train',
-    'rooms_exploit_deferred_effects_test',
-    'rooms_select_nonmatching_object',
-    'rooms_watermaze',
-    'rooms_keys_doors_puzzle',
-    'language_select_described_object',
-    'language_select_located_object',
-    'language_execute_random_task',
-    'language_answer_quantitative_question',
-    'lasertag_one_opponent_small',
-    'lasertag_three_opponents_small',
-    'lasertag_one_opponent_large',
-    'lasertag_three_opponents_large',
-    'natlab_fixed_large_map',
-    'natlab_varying_map_regrowth',
-    'natlab_varying_map_randomized',
-    'skymaze_irreversible_path_hard',
-    'skymaze_irreversible_path_varied',
-    'psychlab_arbitrary_visuomotor_mapping',
-    'psychlab_continuous_recognition',
-    'psychlab_sequential_comparison',
-    'psychlab_visual_search',
-    'explore_object_locations_small',
-    'explore_object_locations_large',
-    'explore_obstructed_goals_small',
-    'explore_obstructed_goals_large',
-    'explore_goal_locations_small',
-    'explore_goal_locations_large',
-    'explore_object_rewards_few',
-    'explore_object_rewards_many',
-])
+# RLU (action:dim=15)
+ACTION_SET = {
+    0: (0, 0, 0, 1, 0, 0, 0),     # Forward
+    1: (0, 0, 0, -1, 0, 0, 0),    # Backward
+    2: (0, 0, -1, 0, 0, 0, 0),    # Strafe Left
+    3: (0, 0, 1, 0, 0, 0, 0),     # Strafe Right
+    4: (-10, 0, 0, 0, 0, 0, 0),   # Left (10 deg)
+    5: (10, 0, 0, 0, 0, 0, 0),    # Right (10 deg)
+    6: (-60, 0, 0, 0, 0, 0, 0),   # Left (60 deg)
+    7: (60, 0, 0, 0, 0, 0, 0),    # Right (60 deg)
+    8: (0, 10, 0, 0, 0, 0, 0),    # Up (10 deg)
+    9: (0, -10, 0, 0, 0, 0, 0),   # Down (10 deg)
+    10: (-10, 0, 0, 1, 0, 0, 0),  # Left (10 deg) + Forward
+    11: (10, 0, 0, 1, 0, 0, 0),   # Right (10 deg) + Forward
+    12: (-60, 0, 0, 1, 0, 0, 0),  # Left (60 deg) + Forward
+    13: (60, 0, 0, 1, 0, 0, 0),   # Right (60 deg) + Forward
+    14: (0, 0, 0, 0, 1, 0, 0),    # Fire
+}
 
 
 class DmLab(gym.Env):
     """DeepMind Lab wrapper."""
 
-    def __init__(self, game, num_action_repeats, seed, is_test, config,
-                 action_set=DEFAULT_ACTION_SET, level_cache_dir=None):
-        if is_test:
-            config['allowHoldOutLevels'] = 'true'
-            # Mixer seed for evalution, see
-            # https://github.com/deepmind/lab/blob/master/docs/users/python_api.md
-            config['mixerSeed'] = 0x600D5EED
-
-        assert game in ALL_GAMES
-        game = 'contributed/dmlab30/' + game
-
-        # Path to dataset needed for psychlab_*, see https://github.com/deepmind/lab/tree/master/data/brady_konkle_oliva2008
-        config['datasetPath'] = ''
-        # Labyrinth homepath.
-        # deepmind_lab.set_runfiles_path(homepath)
-
+    def __init__(self, game, num_action_repeats, action_set=ACTION_SET):
         self._num_action_repeats = num_action_repeats
-        self._random_state = np.random.RandomState(seed=seed)
-
         self._env = deepmind_lab.Lab(
-            level=game,
+            level='contributed/dmlab30/' + game,
             observations=['RGB_INTERLEAVED'],
-            level_cache=LevelCache(level_cache_dir) if level_cache_dir else None,
-            config={k: str(v) for k, v in config.items()},
+            config=dict(
+                # fps='30',   # this produces 900 not 1800 steps in watermaze
+                height='72',  # 72x96 to match RLU observations
+                width='96',
+                datasetPath='',  # dataset needed for psychlab_*, see https://github.com/deepmind/lab/tree/master/data/brady_konkle_oliva2008
+                maxAltCameraHeight='1',
+                maxAltCameraWidth='1',
+                hasAltCameras='false'),
         )
         self._action_set = action_set
-        self.action_space = gym.spaces.Discrete(len(self._action_set))
-        self.observation_space = gym.spaces.Box(
-            low=0,
-            high=255,
-            shape=(config['height'], config['width'], 3),
-            dtype=np.uint8)
+        self.action_space = gym.spaces.Discrete(len(self._action_set))  # type: ignore
+        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)  # type: ignore
 
     def _observation(self):
-        return self._env.observations()['RGB_INTERLEAVED']
+        img = self._env.observations()['RGB_INTERLEAVED']
+        H, W = img.shape[:2]
+        img = img[-64:, (W - 64) // 2:-(W - 64) // 2]  # center-bottom crop
+        return img
 
     def reset(self):
-        self._env.reset(seed=self._random_state.randint(0, 2 ** 31 - 1))
+        self._env.reset()
         return self._observation()
 
     def step(self, action):
@@ -120,36 +91,8 @@ class DmLab(gym.Env):
             observation = self._observation()
         else:
             # Do not have actual observation in done state, but need to return something
-            observation = np.zeros(self.observation_space.shape, dtype=self.observation_space.dtype)
+            observation = np.zeros(self.observation_space.shape, dtype=self.observation_space.dtype)  # type: ignore
         return observation, reward, done, {}
 
     def close(self):
         self._env.close()
-
-
-class LevelCache(object):
-    """Level cache."""
-
-    def __init__(self, cache_dir):
-        self._cache_dir = cache_dir
-
-    def get_path(self, key):
-        key = hashlib.md5(key.encode('utf-8')).hexdigest()
-        dir_, filename = key[:3], key[3:]
-        return os.path.join(self._cache_dir, dir_, filename)
-
-    def fetch(self, key, pk3_path):
-        path = self.get_path(key)
-        raise NotImplementedError
-        # try:
-        #   tf.io.gfile.copy(path, pk3_path, overwrite=True)
-        #   return True
-        # except tf.errors.OpError:
-        #   return False
-
-    def write(self, key, pk3_path):
-        path = self.get_path(key)
-        raise NotImplementedError
-        # if not tf.io.gfile.exists(path):
-        #   tf.io.gfile.makedirs(os.path.dirname(path))
-        #   tf.io.gfile.copy(pk3_path, path)
