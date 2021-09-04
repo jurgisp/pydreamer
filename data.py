@@ -19,7 +19,7 @@ def get_worker_id():
 class OfflineDataSequential(IterableDataset):
     """Offline data which processes episodes sequentially"""
 
-    def __init__(self, input_dir: str, batch_length, batch_size, skip_first=True, reload_interval=0, buffer_size=0, state_reset_prob=0):
+    def __init__(self, input_dir: str, batch_length, batch_size, skip_first=True, reload_interval=0, buffer_size=0, reset_interval=0):
         super().__init__()
         if input_dir.startswith('gs:/') or input_dir.startswith('s3:/'):
             self.input_dir = Pathy(input_dir)
@@ -30,7 +30,7 @@ class OfflineDataSequential(IterableDataset):
         self.skip_first = skip_first
         self.reload_interval = reload_interval
         self.buffer_size = buffer_size
-        self.state_reset_prob = state_reset_prob
+        self.reset_interval = reset_interval
         self._reload_files(True)
         assert len(self._files) > 0, 'No data found'
 
@@ -132,10 +132,11 @@ class OfflineDataSequential(IterableDataset):
             data['reset'] = np.zeros(n, bool)
             data['reset'][0] = True  # Indicate episode start
 
+        if self.reset_interval:
+            self.randomize_resets(data['reset'], self.reset_interval)
+
         while i < n:
             batch = {key: data[key][i:i + l] for key in data}
-            if self.state_reset_prob and np.random.rand() < self.state_reset_prob:
-                batch['reset'][0] = True  # Reset state with some probability, to randomize sequence starts
             is_partial = lenb(batch) < l
             i += l
             l = batch_length
@@ -149,6 +150,25 @@ class OfflineDataSequential(IterableDataset):
                 self._reload_files()
             else:
                 yield self._files[i]
+
+    def randomize_resets(self, resets, reset_interval):
+        assert resets[0]
+        ep_boundaries = np.where(resets)[0].tolist() + [len(resets)]
+
+        for i in range(len(ep_boundaries) - 1):
+            ep_start = ep_boundaries[i]
+            ep_end = ep_boundaries[i + 1]
+            ep_steps = ep_end - ep_start
+
+            # Cut episode into a random number of intervals
+
+            max_intervals = (ep_steps // reset_interval) + 1
+            n_intervals = np.random.randint(1, max_intervals + 1)
+            i_boundaries = np.sort(np.random.choice(ep_steps - 50 * n_intervals, n_intervals - 1))
+            i_boundaries = ep_start + i_boundaries + np.arange(1, n_intervals) * 50
+
+            resets[i_boundaries] = True
+            assert resets[ep_start:ep_end].sum() == n_intervals
 
 
 def lenb(batch):
