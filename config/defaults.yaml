@@ -59,8 +59,8 @@ defaults:
   embed_rnn: none
   deter_dim: 2048
   stoch_dim: 32
-  stoch_discrete: 0
-  hidden_dim: 256
+  stoch_discrete: 32
+  hidden_dim: 1000
   gru_layers: 1
   gru_type: gru
   layer_norm: True

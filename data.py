@@ -19,7 +19,7 @@ def get_worker_id():
 class OfflineDataSequential(IterableDataset):
     """Offline data which processes episodes sequentially"""
 
-    def __init__(self, input_dir: str, batch_length, batch_size, skip_first=True, reload_interval=0, buffer_size=int(1e9), state_reset_prob=0):
+    def __init__(self, input_dir: str, batch_length, batch_size, skip_first=True, reload_interval=0, buffer_size=0, state_reset_prob=0):
         super().__init__()
         if input_dir.startswith('gs:/') or input_dir.startswith('s3:/'):
             self.input_dir = Pathy(input_dir)
@@ -48,7 +48,7 @@ class OfflineDataSequential(IterableDataset):
         steps_filtered = 0
         for f, (seed, ep, steps) in files_parsed:
             steps_total += steps
-            if steps_total < self.buffer_size:
+            if steps_total < self.buffer_size or not self.buffer_size:
                 files_filtered.append(f)
                 steps_filtered = steps_total
 
