@@ -267,7 +267,7 @@ def run(conf):
 
                         # This is just to count steps in the buffer
                         data_train = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, buffer_size=conf.buffer_size)
-                        mlflow.log_metrics({'data/steps': data_train.stats_steps}, step=steps)
+                        mlflow.log_metrics({'train/data_steps': data_train.stats_steps}, step=steps)
 
             for k, v in timers.items():
                 metrics[f'timer_{k}'].append(v.dt_ms)
