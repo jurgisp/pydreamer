@@ -81,7 +81,7 @@ defaults:
   global_dim: 0
 
   # Actor Critic
-  gamma: 0.997
+  gamma: 0.99
   lambda_gae: 0.95
   entropy: 0.003
   target_interval: 100
