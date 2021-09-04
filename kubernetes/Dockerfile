@@ -60,7 +60,7 @@ ENV PYTHONUNBUFFERED 1
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@e979bc77a9377346a6a0311a257e8bbb218e611c#egg=gym-minigrid
-RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@bbe9c73e9fdc61b9df6f64bfb601ba7197c1e7b9#egg=gym-miniworld
+RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@aec3ac7a58d89f4e6214e366e8d3e41dc7bb3652#egg=gym-miniworld
 
 
 COPY . .
