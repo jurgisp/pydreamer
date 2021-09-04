@@ -133,10 +133,16 @@ class OfflineDataSequential(IterableDataset):
             data['reset'][0] = True  # Indicate episode start
 
         if self.reset_interval:
-            self.randomize_resets(data['reset'], self.reset_interval)
+            random_resets = self.randomize_resets(data['reset'], self.reset_interval)
+        else:
+            random_resets = np.zeros_like(data['reset'])
 
         while i < n:
             batch = {key: data[key][i:i + l] for key in data}
+            if np.any(random_resets[i:i + l]):
+                # Random resets are generated at any step, but always reset in the beginning of the batch, for longer backprop
+                assert not np.any(batch['reset']), 'randomize_resets should not coincide with actual resets'
+                batch['reset'][0] = True  # type: ignore
             is_partial = lenb(batch) < l
             i += l
             l = batch_length
@@ -155,6 +161,7 @@ class OfflineDataSequential(IterableDataset):
         assert resets[0]
         ep_boundaries = np.where(resets)[0].tolist() + [len(resets)]
 
+        random_resets: np.ndarray = np.zeros_like(resets)  # type: ignore
         for i in range(len(ep_boundaries) - 1):
             ep_start = ep_boundaries[i]
             ep_end = ep_boundaries[i + 1]
@@ -167,8 +174,10 @@ class OfflineDataSequential(IterableDataset):
             i_boundaries = np.sort(np.random.choice(ep_steps - 50 * n_intervals, n_intervals - 1))
             i_boundaries = ep_start + i_boundaries + np.arange(1, n_intervals) * 50
 
-            resets[i_boundaries] = True
-            assert resets[ep_start:ep_end].sum() == n_intervals
+            random_resets[i_boundaries] = True
+            assert (resets | random_resets)[ep_start:ep_end].sum() == n_intervals
+
+        return random_resets
 
 
 def lenb(batch):
