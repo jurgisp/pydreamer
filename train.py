@@ -256,7 +256,7 @@ def run(conf):
                     if conf.eval_interval and steps % conf.eval_interval == 0:
 
                         # Same batch as train
-                        data_test = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.test_batch_size, skip_first=False)
+                        data_test = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.test_batch_size, skip_first=False, reset_interval=conf.reset_interval)
                         test_iter = iter(DataLoader(preprocess(data_test), batch_size=None))
                         evaluate('test', steps, model, test_iter, device, conf.test_batches, conf.iwae_samples, conf.keep_state, conf)
 
