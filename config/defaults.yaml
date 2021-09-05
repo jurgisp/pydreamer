@@ -3,8 +3,9 @@ defaults:
   n_steps: 500_000
   run_name: none
   resume_id:
-  input_dir: ./data/train
-  eval_dir: ./data/eval
+  offline_data_dir:
+  offline_test_dir:
+  offline_eval_dir:
   log_interval: 100
   logbatch_interval: 1000
   save_interval: 200
@@ -88,7 +89,6 @@ defaults:
   imag_horizon: 15
 
   # Generator
-  generator_run: True
   generator_workers: 4
   generator_prefill_steps: 500_000
   env_id:
@@ -96,10 +96,6 @@ defaults:
   env_no_terminal: False
 
 minigrid:
-  # Data
-  input_dir: /data/MiniGrid-MazeS11N-v0_100M/episodes/
-  eval_dir: /data/MiniGrid-MazeS11N-v0_100M/eval/
-
   # Env
   image_key: image
   image_size: 7
@@ -119,10 +115,6 @@ minigrid:
   embed_dim: 256
 
 minigrid_top: # Top-down observations instead of agent-centric
-  # Data
-  input_dir: /data/MiniGrid-MazeS11N-v0_100M/episodes/
-  eval_dir: /data/MiniGrid-MazeS11N-v0_100M/eval/
-
   # Env
   image_key: map_masked
   image_size: 11
@@ -142,10 +134,6 @@ minigrid_top: # Top-down observations instead of agent-centric
   embed_dim: 256
 
 miniworld:
-  # Data
-  input_dir: /data/MiniWorld-MazeS5GridN-v0_100M/train/
-  eval_dir: /data/MiniWorld-MazeS5GridN-v0_100M/eval/
-
   # Env
   image_key: image
   image_size: 64
@@ -165,7 +153,6 @@ miniworld:
 atari:
   # Generator
   env_id: Atari-Pong
-  generator_run: True
   # env_max_steps: 27_000  # =108_000/action_repeat = 30 minutes of game play.
 
   # Job
@@ -193,7 +180,6 @@ atari:
 dmlab:
   # Generator
   env_id: DmLab-rooms_watermaze
-  generator_run: True
   env_no_terminal: True
 
   # Job

@@ -38,21 +38,42 @@ def run(conf):
 
     # Generator / Agent
 
-    data_reload_interval = 0
-    if conf.generator_run:
-        conf.input_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes'  # type: ignore
-        conf.eval_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes_eval'  # type: ignore
+    if conf.offline_data_dir:
+        generator_train = False
+        input_dir = conf.offline_data_dir
+        data_reload_interval = 0
+    else:
+        generator_train = True
+        input_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes'  # type: ignore
         data_reload_interval = 60
         print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
         run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True, log_mlflow_metrics=False)
         print('Generator random prefill done, starting agent generator...')
         for i in range(conf.generator_workers):
             run_generator(conf, seed=1 + i, policy='network', episodes_dir='episodes', log_mlflow_metrics=i == 0)
-        run_generator(conf, seed=99, policy='network', episodes_dir='episodes_eval', log_mlflow_metrics=False)
+
+    if conf.offline_eval_dir:
+        generator_eval = False
+        eval_dir = conf.offline_eval_dir
+    else:
+        generator_eval = True
+        eval_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes_eval'  # type: ignore
+        print('Starting eval generator...')
+        run_generator(conf, seed=99, policy='network', episodes_dir='episodes_eval', log_mlflow_metrics=not generator_train)
+
+    if conf.offline_test_dir:
+        # This case is useful for:
+        # - train - offline train data
+        # - test - offline test data
+        # - eval - online agent
+        assert generator_eval, 'No point to specify both offline_eval_dir and offline_test_dir'
+        test_dir = conf.offline_test_dir
+    else:
+        test_dir = eval_dir
 
     # Data
 
-    data = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, skip_first=True, reload_interval=data_reload_interval, buffer_size=conf.buffer_size, reset_interval=conf.reset_interval)
+    data = OfflineDataSequential(input_dir, conf.batch_length, conf.batch_size, skip_first=True, reload_interval=data_reload_interval, buffer_size=conf.buffer_size, reset_interval=conf.reset_interval)
     preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
                                     image_key=conf.image_key,
                                     map_categorical=conf.map_channels if conf.map_categorical else None,
@@ -255,17 +276,17 @@ def run(conf):
                     if conf.eval_interval and steps % conf.eval_interval == 0:
 
                         # Same batch as train
-                        data_test = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.test_batch_size, skip_first=False, reset_interval=conf.reset_interval)
+                        data_test = OfflineDataSequential(test_dir, conf.batch_length, conf.test_batch_size, skip_first=False, reset_interval=conf.reset_interval)
                         test_iter = iter(DataLoader(preprocess(data_test), batch_size=None))
                         evaluate('test', steps, model, test_iter, device, conf.test_batches, conf.iwae_samples, conf.keep_state, conf)
 
                         # Full episodes
-                        data_eval = OfflineDataSequential(conf.eval_dir, conf.batch_length, conf.eval_batch_size, skip_first=False)
+                        data_eval = OfflineDataSequential(eval_dir, conf.batch_length, conf.eval_batch_size, skip_first=False)
                         eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
                         evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.eval_samples, True, conf)
 
                         # This is just to count steps in the buffer
-                        data_train = OfflineDataSequential(conf.input_dir, conf.batch_length, conf.batch_size, buffer_size=conf.buffer_size)
+                        data_train = OfflineDataSequential(input_dir, conf.batch_length, conf.batch_size, buffer_size=conf.buffer_size)
                         mlflow.log_metrics({'train/data_steps': data_train.stats_steps}, step=steps)
 
             for k, v in timers.items():
