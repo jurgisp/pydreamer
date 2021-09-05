@@ -38,9 +38,12 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
+# env = 'watermaze'
+env = 'tmaze'
+
 os.environ['MLFLOW_TRACKING_URI'] = 'http://10.164.0.62:30000'
 os.environ['MLFLOW_EXPERIMENT_NAME'] = 'dreamer2_episodes'
-mlflow.start_run(run_name='rlu_dmlab_watermaze_0')
+mlflow.start_run(run_name=f'rlu_dmlab_{env}_0')
 
 H, W, A = 72, 96, 15
 
@@ -87,12 +90,22 @@ def save_npz(data, filename):
         with filename.open('wb') as f2:
             f2.write(f1.read())
 
-rluds = tfds.rl_unplugged.RluDmlabRoomsWatermaze()
+if env == 'watermaze':
+    rluds = tfds.rl_unplugged.RluDmlabRoomsWatermaze()
+elif env == 'tmaze':
+    rluds = tfds.rl_unplugged.RluDmlabRoomsSelectNonmatchingObject()
+else:
+    assert False, env
 
 for shard in range(500):
-    ds = tf.data.TFRecordDataset(f'gs://rl_unplugged/dmlab/rooms_watermaze/training_0/tfrecord-{shard:05}-of-00500', compression_type='GZIP')
+    if env == 'watermaze':
+        ds = tf.data.TFRecordDataset(f'gs://rl_unplugged/dmlab/rooms_watermaze/training_0/tfrecord-{shard:05}-of-00500', compression_type='GZIP')
+    elif env == 'tmaze':
+        ds = tf.data.TFRecordDataset(f'gs://rl_unplugged/dmlab/rooms_select_nonmatching_object/training_0/tfrecord-{shard:05}-of-00500', compression_type='GZIP')
+    else:
+        assert False, env
     ds = ds.map(rluds.tf_example_to_step_ds, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    is_eval = shard == 0
+    is_eval = (shard == 0 or shard > 450)
     for i, r in enumerate(ds.as_numpy_iterator()):
         data = parse_record(r)
         if i == 0:
