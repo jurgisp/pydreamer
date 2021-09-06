@@ -62,5 +62,10 @@ RUN pip3 install -r requirements.txt
 RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@e979bc77a9377346a6a0311a257e8bbb218e611c#egg=gym-minigrid
 RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@aec3ac7a58d89f4e6214e366e8d3e41dc7bb3652#egg=gym-miniworld
 
+# MineRL
+RUN apt-get install -y openjdk-8-jdk
+RUN pip3 install minerl==0.4.1a2
+RUN apt-get install -y libx11-6 xvfb x11-xserver-utils
+ENV LANG "C.UTF-8"
 
 COPY . .

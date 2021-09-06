@@ -61,9 +61,6 @@ class Atari:
         obs = {'image': image}
         return obs, reward, done, info
 
-    def close(self):
-        return self._env.close()
-
     def render(self, mode):
         return self._env.render(mode)
 

@@ -151,5 +151,5 @@ dmlab:
   action_dim: 9
 
 minerl:
-  env_id: DmLab-rooms_watermaze  # TODO
+  env_id: MineRLObtainDiamondVectorObf-v0
   action_dim: 200

@@ -1,6 +1,6 @@
 __pycache__/
 .vscode/
-data/
+data/*
 data_bak/
 log/
 mlruns/
@@ -9,3 +9,5 @@ _*.*
 .pylintrc
 .pip/
 .env
+
+!data/minerl_*.npy

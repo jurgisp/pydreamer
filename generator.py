@@ -1,22 +1,26 @@
-import os
-from collections import defaultdict
-from preprocessing import Preprocessor
-from models import Dreamer
-from typing import Tuple, Optional, Dict, List
 import argparse
+import collections
+import datetime
+import os
+import pathlib
+import time
+import warnings
+from collections import defaultdict
+from typing import Dict, List, Optional, Tuple
+
+warnings.filterwarnings("ignore", ".*Box bound precision lowered by casting")
+
+import gym
+import mlflow
 import numpy as np
 import scipy.signal
-import datetime
-import time
-import pathlib
-import collections
-from numba import njit
-import gym
-from envs import MiniGrid, Atari
-import mlflow
 import torch
 import torch.distributions as D
+from numba import njit
 
+from envs import Atari, MiniGrid
+from models import Dreamer
+from preprocessing import Preprocessor
 from tools import *
 
 WALL = 2
@@ -45,6 +49,10 @@ def create_env(env_id: str, max_steps: int, no_terminal: bool, seed: int):
         from envs_dmlab import DmLab
         env = DmLab(env_id.split('-')[1].lower(), num_action_repeats=4)
         env = DictWrapper(env)
+
+    if env_id.startswith('MineRL'):
+        from envs_minerl import MineRL
+        env = MineRL(env_id, np.load('data/minerl_action_centroids_4.npy'))
 
     else:
         env = gym.make(env_id)

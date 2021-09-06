@@ -1,0 +1,34 @@
+import gym
+import minerl
+import numpy as np
+
+
+class MineRL(gym.Env):
+    """DeepMind Lab wrapper."""
+
+    def __init__(self, env_id, action_set):
+        self._env = gym.make(env_id)
+        self._action_set = action_set
+        self.action_space = gym.spaces.Discrete(len(self._action_set))  # type: ignore
+        self.observation_space = gym.spaces.Dict({  # type: ignore
+            'image': gym.spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)  # type: ignore
+        })
+
+    def reset(self):
+        obs = self._env.reset()
+        return self._observation(obs)
+
+    def step(self, action):
+        action_vec = self._action_set[action]
+        actions = action_vec.reshape((-1, 64))  # If action is [256] means it's 4x action repeat of [64] actions
+        reward = 0
+        for act in actions:
+            obs, rew, done, info = self._env.step({'vector': act})
+            reward += rew
+            if done:
+                break
+        return self._observation(obs), reward, done, info  # type: ignore
+
+    def _observation(self, obs):
+        img = obs['pov']
+        return {'image': img}

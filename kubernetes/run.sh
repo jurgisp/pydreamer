@@ -49,7 +49,7 @@ spec:
           command:
             - bash
           args:
-            - kubernetes/xvfb.sh 
+            - kubernetes/xvfb_run.sh 
             - python3
             - train.py
             - --configs

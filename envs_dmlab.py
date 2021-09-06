@@ -93,6 +93,3 @@ class DmLab(gym.Env):
             # Do not have actual observation in done state, but need to return something
             observation = np.zeros(self.observation_space.shape, dtype=self.observation_space.dtype)  # type: ignore
         return observation, reward, done, {}
-
-    def close(self):
-        self._env.close()
