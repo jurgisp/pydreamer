@@ -10,7 +10,7 @@ defaults:
   logbatch_interval: 1000
   save_interval: 200
   eval_interval: 2000
-  data_workers: 4
+  data_workers: 6  # need 6 to not bottleneck on unzipping npz, 4 is not enough
   enable_profiler: True
   verbose: False
 
@@ -116,9 +116,6 @@ minigrid:
   map_model: direct
 
 miniworld:
-  # Job
-  data_workers: 6  # need 6 to not bottleneck on unzipping npz, 4 is not enough
-
   # Features
   image_key: image
   image_size: 64
@@ -153,3 +150,4 @@ dmlab:
 minerl:
   env_id: MineRLObtainDiamondVectorObf-v0
   action_dim: 200
+  generator_workers: 1
