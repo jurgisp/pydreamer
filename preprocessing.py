@@ -8,7 +8,10 @@ from tools import *
 
 def to_onehot(x: np.ndarray, n_categories) -> np.ndarray:
     e = np.eye(n_categories, dtype=np.float32)
-    x = e[x]  # Nice trick: https://stackoverflow.com/a/37323404
+    return e[x]  # Nice trick: https://stackoverflow.com/a/37323404
+
+def img_to_onehot(x: np.ndarray, n_categories) -> np.ndarray:
+    x = to_onehot(x, n_categories)
     x = x.transpose(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
     return x
 
@@ -16,7 +19,7 @@ def to_onehot(x: np.ndarray, n_categories) -> np.ndarray:
 def to_image(x: np.ndarray) -> np.ndarray:
     if x.dtype == np.uint8:
         x = x.astype(np.float32)
-        x = x / 255.0 - 0.5
+        x = x / 255.0 - 0.5  # type: ignore
     else:
         assert 0.0 <= x[0, 0, 0, 0, 0] and x[0, 0, 0, 0, 0] <= 1.0
         x = x.astype(np.float32)
@@ -59,13 +62,14 @@ class TransformedDataset(IterableDataset):
             yield self.fn(batch)
 
 
-class MinigridPreprocess:
+class Preprocessor:
 
-    def __init__(self, image_categorical=33, image_key='image', map_categorical=33, map_key='map', amp=False):
+    def __init__(self, image_categorical=33, image_key='image', map_categorical=33, map_key='map', action_dim=0, amp=False):
         self._image_categorical = image_categorical
         self._image_key = image_key
         self._map_categorical = map_categorical
         self._map_key = map_key
+        self._action_dim = action_dim
         self._amp = amp
 
     def __call__(self, dataset: IterableDataset) -> IterableDataset:
@@ -87,7 +91,7 @@ class MinigridPreprocess:
         batch['image'] = batch[self._image_key]  # Use something else (e.g. map_masked) as image
         T, B, C, H, W = batch['image'].shape
         if self._image_categorical:
-            batch['image'] = to_onehot(batch['image'], self._image_categorical)
+            batch['image'] = img_to_onehot(batch['image'], self._image_categorical)
         else:
             batch['image'] = to_image(batch['image'])
 
@@ -96,7 +100,7 @@ class MinigridPreprocess:
         if self._map_key:
             batch['map'] = batch[self._map_key]
             if self._map_categorical:
-                batch['map'] = to_onehot(batch['map'], self._map_categorical)
+                batch['map'] = img_to_onehot(batch['map'], self._map_categorical)
             else:
                 batch['map'] = to_image(batch['map'])
             # cleanup unused
@@ -106,7 +110,9 @@ class MinigridPreprocess:
 
         # action
 
-        assert len(batch['action'].shape) == 3  # should be already one-hot
+        if len(batch['action'].shape) == 2:
+            batch['action'] = to_onehot(batch['action'], self._action_dim)
+        assert len(batch['action'].shape) == 3
         batch['action'] = batch['action'].astype(np.float32)
 
         # reward, terminal
@@ -120,7 +126,7 @@ class MinigridPreprocess:
             map_size = float(batch['map'].shape[-2])
             agent_pos = batch['agent_pos'] / map_size * 2 - 1.0
             agent_dir = batch['agent_dir']
-            batch['map_coord'] = np.concatenate([agent_pos, agent_dir], axis=-1).astype(np.float32)
+            batch['map_coord'] = np.concatenate([agent_pos, agent_dir], axis=-1).astype(np.float32)  # type: ignore
         else:
             batch['map_coord'] = np.zeros((T, B, 4))
 

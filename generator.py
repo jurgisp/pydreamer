@@ -1,6 +1,6 @@
 import os
 from collections import defaultdict
-from preprocessing import MinigridPreprocess
+from preprocessing import Preprocessor
 from models import Dreamer
 from typing import Tuple, Optional, Dict, List
 import argparse
@@ -97,10 +97,11 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     if policy == 'network':
         conf = model_conf
         model = Dreamer(conf)
-        preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
-                                        image_key=conf.image_key,
-                                        map_categorical=conf.map_channels if conf.map_categorical else None,
-                                        map_key=conf.map_key)
+        preprocess = Preprocessor(image_categorical=conf.image_channels if conf.image_categorical else None,
+                                  image_key=conf.image_key,
+                                  map_categorical=conf.map_channels if conf.map_categorical else None,
+                                  map_key=conf.map_key,
+                                  action_dim=env.action_size)
         policy = NetworkPolicy(model, preprocess)
 
     elif policy == 'random':
@@ -300,7 +301,7 @@ class RandomPolicy:
 
 
 class NetworkPolicy:
-    def __init__(self, model: Dreamer, preprocess: MinigridPreprocess):
+    def __init__(self, model: Dreamer, preprocess: Preprocessor):
         self.model = model
         self.preprocess = preprocess
         self._state = model.wm.init_state(1)
@@ -582,7 +583,7 @@ class ActionRewardResetWrapper:
         self._env = env
         self._no_terminal = no_terminal
         # Handle environments with one-hot or discrete action, but collect always as one-hot
-        self._action_size = env.action_space.shape[0] if env.action_space.shape != () else env.action_space.n
+        self.action_size = env.action_space.shape[0] if env.action_space.shape != () else env.action_space.n
 
     def __getattr__(self, name):
         return getattr(self._env, name)
@@ -590,10 +591,10 @@ class ActionRewardResetWrapper:
     def step(self, action):
         obs, reward, done, info = self._env.step(action)
         if isinstance(action, int):
-            action_onehot = np.zeros(self._action_size)
+            action_onehot = np.zeros(self.action_size)
             action_onehot[action] = 1.0
         else:
-            assert isinstance(action, np.ndarray) and action.shape == (self._action_size,), "Wrong one-hot action shape"
+            assert isinstance(action, np.ndarray) and action.shape == (self.action_size,), "Wrong one-hot action shape"
             action_onehot = action
         obs['action'] = action_onehot
         obs['reward'] = np.array(reward)
@@ -603,7 +604,7 @@ class ActionRewardResetWrapper:
 
     def reset(self):
         obs = self._env.reset()
-        obs['action'] = np.zeros(self._action_size)
+        obs['action'] = np.zeros(self.action_size)
         obs['reward'] = np.array(0.0)
         obs['terminal'] = np.array(False)
         obs['reset'] = np.array(True)

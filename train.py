@@ -22,7 +22,7 @@ import scipy.special
 import tools
 from tools import *
 from data import OfflineDataSequential
-from preprocessing import MinigridPreprocess, WorkerInfoPreprocess
+from preprocessing import Preprocessor, WorkerInfoPreprocess
 from models import *
 import generator
 
@@ -80,11 +80,12 @@ def run(conf):
                                  reload_interval=data_reload_interval,
                                  buffer_size=conf.buffer_size if generator_train else 0,
                                  reset_interval=conf.reset_interval)
-    preprocess = MinigridPreprocess(image_categorical=conf.image_channels if conf.image_categorical else None,
-                                    image_key=conf.image_key,
-                                    map_categorical=conf.map_channels if conf.map_categorical else None,
-                                    map_key=conf.map_key,
-                                    amp=conf.device.startswith('cuda') and conf.amp)
+    preprocess = Preprocessor(image_categorical=conf.image_channels if conf.image_categorical else None,
+                              image_key=conf.image_key,
+                              map_categorical=conf.map_channels if conf.map_categorical else None,
+                              map_key=conf.map_key,
+                              action_dim=conf.action_dim,
+                              amp=conf.device.startswith('cuda') and conf.amp)
 
     # MODEL
 
