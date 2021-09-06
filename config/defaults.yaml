@@ -10,21 +10,21 @@ defaults:
   logbatch_interval: 1000
   save_interval: 200
   eval_interval: 2000
-  data_workers: 6  # need 6 to not bottleneck on unzipping npz, 4 is not enough
+  data_workers: 4
   enable_profiler: True
   verbose: False
 
-  # Env
+  # Features
   image_key: image
-  image_size: 7
-  image_channels: 4
-  image_categorical: True
-  map_key: map
+  image_size: 64
+  image_channels: 3
+  image_categorical: False
+  map_key:
   map_size: 11
   map_channels: 4
   map_categorical: True
-  action_dim: 7
-
+  action_dim: 0
+  
   # Training
   buffer_size: 10_000_000
   reset_interval: 0
@@ -65,15 +65,15 @@ defaults:
   gru_layers: 1
   gru_type: gru
   layer_norm: True
-  image_encoder: dense
-  image_encoder_layers: 3
-  image_decoder: dense
-  image_decoder_layers: 2
+  image_encoder: cnn
+  image_encoder_layers: 0
+  image_decoder: cnn
+  image_decoder_layers: 0
   reward_input: True
   reward_decoder_layers: 4
   terminal_decoder_layers: 4
   map_stoch_dim: 64
-  map_model: direct
+  map_model: none
   map_decoder: dense
   map_hidden_layers: 4
   map_hidden_dim: 1024
@@ -96,7 +96,7 @@ defaults:
   env_no_terminal: False
 
 minigrid:
-  # Env
+  # Features
   image_key: image
   image_size: 7
   image_channels: 4
@@ -113,28 +113,13 @@ minigrid:
   image_decoder: dense
   image_decoder_layers: 2
   embed_dim: 256
-
-minigrid_top: # Top-down observations instead of agent-centric
-  # Env
-  image_key: map_masked
-  image_size: 11
-  image_channels: 8
-  image_categorical: True
-  map_key: map
-  map_size: 11
-  map_channels: 8
-  map_categorical: True
-  action_dim: 7
-
-  # Model
-  image_encoder: dense
-  image_encoder_layers: 3
-  image_decoder: dense
-  image_decoder_layers: 2
-  embed_dim: 256
+  map_model: direct
 
 miniworld:
-  # Env
+  # Job
+  data_workers: 6  # need 6 to not bottleneck on unzipping npz, 4 is not enough
+
+  # Features
   image_key: image
   image_size: 64
   image_channels: 3
@@ -146,55 +131,25 @@ miniworld:
   action_dim: 3
 
   # Model
-  image_encoder: cnn
-  image_decoder: cnn
-  embed_dim: 1024
+  map_model: direct
 
 atari:
   # Generator
   env_id: Atari-Pong
+  action_dim: 18
   # env_max_steps: 27_000  # =108_000/action_repeat = 30 minutes of game play.
 
-  # Job
-  data_workers: 3
-
-  # Env
-  image_key: image
-  image_size: 64
-  image_channels: 3
-  image_categorical: False
-  map_key:
-  action_dim: 18
-
   # Model
-  image_encoder: cnn
-  image_decoder: cnn
-  embed_dim: 1024  # TODO: increase
-  map_model: none
   deter_dim: 1024
-  # hidden_dim: 1024
 
   # Optimizer
   kl_weight: 0.1
 
 dmlab:
-  # Generator
   env_id: DmLab-rooms_watermaze
   env_no_terminal: True
-
-  # Job
-  data_workers: 3
-
-  # Env
-  image_key: image
-  image_size: 64
-  image_channels: 3
-  image_categorical: False
-  map_key:
   action_dim: 9
 
-  # Model
-  image_encoder: cnn
-  image_decoder: cnn
-  embed_dim: 1024
-  map_model: none
+minerl:
+  env_id: DmLab-rooms_watermaze  # TODO
+  action_dim: 200
