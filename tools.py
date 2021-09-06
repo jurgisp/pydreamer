@@ -44,7 +44,7 @@ def mlflow_start_or_resume(run_name, resume_id=None):
     print(f'Mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
 
 
-def mlflow_log_npz(data, name, subdir=None, verbose=False):
+def mlflow_log_npz(data: dict, name, subdir=None, verbose=False):
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / name
         save_npz(data, path)
