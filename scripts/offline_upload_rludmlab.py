@@ -16,6 +16,7 @@ ssh adhoc-jurgis-cpu-tf2.europe-west4-b.human-ui
 
     gcloud auth application-default login
 
+
 ## Start
 
 gcloud compute instances start adhoc-jurgis-cpu-tf2
@@ -24,9 +25,17 @@ ssh adhoc-jurgis-cpu-tf2.europe-west4-b.human-ui
 tmux
     python3
 
+
 ## Stop
 
 gcloud compute instances stop adhoc-jurgis-cpu-tf2
+
+
+## Connect
+
+ssh adhoc-jurgis-cpu-tf2.europe-west4-b.human-ui
+tmux attach
+
 """
 
 import os

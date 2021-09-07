@@ -50,7 +50,7 @@ def create_env(env_id: str, max_steps: int, no_terminal: bool, seed: int):
         env = DmLab(env_id.split('-')[1].lower(), num_action_repeats=4)
         env = DictWrapper(env)
 
-    if env_id.startswith('MineRL'):
+    elif env_id.startswith('MineRL'):
         from envs_minerl import MineRL
         env = MineRL(env_id, np.load('data/minerl_action_centroids_4.npy'))
 
