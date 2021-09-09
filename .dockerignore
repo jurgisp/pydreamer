@@ -7,4 +7,5 @@ mlruns/
 _*.*
 .*
 
+!.gcs_credentials
 !data/minerl_*.npy

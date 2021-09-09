@@ -5,9 +5,8 @@ data_bak/
 log/
 mlruns/
 _*.*
-.DS_Store
-.pylintrc
-.pip/
-.env
+.*
 
+!.gitignore
+!.dockerignore
 !data/minerl_*.npy

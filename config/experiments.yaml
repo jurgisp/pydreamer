@@ -1,3 +1,16 @@
 dmlabtmaze_online:
   env_id: DmLab-rooms_select_nonmatching_object
   action_dim: 15
+
+debug:
+  env_id: DmLab-rooms_select_nonmatching_object
+  action_dim: 15
+  generator_prefill_steps: 2_000
+  device: cpu
+  log_interval: 2
+  save_interval: 10
+  data_workers: 0
+  generator_workers: 1
+  batch_length: 15
+  batch_size: 5
+  imag_horizon: 1
