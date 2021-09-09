@@ -1,0 +1,3 @@
+dmlabtmaze_online:
+  env_id: DmLab-rooms_select_nonmatching_object
+  action_dim: 15

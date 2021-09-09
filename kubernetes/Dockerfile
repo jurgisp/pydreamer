@@ -51,21 +51,25 @@ RUN NP_INC="$(python3 -c 'import numpy as np; print(np.get_include()[5:])')" && 
     pip3 install /tmp/dmlab_pkg/DeepMind_Lab-*.whl --force-reinstall && \
     rm -rf /lab
 
+# MineRL
+
+RUN apt-get install -y openjdk-8-jdk
+RUN pip3 install minerl==0.4.1a2
+RUN apt-get install -y libx11-6 xvfb x11-xserver-utils
+ENV LANG "C.UTF-8"
+
 # APP
 
 WORKDIR /app
-ENV OMP_NUM_THREADS 1
-ENV PYTHONUNBUFFERED 1
 
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@e979bc77a9377346a6a0311a257e8bbb218e611c#egg=gym-minigrid
 RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@aec3ac7a58d89f4e6214e366e8d3e41dc7bb3652#egg=gym-miniworld
 
-# MineRL
-RUN apt-get install -y openjdk-8-jdk
-RUN pip3 install minerl==0.4.1a2
-RUN apt-get install -y libx11-6 xvfb x11-xserver-utils
-ENV LANG "C.UTF-8"
+ENV OMP_NUM_THREADS 1
+ENV PYTHONUNBUFFERED 1
+ENV MLFLOW_TRACKING_URI ""
+ENV MLFLOW_EXPERIMENT_NAME "Default"
 
 COPY . .
