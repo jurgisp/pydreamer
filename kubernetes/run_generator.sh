@@ -4,7 +4,10 @@ kubectl config use-context mlflow-cluster
 
 MLFLOW_EXPERIMENT_NAME=$1
 ENVID=$2
-SEED=$3
+POLICY=$3
+MAXSTEPS=$4
+NUMSTEPS=$5
+SEED=$6
 
 TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
 TAG=$(git describe --tags | sed 's/-g[a-z0-9]\{7\}//')
@@ -42,15 +45,19 @@ spec:
             - name: google-cloud-key
               mountPath: /var/secrets/google
           command:
-            - python3
+            - bash 
           args:
-            - generator.py
+            - scripts/xvfb_run.sh 
+            - python3 
+            - generator.py 
             - --env_id
-            - ${ENVID}
-            - --num_steps
-            - "10_000_000"
+            - "${ENVID}"
+            - --policy
+            - "${POLICY}"
             - --seed
             - "${SEED}"
+            - --num_steps
+            - "${NUMSTEPS}"
           resources:
             requests:
               memory: 4000Mi
