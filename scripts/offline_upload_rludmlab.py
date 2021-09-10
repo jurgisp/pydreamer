@@ -55,6 +55,7 @@ os.environ['MLFLOW_EXPERIMENT_NAME'] = 'dreamer2_episodes'
 mlflow.start_run(run_name=f'rlu_dmlab_{env}_0')
 
 H, W, A = 72, 96, 15
+STEPS_PER_NPZ = 1800
 
 def decode_image(imgb, h=64, w=64):
     img = tf.io.decode_image(imgb)
@@ -74,8 +75,7 @@ def parse_record(rec):
     data['reward'] = rec['steps']['observation']['last_reward']
     data['terminal'] = rec['steps']['is_terminal']
     data['reset'] = rec['steps']['is_first']
-    img_t = np.stack([decode_image(imgb) for imgb in rec['steps']['observation']['pixels']], -1)
-    data['image_t'] = img_t
+    data['image'] = np.stack([decode_image(imgb) for imgb in rec['steps']['observation']['pixels']], 0)
     return data
 
 def build_episode_name(seed, episode_from, episode, reward, steps):
@@ -114,12 +114,29 @@ for shard in range(500):
     else:
         assert False, env
     ds = ds.map(rluds.tf_example_to_step_ds, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    is_eval = (shard == 0 or shard > 450)
+    episodes_dir = 'episodes_eval' if (shard == 0 or shard > 450) else 'episodes'
+    datas = []
     for i, r in enumerate(ds.as_numpy_iterator()):
         data = parse_record(r)
         if i == 0:
-            print('Data sample: ', {k: v.shape for k, v in data.items()})
-        fname = build_episode_name(shard, i, i, int(data['reward'].sum()), len(data['reward']) - 1)
-        mlflow_log_npz(data, fname, 'episodes_eval' if is_eval else 'episodes', verbose=True)
-
-
+            print('Episode data sample: ', {k: v.shape for k, v in data.items()})
+        #
+        # Save to npz
+        datas.append(data)
+        datas_episodes = len(datas)
+        datas_steps = sum(len(d['reset']) - 1 for d in datas)
+        datas_reward = sum(d['reward'].sum() for d in datas)
+        if datas_steps >= STEPS_PER_NPZ:
+            # Concatenate episodes
+            data = {}
+            for key in datas[0]:
+                data[key] = np.concatenate([b[key] for b in datas], axis=0)
+            datas = []
+            # NHWC => HWCN for better compression
+            data['image_t'] = data['image'].transpose(1, 2, 3, 0)
+            del data['image']
+            # Save to npz
+            if i <= datas_episodes:
+                print('Saved data sample: ', {k: v.shape for k, v in data.items()})
+            fname = build_episode_name(shard, i + 1 - datas_episodes, i, int(datas_reward), datas_steps)
+            mlflow_log_npz(data, fname, episodes_dir, verbose=True)
