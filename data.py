@@ -19,12 +19,9 @@ def get_worker_id():
 class OfflineDataSequential(IterableDataset):
     """Offline data which processes episodes sequentially"""
 
-    def __init__(self, input_dir: str, batch_length, batch_size, skip_first=True, reload_interval=0, buffer_size=0, reset_interval=0):
+    def __init__(self, input_dir: Union[str, List[str]], batch_length, batch_size, skip_first=True, reload_interval=0, buffer_size=0, reset_interval=0):
         super().__init__()
-        if input_dir.startswith('gs:/') or input_dir.startswith('s3:/'):
-            self.input_dir = Pathy(input_dir)
-        else:
-            self.input_dir = Path(input_dir)
+        self.input_dirs = [input_dir] if isinstance(input_dir, str) else input_dir
         self.batch_length = batch_length
         self.batch_size = batch_size
         self.skip_first = skip_first
@@ -37,9 +34,13 @@ class OfflineDataSequential(IterableDataset):
     def _reload_files(self, is_first=False):
         verbose = get_worker_id() == 0
         if is_first and verbose:
-            print(f'Reading files from {str(self.input_dir)}...')
+            print(f'Reading files from {self.input_dirs}...')
 
-        files = list(sorted(self.input_dir.glob('*.npz')))
+        files = []
+        for dir in self.input_dirs:
+            path = Pathy(dir) if dir.startswith('gs:/') or dir.startswith('s3:/') else Path(dir)
+            files.extend(list(path.glob('*.npz')))
+        files.sort()
         files_parsed = [(f, parse_episode_name(f.name)) for f in files]
         files_parsed.sort(key=lambda f__seed_ep_steps: -f__seed_ep_steps[1][1])  # Sort by episode number
 

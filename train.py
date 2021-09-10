@@ -40,15 +40,19 @@ def run(conf):
 
     if conf.offline_data_dir:
         generator_train = False
-        input_dir = conf.offline_data_dir
         data_reload_interval = 0
+        input_dir = conf.offline_data_dir
     else:
         generator_train = True
-        input_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes'  # type: ignore
         data_reload_interval = 60
-        print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
-        run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True, log_mlflow_metrics=False)
-        print('Generator random prefill done, starting agent generator...')
+        input_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes'  # type: ignore
+        if conf.offline_prefill_dir:
+            # Mixture of offline and online
+            input_dir = [conf.offline_prefill_dir, input_dir]
+        else:
+            print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
+            run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True, log_mlflow_metrics=False)
+            print('Generator random prefill done, starting agent generator...')
         for i in range(conf.generator_workers):
             run_generator(conf, seed=1 + i, policy='network', episodes_dir='episodes', log_mlflow_metrics=i == 0)
 

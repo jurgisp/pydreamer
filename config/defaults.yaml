@@ -4,6 +4,7 @@ defaults:
   run_name: none
   resume_id:
   offline_data_dir:
+  offline_prefill_dir:
   offline_test_dir:
   offline_eval_dir:
   log_interval: 100
