@@ -74,7 +74,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          model_reload_interval=60,
          model_conf=dict(),
          log_mlflow_metrics=True,
-         episodes_dir='episodes',
+         eval_fraction=0.0,
          metrics_prefix='agent',
          ):
 
@@ -89,6 +89,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         run = mlflow.start_run(run_name=f'{env_id}-s{seed}')
         print(f'Mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
 
+    episodes_dir = 'episodes' if eval_fraction < 1.0 else 'episodes_eval'  # HACK
     artifact_dir = run.info.artifact_uri.replace('file://', '') + '/' + episodes_dir
     if artifact_dir.startswith('gs:/') or artifact_dir.startswith('s3:/'):
         artifact_dir = Pathy(artifact_dir)
@@ -257,6 +258,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 first_save = False
 
             fname = build_episode_name(seed, episodes - datas_episodes, episodes - 1, int(datas_reward), datas_steps)
+            episodes_dir = 'episodes' if np.random.rand() > eval_fraction else 'episodes_eval'
             mlflow_log_npz(data, fname, episodes_dir, verbose=False)
 
     print(f'[GEN{seed:>2}]  Generator done.')

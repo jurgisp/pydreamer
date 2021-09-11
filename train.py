@@ -54,23 +54,20 @@ def run(conf):
             run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True, log_mlflow_metrics=False)
             print('Generator random prefill done, starting agent generator...')
         for i in range(conf.generator_workers):
-            run_generator(conf, seed=1 + i, policy='network', episodes_dir='episodes', log_mlflow_metrics=i == 0)
+            run_generator(conf, seed=1 + i, policy='network', eval_fraction=0.1, log_mlflow_metrics=i == 0)
 
     if conf.offline_eval_dir:
         generator_eval = False
         eval_dir = conf.offline_eval_dir
     else:
-        generator_eval = True
         eval_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes_eval'  # type: ignore
-        print('Starting eval generator...')
-        run_generator(conf, seed=99, policy='network', episodes_dir='episodes_eval', log_mlflow_metrics=not generator_train)
+        if not generator_train:
+            # Only need eval generator, if not using train generator. Otherwise train generator will generate eval data too
+            generator_eval = True
+            print('Starting eval generator...')
+            run_generator(conf, seed=99, policy='network', eval_fraction=1.0, log_mlflow_metrics=not generator_train)
 
     if conf.offline_test_dir:
-        # This case is useful for:
-        # - train - offline train data
-        # - test - offline test data
-        # - eval - online agent
-        assert generator_eval, 'No point to specify both offline_eval_dir and offline_test_dir'
         test_dir = conf.offline_test_dir
     else:
         test_dir = eval_dir
@@ -285,20 +282,24 @@ def run(conf):
 
                 with timer('eval'):
                     if conf.eval_interval and steps % conf.eval_interval == 0:
+                        try:
+                            # Test = same settings as train
+                            data_test = OfflineDataSequential(test_dir, conf.batch_length, conf.test_batch_size, skip_first=False, reset_interval=conf.reset_interval)
+                            test_iter = iter(DataLoader(preprocess(data_test), batch_size=None))
+                            evaluate('test', steps, model, test_iter, device, conf.test_batches, conf.iwae_samples, conf.keep_state, conf)
 
-                        # Same batch as train
-                        data_test = OfflineDataSequential(test_dir, conf.batch_length, conf.test_batch_size, skip_first=False, reset_interval=conf.reset_interval)
-                        test_iter = iter(DataLoader(preprocess(data_test), batch_size=None))
-                        evaluate('test', steps, model, test_iter, device, conf.test_batches, conf.iwae_samples, conf.keep_state, conf)
+                            # Eval = no state reset, multisampling
+                            data_eval = OfflineDataSequential(eval_dir, conf.batch_length, conf.eval_batch_size, skip_first=False)
+                            eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
+                            evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.eval_samples, True, conf)
 
-                        # Full episodes
-                        data_eval = OfflineDataSequential(eval_dir, conf.batch_length, conf.eval_batch_size, skip_first=False)
-                        eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
-                        evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.eval_samples, True, conf)
+                            # This is just to count steps in the buffer
+                            data_train = OfflineDataSequential(input_dir, conf.batch_length, conf.batch_size, buffer_size=conf.buffer_size)
+                            mlflow.log_metrics({'train/data_steps': data_train.stats_steps}, step=steps)
 
-                        # This is just to count steps in the buffer
-                        data_train = OfflineDataSequential(input_dir, conf.batch_length, conf.batch_size, buffer_size=conf.buffer_size)
-                        mlflow.log_metrics({'train/data_steps': data_train.stats_steps}, step=steps)
+                        except Exception as e:
+                            # This catch is useful if there is no eval data generated yet
+                            print(f'ERROR while evaluating: {repr(e)}')
 
             for k, v in timers.items():
                 metrics[f'timer_{k}'].append(v.dt_ms)
@@ -477,7 +478,7 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
     return {k: unpreprocess(k, v) for k, v in data.items()}
 
 
-def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=False, episodes_dir='episodes', metrics_prefix='agent', log_mlflow_metrics=True):
+def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=False, eval_fraction=0.0, metrics_prefix='agent', log_mlflow_metrics=True):
     os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
     p = Process(target=generator.main,
                 daemon=True,
@@ -490,7 +491,7 @@ def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=Fals
                     seed=seed,
                     model_conf=conf,
                     log_mlflow_metrics=log_mlflow_metrics,
-                    episodes_dir=episodes_dir,
+                    eval_fraction=eval_fraction,
                     metrics_prefix=metrics_prefix
                 ))
     p.start()
