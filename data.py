@@ -68,9 +68,8 @@ class OfflineDataSequential(IterableDataset):
         # Iterates forever
         iters = [self._iter_single(ix) for ix in range(self.batch_size)]
         for batches in zip(*iters):
-            batch = {}
-            for key in batches[0]:
-                batch[key] = np.stack([b[key] for b in batches]).swapaxes(0, 1)  # type: ignore
+            batch = stack_structure_np(batches)
+            batch = map_structure_np(batch, lambda d: d.swapaxes(0, 1))
             yield batch
 
     def _iter_single(self, ix):
@@ -107,7 +106,7 @@ class OfflineDataSequential(IterableDataset):
     def _iter_file(self, file, batch_length, skip_random=False, first_shorter_length=None):
         try:
             with Timer(f'Reading {file}', verbose=False):
-                data = load_npz(file)
+                data: Dict[str, np.ndarray] = load_npz(file)  # type: ignore
         except Exception as e:
             print('Error reading file - skipping')
             print(e)
@@ -123,11 +122,16 @@ class OfflineDataSequential(IterableDataset):
 
         # Undo the transformation for better compression
         if 'image' not in data and 'image_t' in data:
-            data['image'] = data['image_t'].transpose(3, 0, 1, 2)  # type: ignore  # HWCN => NHWC
+            data['image'] = data['image_t'].transpose(3, 0, 1, 2)  # HWCN => NHWC
             del data['image_t']
 
-        if 'map_centered' in data and data['map_centered'].dtype == np.float64:  # type: ignore
-            data['map_centered'] = (data['map_centered'] * 255).clip(0, 255).astype(np.uint8)  # type: ignore
+        if 'map_centered' in data and data['map_centered'].dtype == np.float64:
+            assert False, 'Legacy, shouldnt happen anymore'  # TODO: remove
+            # data['map_centered'] = (data['map_centered'] * 255).clip(0, 255).astype(np.uint8)
+
+        # Convert one-hot back to categorical
+        if len(data['action'].shape) == 2:
+            data['action'] = data['action'].argmax(-1)
 
         if not 'reset' in data:
             data['reset'] = np.zeros(n, bool)
@@ -143,7 +147,7 @@ class OfflineDataSequential(IterableDataset):
             if np.any(random_resets[i:i + l]):
                 # Random resets are generated at any step, but always reset in the beginning of the batch, for longer backprop
                 assert not np.any(batch['reset']), 'randomize_resets should not coincide with actual resets'
-                batch['reset'][0] = True  # type: ignore
+                batch['reset'][0] = True
             is_partial = lenb(batch) < l
             i += l
             l = batch_length

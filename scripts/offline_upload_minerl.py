@@ -25,6 +25,7 @@ tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)  # type: ignore
 args = argparse.ArgumentParser()
 args.add_argument('--run', default='minerl_treechop_obf')
 args.add_argument('--env', default='MineRLTreechopVectorObf-v0')
+args.add_argument('--cluster', default=False)
 
 ACTION_REPEAT = 4
 N_ACTIONS = 200
@@ -127,5 +128,6 @@ def save_episodes(conf):
 
 if __name__ == "__main__":
     conf = args.parse_args()
-    cluster_actions()
+    if conf.cluster:
+        cluster_actions()
     save_episodes(conf)

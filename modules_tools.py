@@ -122,10 +122,26 @@ def cat_structure_np(datas: List[Dict[str, np.ndarray]]) -> Dict[str, np.ndarray
     keys = set(datas[0].keys())
     for d in datas[1:]:
         keys.intersection_update(d.keys())
-    return {
+    return {  # type: ignore
         k: np.concatenate([d[k] for d in datas])
         for k in keys
     }
+
+
+def stack_structure_np(datas: Tuple[Dict[str, np.ndarray]]) -> Dict[str, np.ndarray]:
+    assert isinstance(datas[0], dict), 'Not implemented for other types'
+    keys = set(datas[0].keys())
+    for d in datas[1:]:
+        keys.intersection_update(d.keys())
+    return {  # type: ignore
+        key: np.stack([d[key] for d in datas])
+        for key in keys
+    }
+
+
+def map_structure_np(data: Dict[str, np.ndarray], f: Callable[[np.ndarray], np.ndarray]) -> Dict[str, np.ndarray]:
+    assert isinstance(data, dict), 'Not implemented for other types'
+    return {k: f(v) for k, v in data.items()}
 
 
 def nanmean(x: Tensor) -> Tensor:
