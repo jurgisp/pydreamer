@@ -10,7 +10,6 @@ from modules_tools import *
 from modules_rssm import *
 from modules_rnn import *
 from modules_io import *
-from modules_mem import *
 from modules_rl import *
 
 
@@ -262,7 +261,6 @@ class WorldModel(nn.Module):
         self._terminal_weight = terminal_weight
         self._embed_rnn = embed_rnn
         self._kl_balance = None if kl_balance == 0.5 else kl_balance
-        self._mem_model = NoMemory()
 
         # Encoder
 
@@ -305,18 +303,6 @@ class WorldModel(nn.Module):
 
         self._decoder_reward = DenseNormalHead(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
         self._decoder_terminal = DenseBernoulliHead(in_dim=state_dim, hidden_layers=conf.terminal_decoder_layers, layer_norm=conf.layer_norm)
-
-        # Memory model
-
-        # if conf.mem_model == 'global_state':
-        #     mem_model = GlobalStateMem(embed_dim=conf.embed_dim,
-        #                             action_dim=conf.action_dim,
-        #                             mem_dim=conf.deter_dim,
-        #                             stoch_dim=conf.global_dim,
-        #                             hidden_dim=conf.hidden_dim,
-        #                             loss_type=conf.mem_loss_type)
-        # else:
-        #     mem_model = NoMemory()
 
         # RSSM
 
@@ -369,12 +355,6 @@ class WorldModel(nn.Module):
         if self._input_rnn:
             embed_rnn, _ = self._input_rnn.forward(embed, action)  # (N,B,2E)
             embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E)
-
-        # Memory
-
-        # mem_out, mem_sample, mem_state = (None,), None, None
-        # mem_out = self._mem_model(embed, action, reset, in_mem_state)
-        # mem_sample, mem_state = mem_out[0], mem_out[-1]
 
         # RSSM
 
