@@ -1,3 +1,13 @@
+dmlabtmaze_online_h1:
+  env_id: DmLab-rooms_select_nonmatching_object
+  action_dim: 15
+  imag_horizon: 1
+
+dmlabtmaze_online_notbtt:
+  env_id: DmLab-rooms_select_nonmatching_object
+  action_dim: 15
+  keep_state: False
+
 dmlabtmaze_online:
   env_id: DmLab-rooms_select_nonmatching_object
   action_dim: 15
