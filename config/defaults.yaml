@@ -57,7 +57,6 @@ defaults:
 
   # Model
   model: world
-  embed_dim: 1024
   embed_rnn: none
   deter_dim: 2048
   stoch_dim: 32
@@ -67,6 +66,7 @@ defaults:
   gru_type: gru
   layer_norm: True
   image_encoder: cnn
+  cnn_depth: 32
   image_encoder_layers: 0
   image_decoder: cnn
   image_decoder_layers: 0
@@ -113,7 +113,6 @@ minigrid:
   image_encoder_layers: 3
   image_decoder: dense
   image_decoder_layers: 2
-  embed_dim: 256
   map_model: direct
 
 miniworld:

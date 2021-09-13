@@ -27,8 +27,7 @@ class Dreamer(nn.Module):
         if conf.map_model == 'vae':
             if conf.map_decoder == 'cnn':
                 map_model = VAEHead(
-                    encoder=ConvEncoder(in_channels=conf.map_channels,
-                                        out_dim=conf.embed_dim),
+                    encoder=ConvEncoder(in_channels=conf.map_channels),
                     decoder=ConvDecoder(in_dim=map_state_dim + conf.map_stoch_dim,
                                         mlp_layers=2,
                                         layer_norm=conf.layer_norm,
@@ -272,10 +271,10 @@ class WorldModel(nn.Module):
 
         if conf.image_encoder == 'cnn':
             self._encoder = ConvEncoder(in_channels=encoder_channels,
-                                        out_dim=conf.embed_dim)
+                                        cnn_depth=conf.cnn_depth)
         else:
             self._encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * encoder_channels,
-                                         out_dim=conf.embed_dim,
+                                         out_dim=256,
                                          hidden_layers=conf.image_encoder_layers,
                                          layer_norm=conf.layer_norm)
 
@@ -293,7 +292,8 @@ class WorldModel(nn.Module):
         state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1) + conf.global_dim
         if conf.image_decoder == 'cnn':
             self._decoder_image = ConvDecoder(in_dim=state_dim,
-                                              out_channels=conf.image_channels)
+                                              out_channels=conf.image_channels,
+                                              cnn_depth=conf.cnn_depth)
         else:
             self._decoder_image = DenseDecoder(in_dim=state_dim,
                                                out_shape=(conf.image_channels, conf.image_size, conf.image_size),

@@ -10,20 +10,20 @@ import envs
 
 class ConvEncoder(nn.Module):
 
-    def __init__(self, in_channels=3, out_dim=1024, activation=nn.ELU):
+    def __init__(self, in_channels=3, cnn_depth=32, activation=nn.ELU):
         super().__init__()
-        self.out_dim = out_dim
-        assert out_dim == 1024
+        self.out_dim = cnn_depth * 32
         kernels = (4, 4, 4, 4)
         stride = 2
+        d = cnn_depth
         self._model = nn.Sequential(
-            nn.Conv2d(in_channels, 32, kernels[0], stride),
+            nn.Conv2d(in_channels, d, kernels[0], stride),
             activation(),
-            nn.Conv2d(32, 64, kernels[1], stride),
+            nn.Conv2d(d, d * 2, kernels[1], stride),
             activation(),
-            nn.Conv2d(64, 128, kernels[2], stride),
+            nn.Conv2d(d * 2, d * 4, kernels[2], stride),
             activation(),
-            nn.Conv2d(128, 256, kernels[3], stride),
+            nn.Conv2d(d * 4, d * 8, kernels[3], stride),
             activation(),
             nn.Flatten()
         )
@@ -37,17 +37,18 @@ class ConvEncoder(nn.Module):
 
 class ConvDecoder(nn.Module):
 
-    def __init__(self, in_dim, out_channels=3, mlp_layers=0, layer_norm=True, activation=nn.ELU):
+    def __init__(self, in_dim, out_channels=3, cnn_depth=32, mlp_layers=0, layer_norm=True, activation=nn.ELU):
         super().__init__()
         self.in_dim = in_dim
         kernels = (5, 5, 6, 6)
         stride = 2
+        d = cnn_depth
         if mlp_layers == 0:
             layers = [
-                nn.Linear(in_dim, 1024),  # No activation here in DreamerV2
+                nn.Linear(in_dim, d * 32),  # No activation here in DreamerV2
             ]
         else:
-            hidden_dim = 1024
+            hidden_dim = d * 32
             norm = nn.LayerNorm if layer_norm else NoNorm
             layers = [
                 nn.Linear(in_dim, hidden_dim),
@@ -63,15 +64,15 @@ class ConvDecoder(nn.Module):
         self._model = nn.Sequential(
             # FC
             *layers,
-            nn.Unflatten(-1, (1024, 1, 1)),  # type: ignore
+            nn.Unflatten(-1, (d * 32, 1, 1)),  # type: ignore
             # Deconv
-            nn.ConvTranspose2d(1024, 128, kernels[0], stride),
+            nn.ConvTranspose2d(d * 32, d * 4, kernels[0], stride),
             activation(),
-            nn.ConvTranspose2d(128, 64, kernels[1], stride),
+            nn.ConvTranspose2d(d * 4, d * 2, kernels[1], stride),
             activation(),
-            nn.ConvTranspose2d(64, 32, kernels[2], stride),
+            nn.ConvTranspose2d(d * 2, d, kernels[2], stride),
             activation(),
-            nn.ConvTranspose2d(32, out_channels, kernels[3], stride))
+            nn.ConvTranspose2d(d, out_channels, kernels[3], stride))
 
     def forward(self, x):
         x, bd = flatten_batch(x)
