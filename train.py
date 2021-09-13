@@ -48,7 +48,10 @@ def run(conf):
         input_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes'  # type: ignore
         if conf.offline_prefill_dir:
             # Mixture of offline and online
-            input_dir = [conf.offline_prefill_dir, input_dir]
+            if isinstance(conf.offline_prefill_dir, list):
+                input_dir = conf.offline_prefill_dir + [input_dir]
+            else:
+                input_dir = [conf.offline_prefill_dir, input_dir]
         else:
             print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
             run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True, log_mlflow_metrics=False)
