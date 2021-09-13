@@ -52,13 +52,13 @@ class ConvDecoder(nn.Module):
             norm = nn.LayerNorm if layer_norm else NoNorm
             layers = [
                 nn.Linear(in_dim, hidden_dim),
-                norm(hidden_dim),
+                norm(hidden_dim, eps=1e-3),
                 activation()
             ]
             for _ in range(mlp_layers - 1):
                 layers += [
                     nn.Linear(hidden_dim, hidden_dim),
-                    norm(hidden_dim),
+                    norm(hidden_dim, eps=1e-3),
                     activation()]
 
         self._model = nn.Sequential(
@@ -112,12 +112,12 @@ class DenseEncoder(nn.Module):
         layers = [nn.Flatten()]
         layers += [
             nn.Linear(in_dim, hidden_dim),
-            norm(hidden_dim),
+            norm(hidden_dim, eps=1e-3),
             activation()]
         for _ in range(hidden_layers - 1):
             layers += [
                 nn.Linear(hidden_dim, hidden_dim),
-                norm(hidden_dim),
+                norm(hidden_dim, eps=1e-3),
                 activation()]
         layers += [
             nn.Linear(hidden_dim, out_dim),
@@ -171,12 +171,12 @@ class DenseDecoder(nn.Module):
         layers = []
         layers += [
             nn.Linear(in_dim, hidden_dim),
-            norm(hidden_dim),
+            norm(hidden_dim, eps=1e-3),
             activation()]
         for _ in range(hidden_layers - 1):
             layers += [
                 nn.Linear(hidden_dim, hidden_dim),
-                norm(hidden_dim),
+                norm(hidden_dim, eps=1e-3),
                 activation()]
         layers += [
             nn.Linear(hidden_dim, np.prod(out_shape)),

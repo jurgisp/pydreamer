@@ -14,7 +14,7 @@ class MLP(nn.Module):
         for i in range(hidden_layers):
             layers += [
                 nn.Linear(in_dim if i == 0 else hidden_dim, hidden_dim),
-                norm(hidden_dim),
+                norm(hidden_dim, eps=1e-3),
                 activation()
             ]
         layers += [
@@ -35,7 +35,7 @@ class MLP(nn.Module):
 
 class NoNorm(nn.Module):
 
-    def __init__(self, hidden_dim=0):
+    def __init__(self, *args, **kwargs):
         super().__init__()
 
     def forward(self, x: Tensor) -> Tensor:

@@ -97,9 +97,9 @@ class NormGRUCell(nn.Module):
         self.hidden_size = hidden_size
         self.weight_ih = nn.Linear(input_size, 3 * hidden_size, bias=False)
         self.weight_hh = nn.Linear(hidden_size, 3 * hidden_size, bias=False)
-        self.ln_reset = nn.LayerNorm(hidden_size)
-        self.ln_update = nn.LayerNorm(hidden_size)
-        self.ln_newval = nn.LayerNorm(hidden_size)
+        self.ln_reset = nn.LayerNorm(hidden_size, eps=1e-3)
+        self.ln_update = nn.LayerNorm(hidden_size, eps=1e-3)
+        self.ln_newval = nn.LayerNorm(hidden_size, eps=1e-3)
 
     def forward(self, input: Tensor, state: Tensor) -> Tensor:
         gates_i = self.weight_ih(input)
@@ -121,7 +121,7 @@ class NormGRUCellLateReset(nn.Module):
         self.hidden_size = hidden_size
         self.weight_ih = nn.Linear(input_size, 3 * hidden_size, bias=False)
         self.weight_hh = nn.Linear(hidden_size, 3 * hidden_size, bias=False)
-        self.lnorm = nn.LayerNorm(3 * hidden_size)
+        self.lnorm = nn.LayerNorm(3 * hidden_size, eps=1e-3)
         self._update_bias = -1
 
     def forward(self, input: Tensor, state: Tensor) -> Tensor:
