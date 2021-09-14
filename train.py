@@ -178,6 +178,7 @@ def run(conf):
                                         I=conf.iwae_samples,
                                         H=conf.imag_horizon,
                                         imagine_dropout=conf.imagine_dropout,
+                                        do_image_pred=steps % conf.log_interval >= int(conf.log_interval * 0.9),  # 10% of batches
                                         do_output_tensors=steps % conf.logbatch_interval == 1,
                                         do_dream_tensors=steps % conf.logbatch_interval == 1)
                         if conf.keep_state:
