@@ -38,6 +38,7 @@ def run(conf):
 
     # Generator / Agent
 
+    subprocesses: list[Process] = []
     if conf.offline_data_dir:
         generator_train = False
         data_reload_interval = 0
@@ -54,21 +55,22 @@ def run(conf):
                 input_dir = [conf.offline_prefill_dir, input_dir]
         else:
             print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
-            run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True, log_mlflow_metrics=False)
-            print('Generator random prefill done, starting agent generator...')
+            p = run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True, log_mlflow_metrics=False)
+            subprocesses.append(p)
+        print('Starting agent generator...')
         for i in range(conf.generator_workers):
-            run_generator(conf, seed=1 + i, policy='network', eval_fraction=0.1, log_mlflow_metrics=i == 0)
+            p = run_generator(conf, seed=1 + i, policy='network', eval_fraction=0.1, log_mlflow_metrics=i == 0)
+            subprocesses.append(p)
 
     if conf.offline_eval_dir:
-        generator_eval = False
         eval_dir = conf.offline_eval_dir
     else:
         eval_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes_eval'  # type: ignore
         if not generator_train:
             # Only need eval generator, if not using train generator. Otherwise train generator will generate eval data too
-            generator_eval = True
             print('Starting eval generator...')
-            run_generator(conf, seed=99, policy='network', eval_fraction=1.0, log_mlflow_metrics=not generator_train)
+            p = run_generator(conf, seed=99, policy='network', eval_fraction=1.0, log_mlflow_metrics=not generator_train)
+            subprocesses.append(p)
 
     if conf.offline_test_dir:
         test_dir = conf.offline_test_dir
@@ -268,6 +270,12 @@ def run(conf):
                             mlflow.log_metrics(metrics, step=steps)
                         metrics = defaultdict(list)
                         metrics_max = defaultdict(list)
+
+                    # Check subprocess
+
+                    for p in subprocesses:
+                        if not p.is_alive():
+                            raise Exception('Generator process died')
 
                     # Save model
 
@@ -500,6 +508,7 @@ def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=Fals
     p.start()
     if block:
         p.join()
+    return p
 
 
 def get_profiler(conf):

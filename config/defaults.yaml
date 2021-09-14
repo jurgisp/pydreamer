@@ -149,6 +149,7 @@ dmlab:
 
 minerl:
   env_id: MineRLObtainDiamondVectorObf-v0
+  env_no_terminal: True
   action_dim: 200
   generator_workers: 2
   imag_horizon: 1
