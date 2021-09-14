@@ -301,7 +301,13 @@ class WorldModel(nn.Module):
                                                layer_norm=conf.layer_norm,
                                                min_prob=conf.image_decoder_min_prob)
 
-        self._decoder_reward = DenseNormalHead(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
+        if conf.reward_decoder_categorical:
+            self._decoder_reward = DenseCategoricalSupportHead(in_dim=state_dim,
+                                                               support=conf.reward_decoder_categorical,
+                                                               hidden_layers=conf.reward_decoder_layers,
+                                                               layer_norm=conf.layer_norm)
+        else:
+            self._decoder_reward = DenseNormalHead(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
         self._decoder_terminal = DenseBernoulliHead(in_dim=state_dim, hidden_layers=conf.terminal_decoder_layers, layer_norm=conf.layer_norm)
 
         # RSSM

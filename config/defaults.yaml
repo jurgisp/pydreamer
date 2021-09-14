@@ -72,6 +72,7 @@ defaults:
   image_decoder_layers: 0
   reward_input: True
   reward_decoder_layers: 4
+  reward_decoder_categorical:
   terminal_decoder_layers: 4
   map_stoch_dim: 64
   map_model: none

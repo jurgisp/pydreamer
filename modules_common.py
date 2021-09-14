@@ -23,7 +23,7 @@ class MLP(nn.Module):
         if out_dim == 1:
             layers += [
                 nn.Flatten(0),
-            ]   
+            ]
         self._model = nn.Sequential(*layers)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -40,3 +40,15 @@ class NoNorm(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return x
+
+
+class CategoricalSupport(D.Categorical):
+
+    def __init__(self, logits, support):
+        assert logits.shape[-1:] == support.shape
+        super().__init__(logits=logits)
+        self._support = support
+
+    @property
+    def mean(self):
+        return torch.einsum('...i,i->...', self.probs, self._support)

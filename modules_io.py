@@ -130,6 +130,7 @@ class DenseEncoder(nn.Module):
         y = unflatten_batch(y, bd)
         return y
 
+
 class DenseBernoulliHead(nn.Module):
 
     def __init__(self, in_dim, hidden_dim=400, hidden_layers=2, layer_norm=True):
@@ -138,11 +139,12 @@ class DenseBernoulliHead(nn.Module):
 
     def forward(self, features: Tensor) -> D.Distribution:
         y = self._model.forward(features)
-        p = D.Bernoulli(logits=y)
+        p = D.Bernoulli(logits=y.float())
         return p
 
     def loss(self, output: D.Distribution, target: Tensor) -> Tensor:
         return -output.log_prob(target)
+
 
 class DenseNormalHead(nn.Module):
 
@@ -159,6 +161,33 @@ class DenseNormalHead(nn.Module):
     def loss(self, output: D.Distribution, target: Tensor) -> Tensor:
         var = self._std ** 2  # var cancels denominator, which makes loss = 0.5 (target-output)^2
         return -output.log_prob(target) * var
+
+
+class DenseCategoricalSupportHead(nn.Module):
+    """
+    Represent continuous variable distribution by discrete set of support values.
+    Useful for reward head, which can be e.g. [-10, 0, 1, 10]
+    """
+
+    def __init__(self, in_dim, support=[0.0, 1.0], hidden_dim=400, hidden_layers=2, layer_norm=True):
+        assert isinstance(support, list)
+        super().__init__()
+        self._model = MLP(in_dim, len(support), hidden_dim, hidden_layers, layer_norm)
+        self._support = nn.Parameter(torch.tensor(support), requires_grad=False)
+
+    def forward(self, features: Tensor) -> D.Distribution:
+        y = self._model.forward(features)
+        p = CategoricalSupport(logits=y.float(), support=self._support.data)
+        return p
+
+    def loss(self, output: D.Distribution, target: Tensor) -> Tensor:
+        target = self._to_categorical(target)
+        return -output.log_prob(target)
+
+    def _to_categorical(self, target: Tensor) -> Tensor:
+        # TODO: should interpolate between adjacent values, like in MuZero
+        distances = torch.square(target.unsqueeze(-1) - self._support)
+        return distances.argmin(-1)
 
 
 class DenseDecoder(nn.Module):
@@ -235,4 +264,3 @@ class DenseDecoder(nn.Module):
         logits_agg = torch.logsumexp(logits, dim=0)  # (I,N,B,H,W,C) => (N,B,H,W,C)
         logits_agg = D.Categorical(logits=logits_agg).logits  # Normalize
         return logits_agg.permute(0, 1, 4, 2, 3)  # (N,B,H,W,C) => (N,B,C,H,W)
-
