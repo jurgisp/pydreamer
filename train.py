@@ -33,7 +33,7 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 
 def run(conf):
     mlflow_start_or_resume(conf.run_name, conf.resume_id)
-    mlflow.log_params(vars(conf))
+    mlflow.log_params({k: v for k, v in vars(conf).items() if not len(repr(v)) > 250})  # filter too long
     device = torch.device(conf.device)
 
     # Generator / Agent
@@ -55,8 +55,7 @@ def run(conf):
                 input_dir = [conf.offline_prefill_dir, input_dir]
         else:
             print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
-            p = run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True, log_mlflow_metrics=False)
-            subprocesses.append(p)
+            run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True, log_mlflow_metrics=False)
         print('Starting agent generator...')
         for i in range(conf.generator_workers):
             p = run_generator(conf, seed=1 + i, policy='network', eval_fraction=0.1, log_mlflow_metrics=i == 0)
@@ -97,15 +96,6 @@ def run(conf):
 
     model = Dreamer(conf)
     model.to(device)
-
-    # elif conf.model == 'map_rnn':
-    #     model = MapPredictModel(
-    #         encoder=encoder,
-    #         decoder=decoder,
-    #         map_model=map_model,
-    #         action_dim=conf.action_dim,
-    #         state_dim=state_dim,
-    #     )  # type: ignore
 
     print(f'Model: {param_count(model)} parameters')
     for submodel in [model.wm._encoder, model.wm._decoder_image, model.wm._core, model.wm._input_rnn, model.map_model]:
