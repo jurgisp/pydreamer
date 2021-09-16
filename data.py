@@ -129,9 +129,9 @@ class OfflineDataSequential(IterableDataset):
             assert False, 'Legacy, shouldnt happen anymore'  # TODO: remove
             # data['map_centered'] = (data['map_centered'] * 255).clip(0, 255).astype(np.uint8)
 
-        # Convert one-hot back to categorical
-        if len(data['action'].shape) == 2:
-            data['action'] = data['action'].argmax(-1)
+        # # Convert one-hot back to categorical
+        # if len(data['action'].shape) == 2:
+        #     data['action'] = data['action'].argmax(-1)
 
         if not 'reset' in data:
             data['reset'] = np.zeros(n, bool)
