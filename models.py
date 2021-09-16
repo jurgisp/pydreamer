@@ -349,7 +349,7 @@ class WorldModel(nn.Module):
         # Encoder
 
         if self._reward_input:
-            reward_plane = reward.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
+            reward_plane = reward.clip(-1., 1.).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
             terminal_plane = terminal.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
             observation = torch.cat([image,  # (N,B,C+2,H,W)
                                      reward_plane.to(image.dtype),
