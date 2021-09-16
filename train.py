@@ -198,8 +198,8 @@ def run(conf):
                     scaler.unscale_(optimizer_critic)
                     grad_norm_model = nn.utils.clip_grad_norm_(model.wm.parameters(), conf.grad_clip)
                     grad_norm_map = nn.utils.clip_grad_norm_(model.map_model.parameters(), conf.grad_clip)
-                    grad_norm_actor = nn.utils.clip_grad_norm_(model.ac._actor.parameters(), conf.grad_clip)
-                    grad_norm_critic = nn.utils.clip_grad_norm_(model.ac._critic.parameters(), conf.grad_clip)
+                    grad_norm_actor = nn.utils.clip_grad_norm_(model.ac._actor.parameters(), conf.grad_clip_ac)
+                    grad_norm_critic = nn.utils.clip_grad_norm_(model.ac._critic.parameters(), conf.grad_clip_ac)
                     grad_metrics = {
                         'grad_norm': grad_norm_model,
                         'grad_norm_map': grad_norm_map,

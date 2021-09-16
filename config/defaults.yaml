@@ -28,7 +28,7 @@ defaults:
   
   # Training
   buffer_size: 10_000_000
-  reset_interval: 0
+  reset_interval: 200
   iwae_samples: 1
   imagine_dropout: 0
   kl_balance: 0.8
@@ -44,7 +44,8 @@ defaults:
   batch_length: 50
   batch_size: 50
   device: "cuda:0"
-  grad_clip: 200
+  grad_clip: 1000
+  grad_clip_ac: 200
   image_decoder_min_prob: 0
   amp: True
 
@@ -66,7 +67,7 @@ defaults:
   gru_type: gru
   layer_norm: True
   image_encoder: cnn
-  cnn_depth: 32
+  cnn_depth: 48
   image_encoder_layers: 0
   image_decoder: cnn
   image_decoder_layers: 0
@@ -150,7 +151,7 @@ dmlab:
 
 minerl:
   env_id: MineRLObtainDiamondVectorObf-v0
-  env_no_terminal: True
+  # env_no_terminal: True
   action_dim: 200
   generator_workers: 2
   imag_horizon: 1
