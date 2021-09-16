@@ -27,11 +27,12 @@ args.add_argument('--run', default='minerl_treechop_obf')
 args.add_argument('--env', default='MineRLTreechopVectorObf-v0')
 args.add_argument('--cluster', default=False)
 
+CLUSTER_REPEAT = 1
 ACTION_REPEAT = 4
-N_ACTIONS = 200
+N_ACTIONS = 100
 N_EPISODES_CLUSTER = 100
 DATA_DIR = '/Users/jurgis/Documents/minerl-baselines/data'
-ACTION_CENTROIDS_PATH = f'data/minerl_action_centroids_{ACTION_REPEAT}.npy'
+ACTION_CENTROIDS_PATH = f'data/minerl_action_centroids_{CLUSTER_REPEAT}.npy'
 
 
 def cluster_actions(env="MineRLObtainIronPickaxeVectorObf-v0"):
@@ -50,12 +51,12 @@ def cluster_actions(env="MineRLObtainIronPickaxeVectorObf-v0"):
         curr_action = []
         for obs, act, _, _, _ in episode:
             curr_action.append(act["vector"])
-            if len(curr_action) == ACTION_REPEAT:
+            if len(curr_action) == CLUSTER_REPEAT:
                 all_actions.append(np.array(curr_action).reshape(-1))
                 curr_action = []
 
         if len(curr_action) > 0:
-            while len(curr_action) < ACTION_REPEAT:
+            while len(curr_action) < CLUSTER_REPEAT:
                 curr_action.append(curr_action[-1])
             all_actions.append(np.array(curr_action).reshape(-1))
 
@@ -74,13 +75,16 @@ def save_episodes(conf):
     print(os.environ['MLFLOW_EXPERIMENT_NAME'])
     mlflow.start_run(run_name=conf.run)
 
-    action_centroids = np.load(ACTION_CENTROIDS_PATH)
+    action_centroids: np.ndarray = np.load(ACTION_CENTROIDS_PATH)  # type: ignore
     mlflow_log_npz(dict(action_centroids=action_centroids), 'action_centroids.npz', verbose=True)
 
     dataset = minerl.data.make(conf.env, data_dir=DATA_DIR, num_workers=1)  # type: ignore
     ep_names = dataset.get_trajectory_names()
     ep_names.sort()
     print(f'{len(ep_names)} episodes in {conf.env}')
+
+    na = len(action_centroids)
+    ae = np.eye(na)
 
     for i in range(len(ep_names)):
         print(i, ep_names[i])
@@ -107,12 +111,15 @@ def save_episodes(conf):
         # Group by action repeat
         imgs = imgs[::ACTION_REPEAT]
         rewards = np.array(rewards).reshape((-1, ACTION_REPEAT)).sum(-1)
-        actions_vec = np.stack(actions_vec).reshape((-1, ACTION_REPEAT * 64))  # type: ignore
+
+        actions_vec = np.stack(actions_vec).reshape((-1, CLUSTER_REPEAT * 64))  # type: ignore
         distances = np.sum((actions_vec - action_centroids[:, None]) ** 2, -1)  # type: ignore
         actions = np.argmin(distances, axis=0)
+        actions_onehot = ae[actions]
+        actions_multihot = actions_onehot.reshape((-1, ACTION_REPEAT, na)).max(1)  # mark all actions that were used
 
         data = {
-            'action': np.concatenate([[0], actions]),
+            'action': np.concatenate([[np.zeros(na)], actions_multihot]),
             'image_t': np.stack(imgs + [img_last], -1),
             'reward': np.concatenate([[0.0], rewards]),
             'terminal': np.array([False] * len(rewards) + [True]),
