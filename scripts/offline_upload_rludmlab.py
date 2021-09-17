@@ -40,6 +40,7 @@ tmux attach
 
 import os
 import io
+from datetime import datetime
 import tempfile
 from pathlib import Path
 import mlflow
@@ -49,8 +50,8 @@ import tensorflow_datasets as tfds
 
 # env = 'rooms_watermaze'
 # env = 'rooms_select_nonmatching_object'
-# env = 'explore_object_rewards_few'
-env = 'explore_object_rewards_many'
+env = 'explore_object_rewards_few'
+# env = 'explore_object_rewards_many'
 
 os.environ['MLFLOW_TRACKING_URI'] = 'http://10.164.0.92:30000'
 os.environ['MLFLOW_EXPERIMENT_NAME'] = 'dreamer2_episodes'
@@ -112,6 +113,7 @@ elif env == 'explore_object_rewards_many':
 else:
     assert False, env
 
+step_counter = 0
 for shard in range(500):
     ds = tf.data.TFRecordDataset(f'gs://rl_unplugged/dmlab/{env}/training_0/tfrecord-{shard:05}-of-00500', compression_type='GZIP')
     ds = ds.map(rluds.tf_example_to_step_ds, num_parallel_calls=tf.data.experimental.AUTOTUNE)
@@ -141,4 +143,6 @@ for shard in range(500):
                 print('Saved data sample: ', {k: v.shape for k, v in data.items()})
             fname = build_episode_name(shard, i + 1 - datas_episodes, i, int(datas_reward), datas_steps)
             mlflow_log_npz(data, fname, episodes_dir, verbose=True)
+            step_counter += datas_steps
+            mlflow.log_metrics({'_step': step_counter, '_timestamp': datetime.now().timestamp()})
 
