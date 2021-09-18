@@ -47,7 +47,7 @@ class OfflineDataSequential(IterableDataset):
         files_filtered = []
         steps_total = 0
         steps_filtered = 0
-        for f, (seed, ep, steps) in files_parsed:
+        for f, (seed, ep, steps, rew) in files_parsed:
             steps_total += steps
             if steps_total < self.buffer_size or not self.buffer_size:
                 files_filtered.append(f)

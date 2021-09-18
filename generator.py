@@ -289,7 +289,9 @@ def parse_episode_name(fname):
     steps = int(steps) if steps.isnumeric() else 0
     episode = fname.split('.')[0].split('-')[-3].replace('ep', '').split('_')[-1]
     episode = int(episode) if episode.isnumeric() else 0
-    return (seed, episode, steps)
+    reward = fname.split('-r')[-1].split('-')[0]  # Doen't handle negatives
+    reward = int(reward) if reward.isnumeric() else 0
+    return (seed, episode, steps, reward)
 
 
 def count_steps(artifact_dir, seed):
@@ -297,7 +299,7 @@ def count_steps(artifact_dir, seed):
     steps = 0
     episodes = 0
     for f in files:
-        fseed, fepisode, fsteps = parse_episode_name(f.name)
+        fseed, fepisode, fsteps, _ = parse_episode_name(f.name)
         if fseed != seed:
             continue  # Belongs to another generator
         steps += fsteps
