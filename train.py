@@ -94,7 +94,12 @@ def run(conf):
 
     # MODEL
 
-    model = Dreamer(conf)
+    if conf.model == 'dreamer':
+        model = Dreamer(conf)
+    elif conf.model == 'bc':
+        model = BehavioralCloning(conf)
+    else:
+        assert False
     model.to(device)
 
     print(f'Model: {param_count(model)} parameters')
@@ -227,8 +232,8 @@ def run(conf):
                         last_time, last_steps = t, steps
 
                         print(f"[TRAIN]  [{steps:06}]"
+                              f"  loss: {metrics.get('train/loss', 0):.3f}"
                               f"  loss_wm: {metrics.get('train/loss_wm', 0):.3f}"
-                              f"  loss_wm_kl: {metrics.get('train/loss_wm_kl', 0):.3f}"
                               f"  loss_critic: {metrics.get('train/loss_critic', 0):.3f}"
                               f"  loss_map: {metrics.get('train/loss_map', 0):.3f}"
                               f"  policy_value: {metrics.get('train/policy_value',0):.3f}"

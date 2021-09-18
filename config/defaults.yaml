@@ -57,7 +57,7 @@ defaults:
   eval_batch_size: 10  # Limited by GPU mem
 
   # Model
-  model: world
+  model: dreamer
   embed_rnn: none
   deter_dim: 2048
   stoch_dim: 32
@@ -154,3 +154,10 @@ minerl:
   action_dim: 100
   generator_workers: 2
   entropy: 0.030
+
+minerl_bc:
+  env_id: MineRLObtainDiamondVectorObf-v0
+  action_dim: 100
+  model: bc
+  batch_length: 8
+  batch_size: 50

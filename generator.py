@@ -19,7 +19,7 @@ import torch.distributions as D
 from numba import njit
 
 from envs import Atari, MiniGrid
-from models import Dreamer
+from models import Dreamer, BehavioralCloning
 from preprocessing import Preprocessor
 from tools import *
 
@@ -105,7 +105,12 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     model = None
     if policy == 'network':
         conf = model_conf
-        model = Dreamer(conf)
+        if conf.model == 'dreamer':
+            model = Dreamer(conf)
+        elif conf.model == 'bc':
+            model = BehavioralCloning(conf)
+        else:
+            assert False
         preprocess = Preprocessor(image_categorical=conf.image_channels if conf.image_categorical else None,
                                   image_key=conf.image_key,
                                   map_categorical=conf.map_channels if conf.map_categorical else None,
@@ -326,15 +331,17 @@ class NetworkPolicy:
 
         with torch.no_grad():
             action_logits, value, new_state = self.model.forward(image, reward, action, reset, self._state)
+            action_logits = action_logits[0, 0]  # (N=1,B=1,A) => (A)
+            value = value[0, 0]
             action_distr = D.OneHotCategorical(logits=action_logits)
             self._state = new_state
 
         action = action_distr.sample()
-        action = action.argmax(-1)[0]  # one-hot => int
+        action = action.argmax(-1)  # one-hot => int
 
-        metrics = dict(policy_value=value[0].item(),
-                       action_prob=action_distr.probs[0, action].item(),
-                       policy_entropy=action_distr.entropy()[0].item())
+        metrics = dict(policy_value=value.item(),
+                       action_prob=action_distr.probs[action].item(),
+                       policy_entropy=action_distr.entropy().item())
 
         return action.item(), metrics
 
