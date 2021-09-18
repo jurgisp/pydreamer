@@ -112,14 +112,6 @@ class OfflineDataSequential(IterableDataset):
             print(e)
             return
 
-        n = lenb(data)
-        if n < batch_length:
-            print(f'Skipping too short file: {file}, len={n}')
-            return
-
-        i = 0 if not skip_random else np.random.randint(n - batch_length + 1)
-        l = first_shorter_length or batch_length
-
         # Undo the transformation for better compression
         if 'image' not in data and 'image_t' in data:
             data['image'] = data['image_t'].transpose(3, 0, 1, 2)  # HWCN => NHWC
@@ -133,9 +125,17 @@ class OfflineDataSequential(IterableDataset):
         # if len(data['action'].shape) == 2:
         #     data['action'] = data['action'].argmax(-1)
 
+        n = lenb(data)
+        if n < batch_length:
+            print(f'Skipping too short file: {file}, len={n}')
+            return
+
         if not 'reset' in data:
             data['reset'] = np.zeros(n, bool)
             data['reset'][0] = True  # Indicate episode start
+
+        i = 0 if not skip_random else np.random.randint(n - batch_length + 1)
+        l = first_shorter_length or batch_length
 
         if self.reset_interval:
             random_resets = self.randomize_resets(data['reset'], self.reset_interval)
