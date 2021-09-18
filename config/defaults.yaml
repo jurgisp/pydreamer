@@ -161,3 +161,7 @@ minerl_bc:
   model: bc
   batch_length: 8
   batch_size: 50
+  # too fast
+  log_interval: 300
+  save_interval: 1000
+  eval_interval: 10000

@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import warnings
+from datetime import datetime
 from functools import partialmethod
 from pathlib import Path
 
@@ -25,10 +26,10 @@ tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)  # type: ignore
 args = argparse.ArgumentParser()
 args.add_argument('--run', default='minerl_treechop_obf')
 args.add_argument('--env', default='MineRLTreechopVectorObf-v0')
+args.add_argument('--ar', default=4, type=int)
 args.add_argument('--cluster', default=False)
 
 CLUSTER_REPEAT = 1
-ACTION_REPEAT = 4
 N_ACTIONS = 100
 N_EPISODES_CLUSTER = 100
 DATA_DIR = '/Users/jurgis/Documents/minerl-baselines/data'
@@ -71,6 +72,7 @@ def cluster_actions(env="MineRLObtainIronPickaxeVectorObf-v0"):
 
 
 def save_episodes(conf):
+    ACTION_REPEAT = conf.ar
 
     print(os.environ['MLFLOW_EXPERIMENT_NAME'])
     mlflow.start_run(run_name=conf.run)
@@ -86,6 +88,7 @@ def save_episodes(conf):
     na = len(action_centroids)
     ae = np.eye(na)
 
+    step_counter = 0
     for i in range(len(ep_names)):
         print(i, ep_names[i])
         episode = dataset.load_data(ep_names[i], skip_interval=0, include_metadata=False)
@@ -131,6 +134,8 @@ def save_episodes(conf):
 
         fname = build_episode_name(0, i, i, int(data['reward'].sum()), len(data['reward']) - 1)
         mlflow_log_npz(data, fname, 'episodes', verbose=True)
+        step_counter += len(rewards)
+        mlflow.log_metrics({'_step': step_counter, '_timestamp': datetime.now().timestamp()})
 
 
 if __name__ == "__main__":
