@@ -314,7 +314,7 @@ class NetworkPolicy:
     def __init__(self, model: Dreamer, preprocess: Preprocessor):
         self.model = model
         self.preprocess = preprocess
-        self._state = model.wm.init_state(1)
+        self._state = model.init_state(1)
 
     def __call__(self, obs) -> Tuple[int, dict]:
         batch = self.preprocess.apply(obs, expandTB=True)

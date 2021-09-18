@@ -91,6 +91,29 @@ class Dreamer(nn.Module):
                               target_interval=conf.target_interval,
                               )
 
+    @property
+    def submodels(self):
+        return (self.wm._encoder, self.wm._decoder_image, self.wm._core, self.wm._input_rnn, self.map_model)
+
+    def optimizers(self, conf):
+        optimizer_wm = torch.optim.AdamW(self.wm.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
+        optimizer_map = torch.optim.AdamW(self.map_model.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
+        optimizer_actor = torch.optim.AdamW(self.ac._actor.parameters(), lr=conf.adam_lr_actor, eps=conf.adam_eps)  # type: ignore
+        optimizer_critic = torch.optim.AdamW(self.ac._critic.parameters(), lr=conf.adam_lr_critic, eps=conf.adam_eps)  # type: ignore
+        return optimizer_wm, optimizer_map, optimizer_actor, optimizer_critic
+
+    def grad_clip(self, conf):
+        grad_metrics = {
+            'grad_norm': nn.utils.clip_grad_norm_(self.wm.parameters(), conf.grad_clip),
+            'grad_norm_map': nn.utils.clip_grad_norm_(self.map_model.parameters(), conf.grad_clip),
+            'grad_norm_actor': nn.utils.clip_grad_norm_(self.ac._actor.parameters(), conf.grad_clip_ac),
+            'grad_norm_critic': nn.utils.clip_grad_norm_(self.ac._critic.parameters(), conf.grad_clip_ac),
+        }
+        return grad_metrics
+
+    def init_state(self, batch_size: int):
+        return self.wm.init_state(batch_size)
+
     def forward(self,
                 image: TensorNBCHW,   # (1,B,C,H,W)
                 prev_reward: Tensor,  # (1,B)

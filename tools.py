@@ -1,6 +1,7 @@
-from typing import Union
+from typing import Tuple, Union
 import warnings
 from mlflow.tracking.client import MlflowClient
+from torch.optim.optimizer import Optimizer
 import yaml
 import tempfile
 from pathlib import Path
@@ -58,20 +59,18 @@ def mlflow_log_text(text, name: str, subdir=None):
         path.write_text(text)
         mlflow.log_artifact(str(path), artifact_path=subdir)
 
-def mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_actor, optimizer_critic, steps):
+def mlflow_save_checkpoint(model, optimizers: Tuple[Optimizer, ...], steps):
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / 'latest.pt'
-        torch.save({
-            'epoch': steps,
-            'model_state_dict': model.state_dict(),
-            'optimizer_wm_state_dict': optimizer_wm.state_dict(),
-            'optimizer_map_state_dict': optimizer_map.state_dict(),
-            'optimizer_actor_state_dict': optimizer_actor.state_dict(),
-            'optimizer_critic_state_dict': optimizer_critic.state_dict(),
-        }, path)
+        checkpoint = {}
+        checkpoint['epoch'] = steps
+        checkpoint['model_state_dict'] = model.state_dict()
+        for i, opt in enumerate(optimizers):
+            checkpoint[f'optimizer_{i}_state_dict'] = opt.state_dict()
+        torch.save(checkpoint, path)
         mlflow.log_artifact(str(path), artifact_path='checkpoints')
 
-def mlflow_load_checkpoint(model, optimizer_wm=None, optimizer_map=None, optimizer_actor=None, optimizer_critic=None, artifact_path='checkpoints/latest.pt', map_location=None):
+def mlflow_load_checkpoint(model, optimizers: Tuple[Optimizer, ...] = tuple(), artifact_path='checkpoints/latest.pt', map_location=None):
     with tempfile.TemporaryDirectory() as tmpdir:
         client = MlflowClient()
         run_id = mlflow.active_run().info.run_id  # type: ignore
@@ -82,14 +81,8 @@ def mlflow_load_checkpoint(model, optimizer_wm=None, optimizer_map=None, optimiz
             return None
         checkpoint = torch.load(path, map_location=map_location)
         model.load_state_dict(checkpoint['model_state_dict'])
-        if optimizer_wm:
-            optimizer_wm.load_state_dict(checkpoint['optimizer_wm_state_dict'])
-        if optimizer_map:
-            optimizer_map.load_state_dict(checkpoint['optimizer_map_state_dict'])
-        if optimizer_actor:
-            optimizer_actor.load_state_dict(checkpoint['optimizer_actor_state_dict'])
-        if optimizer_critic:
-            optimizer_critic.load_state_dict(checkpoint['optimizer_critic_state_dict'])
+        for i, opt in enumerate(optimizers):
+            opt.load_state_dict(checkpoint[f'optimizer_{i}_state_dict'])
         return checkpoint['epoch']
 
 def save_npz(data, filename):
@@ -106,7 +99,7 @@ def load_npz(path: Union[Path, Pathy]):
             f1.write(f.read())  
         f1.seek(0)
         fdata = np.load(f1)
-        data = {key: fdata[key] for key in fdata}
+        data = {key: fdata[key] for key in fdata}  # type: ignore
     return data
 
 def param_count(model):

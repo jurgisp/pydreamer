@@ -98,7 +98,7 @@ def run(conf):
     model.to(device)
 
     print(f'Model: {param_count(model)} parameters')
-    for submodel in [model.wm._encoder, model.wm._decoder_image, model.wm._core, model.wm._input_rnn, model.map_model]:
+    for submodel in model.submodels:
         if submodel is not None:
             print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
     # print(model)
@@ -106,12 +106,8 @@ def run(conf):
 
     # Training
 
-    optimizer_wm = torch.optim.AdamW(model.wm.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
-    optimizer_map = torch.optim.AdamW(model.map_model.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
-    optimizer_actor = torch.optim.AdamW(model.ac._actor.parameters(), lr=conf.adam_lr_actor, eps=conf.adam_eps)  # type: ignore
-    optimizer_critic = torch.optim.AdamW(model.ac._critic.parameters(), lr=conf.adam_lr_critic, eps=conf.adam_eps)  # type: ignore
-
-    resume_step = tools.mlflow_load_checkpoint(model, optimizer_wm, optimizer_map, optimizer_actor, optimizer_critic)
+    optimizers = model.optimizers(conf)
+    resume_step = tools.mlflow_load_checkpoint(model, optimizers)
     if resume_step:
         print(f'Loaded model from checkpoint epoch {resume_step}')
 
@@ -162,7 +158,7 @@ def run(conf):
                 with timer('forward'):
                     with autocast(enabled=conf.amp):
 
-                        state = states.get(wid) or model.wm.init_state(image.size(1) * conf.iwae_samples)
+                        state = states.get(wid) or model.init_state(image.size(1) * conf.iwae_samples)
                         losses, loss_metrics, loss_tensors, new_state, out_tensors, dream_tensors = \
                             model.train(image, reward, terminal, action, reset, map, map_coord, state,
                                         I=conf.iwae_samples,
@@ -178,38 +174,20 @@ def run(conf):
 
                 with timer('backward'):
 
-                    loss_wm, loss_map, loss_actor, loss_critic = losses
-                    optimizer_wm.zero_grad()
-                    optimizer_map.zero_grad()
-                    optimizer_actor.zero_grad()
-                    optimizer_critic.zero_grad()
-                    scaler.scale(loss_wm).backward()
-                    scaler.scale(loss_map).backward()
-                    scaler.scale(loss_actor).backward()
-                    scaler.scale(loss_critic).backward()
+                    for opt in optimizers:
+                        opt.zero_grad()
+                    for loss in losses:
+                        scaler.scale(loss).backward()
 
                 # Grad step
 
                 with timer('gradstep'):  # CUDA wait happens here
 
-                    scaler.unscale_(optimizer_wm)
-                    scaler.unscale_(optimizer_map)
-                    scaler.unscale_(optimizer_actor)
-                    scaler.unscale_(optimizer_critic)
-                    grad_norm_model = nn.utils.clip_grad_norm_(model.wm.parameters(), conf.grad_clip)
-                    grad_norm_map = nn.utils.clip_grad_norm_(model.map_model.parameters(), conf.grad_clip)
-                    grad_norm_actor = nn.utils.clip_grad_norm_(model.ac._actor.parameters(), conf.grad_clip_ac)
-                    grad_norm_critic = nn.utils.clip_grad_norm_(model.ac._critic.parameters(), conf.grad_clip_ac)
-                    grad_metrics = {
-                        'grad_norm': grad_norm_model,
-                        'grad_norm_map': grad_norm_map,
-                        'grad_norm_actor': grad_norm_actor,
-                        'grad_norm_critic': grad_norm_critic,
-                    }
-                    scaler.step(optimizer_wm)
-                    scaler.step(optimizer_map)
-                    scaler.step(optimizer_actor)
-                    scaler.step(optimizer_critic)
+                    for opt in optimizers:
+                        scaler.unscale_(opt)
+                    grad_metrics = model.grad_clip(conf)
+                    for opt in optimizers:
+                        scaler.step(opt)
                     scaler.update()
 
                 with timer('other'):
@@ -271,7 +249,7 @@ def run(conf):
                     # Save model
 
                     if steps % conf.save_interval == 0:
-                        tools.mlflow_save_checkpoint(model, optimizer_wm, optimizer_map, optimizer_actor, optimizer_critic, steps)
+                        tools.mlflow_save_checkpoint(model, optimizers, steps)
                         print(f'[TRAIN]  Saved model checkpoint {steps}')
 
                     # Stop
@@ -388,7 +366,7 @@ def evaluate(prefix: str,
 
             with autocast(enabled=conf.amp):
                 if state is None or not keep_state:
-                    state = model.wm.init_state(image.size(1) * eval_samples)
+                    state = model.init_state(image.size(1) * eval_samples)
 
                 _, loss_metrics, loss_tensors, state, out_tensors, _ = \
                     model.train(image, reward, terminal, action, reset, map, map_coord, state,
