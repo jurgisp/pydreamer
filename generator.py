@@ -52,7 +52,7 @@ def create_env(env_id: str, max_steps: int, no_terminal: bool, seed: int):
 
     elif env_id.startswith('MineRL'):
         from envs_minerl import MineRL
-        env = MineRL(env_id, np.load('data/minerl_action_centroids_1.npy'), action_repeat=4)
+        env = MineRL(env_id, np.load('data/minerl_action_centroids_1.npy'), action_repeat=1)  # TODO
 
     else:
         env = gym.make(env_id)
