@@ -44,7 +44,7 @@ defaults:
   batch_length: 50
   batch_size: 50
   device: "cuda:0"
-  grad_clip: 1000
+  grad_clip: 200
   grad_clip_ac: 200
   image_decoder_min_prob: 0
   amp: True
