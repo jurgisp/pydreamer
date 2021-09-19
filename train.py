@@ -52,10 +52,15 @@ def run(conf):
             input_dir = to_list(conf.offline_prefill_dir) + [input_dir]
         else:
             print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
-            run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True, log_mlflow_metrics=False)
+            for i in range(conf.generator_workers):
+                p = run_generator(conf, seed=i, policy='random', num_steps=conf.generator_prefill_steps // conf.generator_workers, log_mlflow_metrics=False)
+                subprocesses.append(p)
+            while any(p.is_alive() for p in subprocesses):
+                time.sleep(1)
+            subprocesses.clear()
         print('Starting agent generator...')
         for i in range(conf.generator_workers):
-            p = run_generator(conf, seed=1 + i, policy='network', eval_fraction=0.1, log_mlflow_metrics=i == 0)
+            p = run_generator(conf, seed=i, policy='network', eval_fraction=0.1, log_mlflow_metrics=i == 0)
             subprocesses.append(p)
 
     if conf.offline_eval_dir:
