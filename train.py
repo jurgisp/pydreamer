@@ -42,17 +42,14 @@ def run(conf):
     if conf.offline_data_dir:
         generator_train = False
         data_reload_interval = 0
-        input_dir = conf.offline_data_dir
+        input_dir = to_list(conf.offline_data_dir)
     else:
         generator_train = True
         data_reload_interval = 60
         input_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes'  # type: ignore
         if conf.offline_prefill_dir:
             # Mixture of offline and online
-            if isinstance(conf.offline_prefill_dir, list):
-                input_dir = conf.offline_prefill_dir + [input_dir]
-            else:
-                input_dir = [conf.offline_prefill_dir, input_dir]
+            input_dir = to_list(conf.offline_prefill_dir) + [input_dir]
         else:
             print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
             run_generator(conf, seed=0, policy='random', num_steps=conf.generator_prefill_steps, block=True, log_mlflow_metrics=False)
@@ -62,7 +59,7 @@ def run(conf):
             subprocesses.append(p)
 
     if conf.offline_eval_dir:
-        eval_dir = conf.offline_eval_dir
+        eval_dir = to_list(conf.offline_eval_dir)
     else:
         eval_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes_eval'  # type: ignore
         if not generator_train:
@@ -73,7 +70,7 @@ def run(conf):
                 subprocesses.append(p)
 
     if conf.offline_test_dir:
-        test_dir = conf.offline_test_dir
+        test_dir = to_list(conf.offline_test_dir)
     else:
         test_dir = eval_dir
 

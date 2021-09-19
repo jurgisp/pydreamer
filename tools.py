@@ -16,10 +16,15 @@ warnings.filterwarnings("ignore", "Your application has authenticated using end 
 
 print_once_keys = set()
 
+
 def print_once(key, obj):
     if key not in print_once_keys:
         print_once_keys.add(key)
         print(key, obj)
+
+
+def to_list(s):
+    return s if isinstance(s, list) else [s]
 
 
 def read_yamls(dir):
@@ -53,11 +58,13 @@ def mlflow_log_npz(data: dict, name, subdir=None, verbose=False):
             print(f'Uploading artifact {subdir}/{name} size {path.stat().st_size/1024/1024:.2f} MB')
         mlflow.log_artifact(str(path), artifact_path=subdir)
 
+
 def mlflow_log_text(text, name: str, subdir=None):
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / name
         path.write_text(text)
         mlflow.log_artifact(str(path), artifact_path=subdir)
+
 
 def mlflow_save_checkpoint(model, optimizers: Tuple[Optimizer, ...], steps):
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -69,6 +76,7 @@ def mlflow_save_checkpoint(model, optimizers: Tuple[Optimizer, ...], steps):
             checkpoint[f'optimizer_{i}_state_dict'] = opt.state_dict()
         torch.save(checkpoint, path)
         mlflow.log_artifact(str(path), artifact_path='checkpoints')
+
 
 def mlflow_load_checkpoint(model, optimizers: Tuple[Optimizer, ...] = tuple(), artifact_path='checkpoints/latest.pt', map_location=None):
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -85,6 +93,7 @@ def mlflow_load_checkpoint(model, optimizers: Tuple[Optimizer, ...] = tuple(), a
             opt.load_state_dict(checkpoint[f'optimizer_{i}_state_dict'])
         return checkpoint['epoch']
 
+
 def save_npz(data, filename):
     with io.BytesIO() as f1:
         np.savez_compressed(f1, **data)
@@ -92,15 +101,17 @@ def save_npz(data, filename):
         with filename.open('wb') as f2:
             f2.write(f1.read())
 
+
 def load_npz(path: Union[Path, Pathy]):
     with io.BytesIO() as f1:
         with path.open('rb') as f:
             # For remote file it's faster to copy to memory buffer first
-            f1.write(f.read())  
+            f1.write(f.read())
         f1.seek(0)
         fdata = np.load(f1)
         data = {key: fdata[key] for key in fdata}  # type: ignore
     return data
+
 
 def param_count(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)

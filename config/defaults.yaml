@@ -163,6 +163,7 @@ minerl_bc:
   batch_length: 8
   batch_size: 50
   generator_workers_eval: 2
+  n_steps: 100_000
   log_interval: 300
   save_interval: 1000
   eval_interval: 10000
