@@ -1,20 +1,37 @@
-dmlabtmaze_online_h1:
-  env_id: DmLab-rooms_select_nonmatching_object
-  action_dim: 15
-  imag_horizon: 1
+dmlabgoalsmall_kl3:
+  n_steps: 1_000_000
+  generator_workers: 10
+  env_id: DmLab-explore_goal_locations_small
+  reward_decoder_categorical: [-10., -1., 0., 1., 10.]
+  kl_weight: 3.0
+  reward_weight: 10.0
+
+dmlabgoalsmall_kl10:
+  n_steps: 1_000_000
+  generator_workers: 10
+  env_id: DmLab-explore_goal_locations_small
+  reward_decoder_categorical: [-10., -1., 0., 1., 10.]
+  kl_weight: 3.0
+  reward_weight: 10.0
+
+dmlabgoalsmall_kl3_d3072:
+  n_steps: 1_000_000
+  generator_workers: 10
+  env_id: DmLab-explore_goal_locations_small
+  reward_decoder_categorical: [-10., -1., 0., 1., 10.]
+  kl_weight: 3.0
+  reward_weight: 10.0
+  deter_dim: 3072
 
 dmlabtmaze_online_notbtt:
   env_id: DmLab-rooms_select_nonmatching_object
-  action_dim: 15
   keep_state: False
 
 dmlabtmaze_online:
   env_id: DmLab-rooms_select_nonmatching_object
-  action_dim: 15
 
 debug:
   env_id: DmLab-rooms_select_nonmatching_object
-  action_dim: 15
   generator_prefill_steps: 2_000
   device: cpu
   log_interval: 2

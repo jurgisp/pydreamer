@@ -148,7 +148,7 @@ atari:
 dmlab:
   env_id: DmLab-rooms_watermaze
   env_no_terminal: True
-  action_dim: 9
+  action_dim: 15
 
 minerl:
   env_id: MineRLObtainDiamondVectorObf-v0
