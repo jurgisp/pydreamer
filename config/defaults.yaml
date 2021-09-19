@@ -93,6 +93,7 @@ defaults:
 
   # Generator
   generator_workers: 4
+  generator_workers_eval: 1
   generator_prefill_steps: 500_000
   env_id:
   env_max_steps: 100_000  # not used
@@ -161,7 +162,7 @@ minerl_bc:
   model: bc
   batch_length: 8
   batch_size: 50
-  # too fast
+  generator_workers_eval: 2
   log_interval: 300
   save_interval: 1000
   eval_interval: 10000

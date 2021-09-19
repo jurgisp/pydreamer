@@ -68,9 +68,9 @@ def run(conf):
         if not generator_train:
             # Only need eval generator, if not using train generator. Otherwise train generator will generate eval data too
             print('Starting eval generator...')
-            p = run_generator(conf, seed=99, policy='network', eval_fraction=1.0, log_mlflow_metrics=not generator_train)
-            p = run_generator(conf, seed=98, policy='network', eval_fraction=1.0, log_mlflow_metrics=not generator_train)  # TODO
-            subprocesses.append(p)
+            for i in range(conf.generator_workers_eval):
+                p = run_generator(conf, seed=99 - i, policy='network', eval_fraction=1.0, log_mlflow_metrics=not generator_train)
+                subprocesses.append(p)
 
     if conf.offline_test_dir:
         test_dir = conf.offline_test_dir
