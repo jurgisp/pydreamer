@@ -1,42 +1,42 @@
 [
     {
-        "configs": ["defaults", "dmlab", "dmlabgoalsmall"],
-        "run_name": "dmlabgoalsmall_kl1",
+        "configs": ["defaults", "dmlab", "dmlabapplesmall"],
+        "run_name": "dmlabapplesmall_kl1",
         "kl_weight": 1.0
     },
     {
-        "configs": ["defaults", "dmlab", "dmlabgoalsmall"],
-        "run_name": "dmlabgoalsmall_kl3",
+        "configs": ["defaults", "dmlab", "dmlabapplesmall"],
+        "run_name": "dmlabapplesmall_kl3",
         "kl_weight": 3.0
     },
     {
-        "configs": ["defaults", "dmlab", "dmlabgoalsmall"],
-        "run_name": "dmlabgoalsmall_kl5",
+        "configs": ["defaults", "dmlab", "dmlabapplesmall"],
+        "run_name": "dmlabapplesmall_kl5",
         "kl_weight": 5.0
     },
     {
-        "configs": ["defaults", "dmlab", "dmlabgoalsmall"],
-        "run_name": "dmlabgoalsmall_kl10",
+        "configs": ["defaults", "dmlab", "dmlabapplesmall"],
+        "run_name": "dmlabapplesmall_kl10",
         "kl_weight": 10.0
     },
     {
-        "configs": ["defaults", "dmlab", "dmlabtmaze"],
-        "run_name": "dmlabtmaze_kl1",
+        "configs": ["defaults", "dmlab", "dmlabteleport"],
+        "run_name": "dmlabteleport_kl1",
         "kl_weight": 1.0
     },
     {
-        "configs": ["defaults", "dmlab", "dmlabtmaze"],
-        "run_name": "dmlabtmaze_kl3",
+        "configs": ["defaults", "dmlab", "dmlabteleport"],
+        "run_name": "dmlabteleport_kl3",
         "kl_weight": 3.0
     },
     {
-        "configs": ["defaults", "dmlab", "dmlabtmaze"],
-        "run_name": "dmlabtmaze_kl5",
+        "configs": ["defaults", "dmlab", "dmlabteleport"],
+        "run_name": "dmlabteleport_kl5",
         "kl_weight": 5.0
     },
     {
-        "configs": ["defaults", "dmlab", "dmlabtmaze"],
-        "run_name": "dmlabtmaze_kl10",
+        "configs": ["defaults", "dmlab", "dmlabteleport"],
+        "run_name": "dmlabteleport_kl10",
         "kl_weight": 10.0
     }
 ]

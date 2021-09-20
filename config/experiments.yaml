@@ -1,12 +1,19 @@
+dmlabapplesmall:
+  n_steps: 500_000
+  generator_workers: 10
+  env_id: DmLab-explore_object_locations_small
+  reward_decoder_categorical: [-10., -1., 0., 1., 2., 10.]
+  reward_weight: 10.0
+
 dmlabgoalsmall:
-  n_steps: 1_000_000
+  n_steps: 500_000
   generator_workers: 10
   env_id: DmLab-explore_goal_locations_small
   reward_decoder_categorical: [-10., -1., 0., 1., 2., 10.]
   reward_weight: 10.0
 
-dmlabtmaze:
-  n_steps: 1_000_000
+dmlabteleport:
+  n_steps: 500_000
   generator_workers: 10
   env_id: DmLab-rooms_select_nonmatching_object
   reward_decoder_categorical: [-10., -1., 0., 1., 2., 10.]
