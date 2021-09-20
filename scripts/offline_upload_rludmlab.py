@@ -38,24 +38,32 @@ tmux attach
 
 """
 
-import os
+import argparse
 import io
-from datetime import datetime
+import os
 import tempfile
+from datetime import datetime
 from pathlib import Path
+
 import mlflow
 import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
+args = argparse.ArgumentParser()
+args.add_argument('--env', default='explore_object_rewards_few')
+args.add_argument('--shard_from', default=0, type=int)
+args.add_argument('--shard_to', default=500, type=int)
+conf = args.parse_args()
+print(vars(conf))
+
+env = conf.env
 # env = 'rooms_watermaze'
 # env = 'rooms_select_nonmatching_object'
-env = 'explore_object_rewards_few'
+# env = 'explore_object_rewards_few'
 # env = 'explore_object_rewards_many'
 
-os.environ['MLFLOW_TRACKING_URI'] = 'http://10.164.0.92:30000'
-os.environ['MLFLOW_EXPERIMENT_NAME'] = 'dreamer2_episodes'
-mlflow.start_run(run_name=f'rlu_dmlab_{env}_0')
+mlflow.start_run(run_name=f'dmlab_{env}_{conf.shard_from}_{conf.shard_to}')
 
 H, W, A = 72, 96, 15
 STEPS_PER_NPZ = 1800
@@ -114,10 +122,11 @@ else:
     assert False, env
 
 step_counter = 0
-for shard in range(500):
+for shard in range(conf.shard_from, conf.shard_to):
     ds = tf.data.TFRecordDataset(f'gs://rl_unplugged/dmlab/{env}/training_0/tfrecord-{shard:05}-of-00500', compression_type='GZIP')
     ds = ds.map(rluds.tf_example_to_step_ds, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    episodes_dir = 'episodes_eval' if (shard == 0 or shard > 450) else 'episodes'
+    # episodes_dir = 'episodes_eval' if (shard == 0 or shard > 450) else 'episodes'
+    episodes_dir = 'episodes'
     datas = []
     for i, r in enumerate(ds.as_numpy_iterator()):
         data = parse_record(r)
