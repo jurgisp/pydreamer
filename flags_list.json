@@ -1,0 +1,14 @@
+[
+    {
+        "configs": ["defaults", "dmlab", "dmlabgoalsmall_kl3"],
+        "run_name": "dmlabgoalsmall_kl3"
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabgoalsmall_kl10"],
+        "run_name": "dmlabgoalsmall_kl10"
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabgoalsmall_kl3_d3072"],
+        "run_name": "dmlabgoalsmall_kl3_d3072"
+    }
+]
