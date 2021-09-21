@@ -1,5 +1,73 @@
 [
     {
+        "configs": ["defaults", "dmlab", "dmlabgoalsmall"],
+        "run_name": "dmlabgoalsmall_kl1",
+        "kl_weight": 1.0
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabgoalsmall"],
+        "run_name": "dmlabgoalsmall_kl3",
+        "kl_weight": 3.0
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabgoalsmall"],
+        "run_name": "dmlabgoalsmall_kl5",
+        "kl_weight": 5.0
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabgoalsmall"],
+        "run_name": "dmlabgoalsmall_kl10",
+        "kl_weight": 10.0
+    },
+    
+    {
+        "configs": ["defaults", "dmlab", "dmlabapplesmall"],
+        "run_name": "dmlabapplesmall_kl3_ent001",
+        "kl_weight": 3.0,
+        "entropy": 0.001
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabapplesmall"],
+        "run_name": "dmlabapplesmall_kl3_ent010",
+        "kl_weight": 3.0,
+        "entropy": 0.010
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabteleport"],
+        "run_name": "dmlabteleport_kl3_ent001",
+        "kl_weight": 3.0,
+        "entropy": 0.001
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabteleport"],
+        "run_name": "dmlabteleport_kl3_ent010",
+        "kl_weight": 3.0,
+        "entropy": 0.010
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabgoalsmall"],
+        "run_name": "dmlabgoalsmall_kl3_ent001",
+        "kl_weight": 3.0,
+        "entropy": 0.001
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabgoalsmall"],
+        "run_name": "dmlabgoalsmall_kl3_ent010",
+        "kl_weight": 3.0,
+        "entropy": 0.010
+    },
+
+    {
+        "configs": ["defaults", "dmlab", "dmlabteleport_off"],
+        "run_name": "dmlabteleport_off",
+        "kl_weight": 1.0
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabteleport_off"],
+        "run_name": "dmlabteleport_off",
+        "kl_weight": 1.0
+    },
+    {
         "configs": ["defaults", "dmlab", "dmlabteleport_off"],
         "run_name": "dmlabteleport_off",
         "kl_weight": 1.0
@@ -10,8 +78,38 @@
         "kl_weight": 1.0
     },
     {
+        "configs": ["defaults", "dmlab", "dmlabobjectfew_off"],
+        "run_name": "dmlabobjectfew_off",
+        "kl_weight": 1.0
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabobjectfew_off"],
+        "run_name": "dmlabobjectfew_off",
+        "kl_weight": 1.0
+    },
+    {
         "configs": ["defaults", "dmlab", "dmlabobjectmany_off"],
         "run_name": "dmlabobjectmany_off",
+        "kl_weight": 1.0
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabobjectmany_off"],
+        "run_name": "dmlabobjectmany_off",
+        "kl_weight": 1.0
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabobjectmany_off"],
+        "run_name": "dmlabobjectmany_off",
+        "kl_weight": 1.0
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabwatermaze_off"],
+        "run_name": "dmlabwatermaze_off",
+        "kl_weight": 1.0
+    },
+    {
+        "configs": ["defaults", "dmlab", "dmlabwatermaze_off"],
+        "run_name": "dmlabwatermaze_off",
         "kl_weight": 1.0
     },
     {
