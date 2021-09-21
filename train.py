@@ -509,7 +509,11 @@ if __name__ == '__main__':
     conf = {}
     configs = tools.read_yamls('./config')
     for name in args.configs:
-        conf.update(configs[name])
+        if ',' in name:
+            for n in name.split(','):
+                conf.update(configs[n])
+        else:
+            conf.update(configs[name])
 
     # Override config from command-line
     parser = argparse.ArgumentParser()
