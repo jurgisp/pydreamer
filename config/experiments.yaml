@@ -1,3 +1,5 @@
+# DMLab online
+
 dmlabapplesmall:
   n_steps: 500_000
   generator_workers: 10
@@ -18,6 +20,38 @@ dmlabteleport:
 
 dmlabtmaze_online:
   env_id: DmLab-rooms_select_nonmatching_object
+
+# DMLab offline
+
+dmlabteleport_off:
+  n_steps: 500_000
+  env_id: DmLab-rooms_select_nonmatching_object
+  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_select_nonmatching_object/train
+  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_select_nonmatching_object/eval
+  imag_horizon: 5
+
+dmlabobjectfew_off:
+  n_steps: 500_000
+  env_id: DmLab-explore_object_rewards_few
+  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_few/train
+  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_few/eval
+  imag_horizon: 5
+
+dmlabobjectmany_off:
+  n_steps: 500_000
+  env_id: DmLab-explore_object_rewards_many
+  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_many/train
+  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_many/eval
+  imag_horizon: 5
+
+dmlabwatermaze_off:
+  n_steps: 500_000
+  env_id: DmLab-rooms_watermaze
+  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_watermaze/train
+  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_watermaze/eval
+  imag_horizon: 5
+
+# Other
 
 debug:
   env_id: DmLab-rooms_select_nonmatching_object
