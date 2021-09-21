@@ -29,6 +29,7 @@ dmlabteleport_off:
   offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_select_nonmatching_object/train
   offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_select_nonmatching_object/eval
   imag_horizon: 5
+  reward_input: False
 
 dmlabobjectfew_off:
   n_steps: 500_000
@@ -36,6 +37,7 @@ dmlabobjectfew_off:
   offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_few/train
   offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_few/eval
   imag_horizon: 5
+  reward_input: False
 
 dmlabobjectmany_off:
   n_steps: 500_000
@@ -43,6 +45,7 @@ dmlabobjectmany_off:
   offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_many/train
   offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_many/eval
   imag_horizon: 5
+  reward_input: False
 
 dmlabwatermaze_off:
   n_steps: 500_000
@@ -50,6 +53,7 @@ dmlabwatermaze_off:
   offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_watermaze/train
   offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_watermaze/eval
   imag_horizon: 5
+  reward_input: False
 
 # Other
 
