@@ -21,7 +21,7 @@ metadata:
   name: dmlabupload-$TIMESTAMP
   namespace: default
 spec:
-  backoffLimit: 1
+  backoffLimit: 2
   template:
     spec:
       volumes:

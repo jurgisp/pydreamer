@@ -58,7 +58,7 @@ from generator import build_episode_name, parse_episode_name
 args = argparse.ArgumentParser()
 args.add_argument('--env', default='explore_object_rewards_few')
 args.add_argument('--shard_from', default=0, type=int)
-args.add_argument('--shard_to', default=500, type=int)
+args.add_argument('--shard_to', default=1500, type=int)
 args.add_argument('--resume_id', default='')
 
 H, W, A = 72, 96, 15
@@ -85,6 +85,7 @@ def parse_record(rec):
     data['reset'] = rec['steps']['is_first']
     data['image'] = np.stack([decode_image(imgb) for imgb in rec['steps']['observation']['pixels']], 0)
     return data
+
 
 def check_remaining_shards(artifact_dir, seed_from, seed_to):
     files = list(sorted(artifact_dir.glob('*.npz')))
@@ -129,7 +130,9 @@ if __name__ == '__main__':
 
     step_counter = 0
     for shard in range(shard_from, shard_to):
-        ds = tf.data.TFRecordDataset(f'gs://rl_unplugged/dmlab/{env}/training_0/tfrecord-{shard:05}-of-00500', compression_type='GZIP')
+        gs_path = f'gs://rl_unplugged/dmlab/{env}/training_{shard // 500}/tfrecord-{(shard % 500):05}-of-00500'
+        print(gs_path, '...')
+        ds = tf.data.TFRecordDataset(gs_path, compression_type='GZIP')
         ds = ds.map(rluds.tf_example_to_step_ds, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         datas = []
         for i, r in enumerate(ds.as_numpy_iterator()):
