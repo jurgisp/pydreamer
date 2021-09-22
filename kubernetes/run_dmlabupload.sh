@@ -45,13 +45,15 @@ spec:
           command:
             - python3 
           args:
-            - scripts/offline_upload_rludmlab.py
+            - offline_upload_rludmlab.py
             - --env
             - "${ENVID}"
             - --shard_from
             - "${SHARD_FROM}"
             - --shard_to
             - "${SHARD_TO}"
+            - --resume_id
+            - $RND
           resources:
             requests:
               memory: 1000Mi
