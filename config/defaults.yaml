@@ -1,6 +1,6 @@
 defaults:
   # Job
-  n_steps: 500_000
+  n_steps: 1_000_000
   run_name: none
   resume_id:
   offline_data_dir:
@@ -147,8 +147,12 @@ atari:
 
 dmlab:
   env_id: DmLab-rooms_watermaze
-  env_no_terminal: True
   action_dim: 15
+  env_no_terminal: True
+  generator_workers: 10
+  reward_input: False
+  kl_weight: 3.0
+  generator_prefill_steps: 200_000
 
 minerl:
   env_id: MineRLObtainDiamondVectorObf-v0

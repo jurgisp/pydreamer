@@ -1,70 +1,36 @@
 # DMLab online
 
 dmlabapplesmall:
-  n_steps: 500_000
-  generator_workers: 10
   env_id: DmLab-explore_object_locations_small
-  reward_input: False
 
 dmlabgoalsmall:
-  n_steps: 500_000
-  generator_workers: 10
   env_id: DmLab-explore_goal_locations_small
-  reward_input: False
 
 dmlabteleport:
-  n_steps: 500_000
-  generator_workers: 10
-  env_id: DmLab-rooms_select_nonmatching_object
-  reward_input: False
-
-dmlabtmaze_online:
   env_id: DmLab-rooms_select_nonmatching_object
 
 # DMLab offline
 
 dmlabteleport_off:
-  n_steps: 500_000
   env_id: DmLab-rooms_select_nonmatching_object
   offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_select_nonmatching_object/train
   offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_select_nonmatching_object/eval
   imag_horizon: 5
-  reward_input: False
 
 dmlabobjectfew_off:
-  n_steps: 500_000
   env_id: DmLab-explore_object_rewards_few
   offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_few/train
   offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_few/eval
   imag_horizon: 5
-  reward_input: False
 
 dmlabobjectmany_off:
-  n_steps: 500_000
   env_id: DmLab-explore_object_rewards_many
   offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_many/train
   offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_many/eval
   imag_horizon: 5
-  reward_input: False
 
 dmlabwatermaze_off:
-  n_steps: 500_000
   env_id: DmLab-rooms_watermaze
   offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_watermaze/train
   offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_watermaze/eval
   imag_horizon: 5
-  reward_input: False
-
-# Other
-
-debug:
-  env_id: DmLab-rooms_select_nonmatching_object
-  generator_prefill_steps: 2_000
-  device: cpu
-  log_interval: 2
-  save_interval: 10
-  data_workers: 0
-  generator_workers: 1
-  batch_length: 15
-  batch_size: 5
-  imag_horizon: 1

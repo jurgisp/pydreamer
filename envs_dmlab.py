@@ -20,7 +20,7 @@ import deepmind_lab  # type: ignore
 
 
 # Default (action_dim=9)
-# ACTION_SET = (
+# ACTION_SET = (  # IMPALA action set
 #     (0, 0, 0, 1, 0, 0, 0),    # Forward
 #     (0, 0, 0, -1, 0, 0, 0),   # Backward
 #     (0, 0, -1, 0, 0, 0, 0),   # Strafe Left
@@ -33,7 +33,7 @@ import deepmind_lab  # type: ignore
 # )
 
 # RLU (action:dim=15)
-ACTION_SET = {
+ACTION_SET = {  # R2D2 action set
     0: (0, 0, 0, 1, 0, 0, 0),     # Forward
     1: (0, 0, 0, -1, 0, 0, 0),    # Backward
     2: (0, 0, -1, 0, 0, 0, 0),    # Strafe Left
