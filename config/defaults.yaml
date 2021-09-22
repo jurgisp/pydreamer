@@ -153,6 +153,7 @@ dmlab:
   generator_workers: 10
   reward_input: False
   kl_weight: 3.0
+  gamma: 0.995
   generator_prefill_steps: 200_000
 
 minerl:
