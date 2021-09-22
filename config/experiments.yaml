@@ -9,6 +9,14 @@ dmlabgoalsmall:
 dmlabteleport:
   env_id: DmLab-rooms_select_nonmatching_object
 
+dmlab_rooms_collect_good_objects:
+  env_id: DmLab-rooms_collect_good_objects_train
+  env_id_eval: DmLab-rooms_collect_good_objects_test
+
+dmlab_rooms_exploit_deferred_effects:
+  env_id: DmLab-rooms_exploit_deferred_effects_train
+  env_id_eval: DmLab-rooms_exploit_deferred_effects_test
+
 # DMLab offline
 
 dmlabteleport_off:
