@@ -44,6 +44,7 @@ import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from PIL import Image
 
 import mlflow
 import numpy as np
@@ -70,10 +71,9 @@ STEPS_PER_NPZ = 1800
 
 def decode_image(imgb, h=64, w=64):
     img = tf.io.decode_image(imgb)
-    # img = tf.image.crop_to_bounding_box(img, (H-h)//2, (W-w)//2, h, w)  # center crop
-    img = tf.image.crop_to_bounding_box(img, (H-h), (W-w)//2, h, w) # center-bottom crop
-    img = img[:, :, ::-1]  # BGR => RGB?
-    return img.numpy()
+    img = img[:, :, ::-1].numpy()  # BGR => RGB
+    img = np.array(Image.fromarray(img).resize((64, 64), Image.NEAREST))  # resize
+    return img
 
 def parse_record(rec):
     # Saved data sample:
