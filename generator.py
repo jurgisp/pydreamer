@@ -84,10 +84,10 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         run = mlflow.active_run()
         if run is None:
             run = mlflow.start_run()
-        print(f'Generator using existing mlflow run {run.info.run_id}')
     else:
         run = mlflow.start_run(run_name=f'{env_id}-s{seed}')
-        print(f'Mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
+
+    print(f'Generator {seed} started: env={env_id}, evalfrac={eval_fraction}, metrics={metrics_prefix if log_mlflow_metrics else None}, run_id={run.info.run_id}')
 
     episodes_dir = 'episodes' if eval_fraction < 1.0 else 'episodes_eval'  # HACK
     artifact_dir = run.info.artifact_uri.replace('file://', '') + '/' + episodes_dir

@@ -53,25 +53,26 @@ def run(conf):
         else:
             print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
             for i in range(conf.generator_workers):
-                p = run_generator(conf, seed=i, policy='random', num_steps=conf.generator_prefill_steps // conf.generator_workers, log_mlflow_metrics=False)
+                p = run_generator(conf.env_id, conf, seed=i, policy='random', num_steps=conf.generator_prefill_steps // conf.generator_workers, log_mlflow_metrics=False)
                 subprocesses.append(p)
             while any(p.is_alive() for p in subprocesses):
                 time.sleep(1)
             subprocesses.clear()
         print('Starting agent generator...')
         for i in range(conf.generator_workers):
-            p = run_generator(conf, seed=i, policy='network', eval_fraction=0.1, log_mlflow_metrics=i == 0)
+            p = run_generator(conf.env_id, conf, seed=i, policy='network', eval_fraction=0.1 if not conf.env_id_eval else 0.0, log_mlflow_metrics=i == 0)
             subprocesses.append(p)
 
     if conf.offline_eval_dir:
         eval_dir = to_list(conf.offline_eval_dir)
     else:
         eval_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes_eval'  # type: ignore
-        if not generator_train:
+        if not generator_train or conf.env_id_eval:
             # Only need eval generator, if not using train generator. Otherwise train generator will generate eval data too
             print('Starting eval generator...')
             for i in range(conf.generator_workers_eval):
-                p = run_generator(conf, seed=99 - i, policy='network', eval_fraction=1.0, log_mlflow_metrics=not generator_train)
+                env_id = conf.env_id_eval or conf.env_id
+                p = run_generator(env_id, conf, seed=99 - i, policy='network', eval_fraction=1.0, log_mlflow_metrics=True, metrics_prefix='agent_eval')
                 subprocesses.append(p)
 
     if conf.offline_test_dir:
@@ -467,12 +468,12 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
     return {k: unpreprocess(k, v) for k, v in data.items()}
 
 
-def run_generator(conf, policy='network', seed=0, num_steps=int(1e9), block=False, eval_fraction=0.0, metrics_prefix='agent', log_mlflow_metrics=True):
+def run_generator(env_id, conf, policy='network', seed=0, num_steps=int(1e9), block=False, eval_fraction=0.0, metrics_prefix='agent', log_mlflow_metrics=True):
     os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
     p = Process(target=generator.main,
                 daemon=True,
                 kwargs=dict(
-                    env_id=conf.env_id,
+                    env_id=env_id,
                     # env_max_steps=conf.env_max_steps,
                     env_no_terminal=conf.env_no_terminal,
                     policy=policy,

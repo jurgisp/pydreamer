@@ -96,6 +96,7 @@ defaults:
   generator_workers_eval: 1
   generator_prefill_steps: 500_000
   env_id:
+  env_id_eval:
   env_max_steps: 100_000  # not used
   env_no_terminal: False
 
