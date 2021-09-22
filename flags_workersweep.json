@@ -1,0 +1,7 @@
+[
+    { "configs": ["defaults", "dmlab", "dmlabapplesmall"], "generator_workers": 1, "run_name": "dmlab_explore_object_locations_small_wrk1"},
+    { "configs": ["defaults", "dmlab", "dmlabapplesmall"], "generator_workers": 3, "run_name": "dmlab_explore_object_locations_small_wrk3"},
+    { "configs": ["defaults", "dmlab", "dmlabapplesmall"], "generator_workers": 10, "run_name": "dmlab_explore_object_locations_small_wrk10"},
+    { "configs": ["defaults", "dmlab", "dmlabapplesmall"], "generator_workers": 30, "run_name": "dmlab_explore_object_locations_small_wrk30"},
+    { "configs": ["defaults", "dmlab", "dmlabapplesmall"], "generator_workers": 100, "run_name": "dmlab_explore_object_locations_small_wrk100"}
+]
