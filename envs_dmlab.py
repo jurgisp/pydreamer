@@ -13,6 +13,7 @@
 
 """DeepMind Lab Gym wrapper."""
 
+import os
 import gym
 import numpy as np
 from PIL import Image
@@ -99,7 +100,8 @@ class DmLab(gym.Env):
                 # fps='30',   # this produces 900 not 1800 steps in watermaze
                 height='72',  # 72x96 to match RLU observations
                 width='96',
-                datasetPath='',  # dataset needed for psychlab_*, see https://github.com/deepmind/lab/tree/master/data/brady_konkle_oliva2008
+                # dataset needed for psychlab_*, see https://github.com/deepmind/lab/tree/master/data/brady_konkle_oliva2008
+                datasetPath=os.environ.get('DMLAB_DATASET_PATH', ''),
                 maxAltCameraHeight='1',
                 maxAltCameraWidth='1',
                 hasAltCameras='false',

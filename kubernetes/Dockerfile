@@ -72,4 +72,11 @@ ENV PYTHONUNBUFFERED 1
 ENV MLFLOW_TRACKING_URI ""
 ENV MLFLOW_EXPERIMENT_NAME "Default"
 
+# DMLab dataset
+
+COPY kubernetes/dmlab_data_download.sh .
+RUN sh dmlab_data_download.sh
+ENV DMLAB_DATASET_PATH "/app/dmlab_data"
+
+
 COPY . .

@@ -9,6 +9,9 @@ dmlabgoalsmall:
 dmlabteleport:
   env_id: DmLab-rooms_select_nonmatching_object
 
+dmlab_psychlab_arbitrary_vm:
+  env_id: DmLab-psychlab_arbitrary_visuomotor_mapping
+
 dmlab_rooms_collect_good_objects:
   env_id: DmLab-rooms_collect_good_objects_train
   env_id_eval: DmLab-rooms_collect_good_objects_test
