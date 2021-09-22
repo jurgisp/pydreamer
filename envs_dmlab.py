@@ -15,9 +15,9 @@
 
 import gym
 import numpy as np
+from PIL import Image
 
 import deepmind_lab  # type: ignore
-
 
 # Default (action_dim=9)
 # ACTION_SET = (  # IMPALA action set
@@ -75,8 +75,7 @@ class DmLab(gym.Env):
 
     def _observation(self):
         img = self._env.observations()['RGB_INTERLEAVED']
-        H, W = img.shape[:2]
-        img = img[-64:, (W - 64) // 2:-(W - 64) // 2]  # center-bottom crop
+        img = np.array(Image.fromarray(img).resize((64, 64), Image.NEAREST))
         return img
 
     def reset(self):
