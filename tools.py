@@ -1,7 +1,6 @@
 from typing import Tuple, Union
 import warnings
 from mlflow.tracking.client import MlflowClient
-from torch.optim.optimizer import Optimizer
 import yaml
 import tempfile
 from pathlib import Path
@@ -10,7 +9,6 @@ import io
 import time
 import numpy as np
 import mlflow
-import torch
 
 warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
 
@@ -67,7 +65,8 @@ def mlflow_log_text(text, name: str, subdir=None):
         mlflow.log_artifact(str(path), artifact_path=subdir)
 
 
-def mlflow_save_checkpoint(model, optimizers: Tuple[Optimizer, ...], steps):
+def mlflow_save_checkpoint(model, optimizers, steps):
+    import torch
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / 'latest.pt'
         checkpoint = {}
@@ -79,7 +78,8 @@ def mlflow_save_checkpoint(model, optimizers: Tuple[Optimizer, ...], steps):
         mlflow.log_artifact(str(path), artifact_path='checkpoints')
 
 
-def mlflow_load_checkpoint(model, optimizers: Tuple[Optimizer, ...] = tuple(), artifact_path='checkpoints/latest.pt', map_location=None):
+def mlflow_load_checkpoint(model, optimizers = tuple(), artifact_path='checkpoints/latest.pt', map_location=None):
+    import torch
     with tempfile.TemporaryDirectory() as tmpdir:
         client = MlflowClient()
         run_id = mlflow.active_run().info.run_id  # type: ignore

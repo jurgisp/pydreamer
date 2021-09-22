@@ -52,7 +52,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 
 from tools import *
-from generator import build_episode_name, parse_episode_name
+# from generator import build_episode_name, parse_episode_name
 
 
 args = argparse.ArgumentParser()
@@ -63,6 +63,27 @@ args.add_argument('--resume_id', default='')
 
 H, W, A = 72, 96, 15
 STEPS_PER_NPZ = 1800
+
+
+def build_episode_name(seed, episode_from, episode, reward, steps):
+    if episode_from < episode:
+        return f's{seed}-ep{episode_from:06}_{episode:06}-r{reward}-{steps:04}.npz'
+    else:
+        return f's{seed}-ep{episode:06}-r{reward}-{steps:04}.npz'
+
+
+def parse_episode_name(fname):
+    # fname = 's{seed}-ep{epfrom}_{episode}-r{reward}-{steps}.npz'
+    #       | 's{seed}-ep{episode}-r{reward}-{steps}.npz'
+    seed = fname.split('-')[0][1:]
+    seed = int(seed) if seed.isnumeric() else 0
+    steps = fname.split('.')[0].split('-')[-1]
+    steps = int(steps) if steps.isnumeric() else 0
+    episode = fname.split('.')[0].split('-')[-3].replace('ep', '').split('_')[-1]
+    episode = int(episode) if episode.isnumeric() else 0
+    reward = fname.split('-r')[-1].split('-')[0]  # Doen't handle negatives
+    reward = int(reward) if reward.isnumeric() else 0
+    return (seed, episode, steps, reward)
 
 
 def decode_image(imgb, h=64, w=64):
