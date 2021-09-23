@@ -9,7 +9,7 @@ defaults:
   offline_eval_dir:
   log_interval: 100
   logbatch_interval: 1000
-  save_interval: 200
+  save_interval: 500
   eval_interval: 2000
   data_workers: 6  # need 6 to not bottleneck on unzipping npz, 4 is not enough
   enable_profiler: True
