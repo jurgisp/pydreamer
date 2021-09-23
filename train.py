@@ -60,7 +60,7 @@ def run(conf):
             subprocesses.clear()
         print('Starting agent generator...')
         for i in range(conf.generator_workers):
-            p = run_generator(conf.env_id, conf, seed=i, policy='network', eval_fraction=0.1 if not conf.env_id_eval else 0.0, log_mlflow_metrics=i == 0)
+            p = run_generator(conf.env_id, conf, seed=i, policy='network', eval_fraction=0.1 if not conf.env_id_eval else 0.0)
             subprocesses.append(p)
 
     if conf.offline_eval_dir:
@@ -72,7 +72,7 @@ def run(conf):
             print('Starting eval generator...')
             for i in range(conf.generator_workers_eval):
                 env_id = conf.env_id_eval or conf.env_id
-                p = run_generator(env_id, conf, seed=99 - i, policy='network', eval_fraction=1.0, log_mlflow_metrics=True, metrics_prefix='agent_eval')
+                p = run_generator(env_id, conf, seed=99 - i, policy='network', eval_fraction=1.0, metrics_prefix='agent_eval')
                 subprocesses.append(p)
 
     if conf.offline_test_dir:

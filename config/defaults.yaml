@@ -120,6 +120,7 @@ minigrid:
   map_model: direct
 
 miniworld:
+  env_id: MiniWorld-MazeS7GridA4C-v0
   # Features
   image_key: image
   image_size: 64

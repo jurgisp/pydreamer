@@ -76,6 +76,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          log_mlflow_metrics=True,
          eval_fraction=0.0,
          metrics_prefix='agent',
+         log_every=10,
          ):
 
     # Mlflow
@@ -140,6 +141,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     first_episode = True
     last_model_load = 0
     model_step = 0
+    metrics_agg = defaultdict(list)
 
     while steps < num_steps:
 
@@ -211,7 +213,6 @@ def main(env_id='MiniGrid-MazeS11N-v0',
               )
 
         if log_mlflow_metrics:
-            log_step = model_step if model else steps
             metrics = {f'{metrics_prefix}/{k}': np.mean(v) for k, v in metrics.items()}
             metrics.update({
                 f'{metrics_prefix}/episode_length': epsteps,
@@ -233,7 +234,17 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             if data['terminal'][-1]:
                 value_terminal = data['policy_value'][-2] - data['reward'][-1]  # This should be zero, because value[last] = reward[last]
                 metrics[f'{metrics_prefix}/policy_value_terminal'] = value_terminal
-            mlflow.log_metrics(metrics, step=log_step)
+
+            # Aggregate every 10 episodes
+
+            for k, v in metrics.items():
+                if not np.isnan(v):
+                    metrics_agg[k].append(v)
+            
+            if len(metrics_agg[f'{metrics_prefix}/return']) >= log_every:
+                metrics_agg = {k: np.mean(v) for k, v in metrics_agg.items()}
+                mlflow.log_metrics(metrics_agg, step=model_step if model else steps)
+                metrics_agg = defaultdict(list)
 
         # Save to npz
 
