@@ -53,7 +53,7 @@ def run(conf):
         else:
             print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
             for i in range(conf.generator_workers):
-                p = run_generator(conf.env_id, conf, seed=i, policy='random', num_steps=conf.generator_prefill_steps // conf.generator_workers, log_mlflow_metrics=False)
+                p = run_generator(conf.env_id, conf, seed=i, policy='random', num_steps=conf.generator_prefill_steps // conf.generator_workers)
                 subprocesses.append(p)
             while any(p.is_alive() for p in subprocesses):
                 time.sleep(1)

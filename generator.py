@@ -243,7 +243,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             
             if len(metrics_agg[f'{metrics_prefix}/return']) >= log_every:
                 metrics_agg = {k: np.mean(v) for k, v in metrics_agg.items()}
-                mlflow.log_metrics(metrics_agg, step=model_step if model else steps)
+                mlflow.log_metrics(metrics_agg, step=model_step if model else 0)
                 metrics_agg = defaultdict(list)
 
         # Save to npz
