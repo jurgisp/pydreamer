@@ -58,6 +58,12 @@ RUN pip3 install minerl==0.4.1a2
 RUN apt-get install -y libx11-6 xvfb x11-xserver-utils
 ENV LANG "C.UTF-8"
 
+# DMLab dataset
+
+COPY kubernetes/dmlab_data_download.sh .
+RUN sh dmlab_data_download.sh
+ENV DMLAB_DATASET_PATH "/app/dmlab_data"
+
 # APP
 
 WORKDIR /app
@@ -65,18 +71,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@e979bc77a9377346a6a0311a257e8bbb218e611c#egg=gym-minigrid
-RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@aec3ac7a58d89f4e6214e366e8d3e41dc7bb3652#egg=gym-miniworld
+RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@1ff6ed40c9b27a1b6285566ee8af80dda85bfcce#egg=gym-miniworld
 
 ENV OMP_NUM_THREADS 1
 ENV PYTHONUNBUFFERED 1
-ENV MLFLOW_TRACKING_URI ""
-ENV MLFLOW_EXPERIMENT_NAME "Default"
-
-# DMLab dataset
-
-COPY kubernetes/dmlab_data_download.sh .
-RUN sh dmlab_data_download.sh
-ENV DMLAB_DATASET_PATH "/app/dmlab_data"
-
+ENV MLFLOW_TRACKING_URI "http://mlflow.threethirds.ai:30000/"
+ENV MLFLOW_EXPERIMENT_NAME "d2_google"
 
 COPY . .

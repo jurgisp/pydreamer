@@ -1,8 +1,8 @@
-from typing import Dict, Tuple, Callable
+from typing import Callable, Dict, Tuple
+
 import numpy as np
-import torch
-import torch.nn.functional as F
 from torch.utils.data import IterableDataset, get_worker_info
+
 from tools import *
 
 
@@ -76,7 +76,7 @@ class Preprocessor:
         return TransformedDataset(dataset, self.apply)
 
     def apply(self, batch: Dict[str, np.ndarray], expandTB=False) -> Dict[str, np.ndarray]:
-        print_once('Preprocess batch (before): ', {k: v.shape for k, v in batch.items()})
+        print_once('Preprocess batch (before): ', {k: v.shape + (v.dtype.name,) for k, v in batch.items()})
 
         # expand
 
@@ -89,7 +89,7 @@ class Preprocessor:
         # image
 
         batch['image'] = batch[self._image_key]  # Use something else (e.g. map_masked) as image
-        T, B, C, H, W = batch['image'].shape
+        T, B = batch['image'].shape[:2]
         if self._image_categorical:
             batch['image'] = img_to_onehot(batch['image'], self._image_categorical)
         else:
@@ -106,7 +106,18 @@ class Preprocessor:
             # cleanup unused
             remove_keys(batch, ['map_centered'])
         else:
-            batch['map'] = np.zeros((T, B, 1, 1, 1))
+            batch['map'] = np.zeros((T, B, 1, 1, 1), np.float32)
+
+        if 'map_seen' in batch:
+            # map_seen contains 0 where map is unseen, otherwise =map
+            batch['map_seen_mask'] = (batch['map_seen'] > 0).astype(int)  # type: ignore
+            del batch['map_seen']
+        elif 'map_vis' in batch:
+            # map_vis shows how long ago cell was seen, if never, then equals to max_steps=500
+            batch['map_seen_mask'] = (batch['map_vis'] < 500).astype(int)  # type: ignore
+            del batch['map_vis']
+        else:
+            batch['map_seen_mask'] = np.ones((T, B) + batch['map'].shape[-2:]).astype(int)
 
         # action
 
@@ -117,8 +128,8 @@ class Preprocessor:
 
         # reward, terminal
 
-        batch['reward'] = batch['reward'].astype(np.float32)
-        batch['terminal'] = batch['terminal'].astype(np.float32)
+        batch['reward'] = batch.get('reward', np.zeros((T, B))).astype(np.float32)
+        batch['terminal'] = batch.get('terminal', np.zeros((T, B))).astype(np.float32)
 
         # map_coord
 
@@ -128,7 +139,7 @@ class Preprocessor:
             agent_dir = batch['agent_dir']
             batch['map_coord'] = np.concatenate([agent_pos, agent_dir], axis=-1).astype(np.float32)  # type: ignore
         else:
-            batch['map_coord'] = np.zeros((T, B, 4))
+            batch['map_coord'] = np.zeros((T, B, 4), np.float32)
 
         # => float16
 
@@ -137,5 +148,5 @@ class Preprocessor:
                 if key in batch:
                     batch[key] = batch[key].astype(np.float16)
 
-        print_once('Preprocess batch (after): ', {k: v.shape for k, v in batch.items()})
+        print_once('Preprocess batch (after): ', {k: v.shape + (v.dtype.name,) for k, v in batch.items()})
         return batch

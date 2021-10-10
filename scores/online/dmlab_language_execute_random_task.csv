@@ -1,0 +1,14 @@
+train_steps,agent_steps,return,return_eval,env_steps,env,run
+5000,552600.0,-4.960000000000002,,2210400.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task
+10000,868500.0,-3.9533333333333327,,3474000.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task
+15000,1405200.0,-5.7266666666666675,,5620800.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task
+20000,1883700.0,-4.5600000000000005,,7534800.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task
+25000,2386200.0,-5.64,,9544800.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task
+30000,2895300.0,-3.7500000000000004,,11581200.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task
+35000,3372000.0,-6.386666666666666,,13488000.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task
+40000,3843900.0,-5.580000000000002,,15375600.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task
+45000,4314600.0,-6.316666666666666,,17258400.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task
+50000,4789800.0,-1.9899999999999998,,19159200.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task
+55000,5266800.0,-1.1906249999999998,,21067200.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task
+60000,5773500.0,-1.1451612903225807,,23094000.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task
+65000,6157800.0,-4.6000000000000005,,24631200.0,dmlab_language_execute_random_task,dmlab_language_execute_random_task

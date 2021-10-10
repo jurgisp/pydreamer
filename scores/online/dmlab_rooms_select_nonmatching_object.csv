@@ -1,0 +1,5 @@
+train_steps,agent_steps,return,return_eval,env_steps,env,run
+5000,364500.0,3.067235494880546,,1458000.0,dmlab_rooms_select_nonmatching_object,dmlab_rooms_select_nonmatching_object
+10000,584010.0,5.706878306878306,,2336040.0,dmlab_rooms_select_nonmatching_object,dmlab_rooms_select_nonmatching_object
+15000,901800.0,5.889903846153848,,3607200.0,dmlab_rooms_select_nonmatching_object,dmlab_rooms_select_nonmatching_object
+20000,1187460.0,4.258024691358024,,4749840.0,dmlab_rooms_select_nonmatching_object,dmlab_rooms_select_nonmatching_object

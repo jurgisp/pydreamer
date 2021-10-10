@@ -32,7 +32,7 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 
 
 def run(conf):
-    mlflow_start_or_resume(conf.run_name, conf.resume_id)
+    mlflow_start_or_resume(conf.run_name or conf.resume_id, conf.resume_id)
     mlflow.log_params({k: v for k, v in vars(conf).items() if not len(repr(v)) > 250})  # filter too long
     device = torch.device(conf.device)
 
@@ -68,7 +68,8 @@ def run(conf):
     else:
         eval_dir = mlflow.active_run().info.artifact_uri.replace('file://', '') + '/episodes_eval'  # type: ignore
         if not generator_train or conf.env_id_eval:
-            # Only need eval generator, if not using train generator. Otherwise train generator will generate eval data too
+            # Only need eval generator, if not using train generator (or if different env_id_eval)
+            # Otherwise train generator will generate eval data too
             print('Starting eval generator...')
             for i in range(conf.generator_workers_eval):
                 env_id = conf.env_id_eval or conf.env_id
@@ -161,6 +162,7 @@ def run(conf):
                     reset = batch['reset'].to(device)
                     map = batch['map'].to(device)
                     map_coord = batch['map_coord'].to(device)
+                    map_seen_mask = batch['map_seen_mask'].to(device)
 
                 # Forward
 
@@ -169,7 +171,7 @@ def run(conf):
 
                         state = states.get(wid) or model.init_state(image.size(1) * conf.iwae_samples)
                         losses, loss_metrics, loss_tensors, new_state, out_tensors, dream_tensors = \
-                            model.train(image, reward, terminal, action, reset, map, map_coord, state,
+                            model.train(image, reward, terminal, action, reset, map, map_coord, map_seen_mask, state,
                                         I=conf.iwae_samples,
                                         H=conf.imag_horizon,
                                         imagine_dropout=conf.imagine_dropout,
@@ -334,6 +336,7 @@ def evaluate(prefix: str,
             reset = batch['reset'].to(device)
             map = batch['map'].to(device)
             map_coord = batch['map_coord'].to(device)
+            map_seen_mask = batch['map_seen_mask'].to(device)
             N, B = image.shape[:2]
 
             if i_batch == 0:
@@ -358,7 +361,7 @@ def evaluate(prefix: str,
                 with autocast(enabled=conf.amp):
                     _, _, loss_tensors_im, _, out_tensors_im, _ = \
                         model.train(image, reward, terminal,  # (image, reward, terminal) will be ignored in forward pass because of imagine=True
-                                    action, reset, map, map_coord, state,
+                                    action, reset, map, map_coord, map_seen_mask, state,
                                     I=eval_samples,
                                     H=conf.imag_horizon,
                                     imagine_dropout=1,
@@ -378,7 +381,7 @@ def evaluate(prefix: str,
                     state = model.init_state(image.size(1) * eval_samples)
 
                 _, loss_metrics, loss_tensors, state, out_tensors, _ = \
-                    model.train(image, reward, terminal, action, reset, map, map_coord, state,
+                    model.train(image, reward, terminal, action, reset, map, map_coord, map_seen_mask, state,
                                 I=eval_samples,
                                 H=conf.imag_horizon,
                                 imagine_dropout=0,
@@ -440,7 +443,7 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
                 f'Unexpected 1D tensor: {key}: {x.shape}, {x.dtype}'
 
         elif len(x.shape) == 4:  # 2D tensor - categorical image
-            assert x.dtype == np.int64 and key.startswith('map'), \
+            assert (x.dtype == np.int64 or x.dtype == np.uint8) and key.startswith('map'), \
                 f'Unexpected 2D tensor: {key}: {x.shape}, {x.dtype}'
 
         elif len(x.shape) == 5:  # 3D tensor - image
@@ -459,7 +462,8 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
                 x = x.argmax(axis=-1)
             else:
                 # Categorical logits
-                assert key in ['map_rec'], f'Unexpected 3D categorical logits: {key}: {x.shape}'
+                assert key in ['map_rec', 'image_rec', 'image_pred'], \
+                    f'Unexpected 3D categorical logits: {key}: {x.shape}'
                 x = scipy.special.softmax(x, axis=-1)
 
         x = x.swapaxes(0, 1)  # type: ignore  # (N,B,*) => (B,N,*)
@@ -474,7 +478,7 @@ def run_generator(env_id, conf, policy='network', seed=0, num_steps=int(1e9), bl
                 daemon=True,
                 kwargs=dict(
                     env_id=env_id,
-                    # env_max_steps=conf.env_max_steps,
+                    env_time_limit=conf.env_time_limit,
                     env_no_terminal=conf.env_no_terminal,
                     policy=policy,
                     num_steps=num_steps,
@@ -482,7 +486,8 @@ def run_generator(env_id, conf, policy='network', seed=0, num_steps=int(1e9), bl
                     model_conf=conf,
                     log_mlflow_metrics=log_mlflow_metrics,
                     eval_fraction=eval_fraction,
-                    metrics_prefix=metrics_prefix
+                    metrics_prefix=metrics_prefix,
+                    metrics_gamma=conf.gamma,
                 ))
     p.start()
     if block:

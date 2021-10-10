@@ -5,9 +5,8 @@ kubectl config use-context mlflow-cluster
 MLFLOW_EXPERIMENT_NAME=$1
 ENVID=$2
 POLICY=$3
-MAXSTEPS=$4
-NUMSTEPS=$5
-SEED=$6
+NUMSTEPS=$4
+SEED=$5
 
 TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
 TAG=$(git describe --tags | sed 's/-g[a-z0-9]\{7\}//')
@@ -60,7 +59,7 @@ spec:
             - "${NUMSTEPS}"
           resources:
             requests:
-              memory: 4000Mi
-              cpu: 3000m
+              memory: 1000Mi
+              cpu: 1500m
       restartPolicy: Never
 EOF

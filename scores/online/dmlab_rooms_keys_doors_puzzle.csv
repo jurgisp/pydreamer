@@ -1,0 +1,14 @@
+train_steps,agent_steps,return,return_eval,env_steps,env,run
+5000,,4.791428571428574,,,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle
+10000,925099.0,3.1909090909090905,,3700396.0,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle
+15000,1343466.0,2.401587301587301,,5373864.0,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle
+20000,1811559.0,2.2916666666666665,,7246236.0,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle
+25000,2306012.0,4.485483870967742,,9224048.0,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle
+30000,2837841.0,2.4237288135593227,,11351364.0,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle
+35000,3312645.3333333335,4.757377049180329,,13250581.333333334,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle
+40000,3791411.0,0.691525423728814,,15165644.0,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle
+45000,4261017.0,0.5393442622950819,,17044068.0,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle
+50000,4751970.5,2.2899999999999996,,19007882.0,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle
+55000,5261787.333333333,4.5721311475409845,,21047149.333333332,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle
+60000,5757122.5,1.2016393442622952,,23028490.0,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle
+65000,6192159.0,0.9249999999999997,,24768636.0,dmlab_rooms_keys_doors_puzzle,dmlab_rooms_keys_doors_puzzle

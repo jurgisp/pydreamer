@@ -26,7 +26,7 @@ from tools import *
 WALL = 2
 
 
-def create_env(env_id: str, max_steps: int, no_terminal: bool, seed: int):
+def create_env(env_id: str, no_terminal: bool, seed: int, env_time_limit: int = 0):
 
     if env_id.startswith('MiniGrid-'):
         env = MiniGrid(env_id, seed=seed)
@@ -39,7 +39,7 @@ def create_env(env_id: str, max_steps: int, no_terminal: bool, seed: int):
 
     elif env_id.startswith('MiniWorld-'):
         import gym_miniworld.wrappers as wrap
-        env = env_raw = gym.make(env_id)
+        env = gym.make(env_id)
         env = wrap.DictWrapper(env)
         env = wrap.MapWrapper(env)
         # env = wrap.PixelMapWrapper(env)
@@ -58,8 +58,9 @@ def create_env(env_id: str, max_steps: int, no_terminal: bool, seed: int):
         env = gym.make(env_id)
         env = DictWrapper(env)
 
+    if env_time_limit > 0:
+        env = TimeLimitWrapper(env, env_time_limit)
     env = ActionRewardResetWrapper(env, no_terminal)
-    # TODO: TimeLimit(max_steps) wrapper, which wouldn't set the `terminal`
     env = CollectWrapper(env)
     return env
 
@@ -68,14 +69,15 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          seed=0,
          policy='random',
          num_steps=int(1e6),
-         env_max_steps=int(1e5),
          env_no_terminal=False,
-         steps_per_npz=1500,
+         env_time_limit=0,
+         steps_per_npz=1750,
          model_reload_interval=60,
          model_conf=dict(),
          log_mlflow_metrics=True,
          eval_fraction=0.0,
          metrics_prefix='agent',
+         metrics_gamma=0.99,
          log_every=10,
          ):
 
@@ -99,7 +101,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
     # Env
 
-    env = create_env(env_id, env_max_steps, env_no_terminal, seed)
+    env = create_env(env_id, env_no_terminal, seed, env_time_limit)
 
     # Policy
 
@@ -126,8 +128,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     elif policy == 'maze_bouncing_ball':
         policy = MazeBouncingBallPolicy()
     elif policy == 'maze_dijkstra':
-        step_size = env_raw.params.params['forward_step'].default / env_raw.room_size  # type: ignore
-        turn_size = env_raw.params.params['turn_step'].default  # type: ignore
+        step_size = env.params.params['forward_step'].default / env.room_size  # type: ignore
+        turn_size = env.params.params['turn_step'].default  # type: ignore
         policy = MazeDijkstraPolicy(step_size, turn_size)
     else:
         assert False, 'Unknown policy'
@@ -136,7 +138,6 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
     steps, episodes = count_steps(artifact_dir, seed)
     datas = []
-    visited_stats = []
     first_save = True
     first_episode = True
     last_model_load = 0
@@ -148,6 +149,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         if model is not None:
             if time.time() - last_model_load > model_reload_interval:
                 while True:
+                    print(f'[GEN{seed:>2}]  loading checkpoint')
                     model_step = mlflow_load_checkpoint(policy.model, map_location='cpu')  # type: ignore
                     if model_step:
                         print(f'[GEN{seed:>2}]  Generator loaded model checkpoint {model_step}')
@@ -185,17 +187,6 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             data['policy_entropy'] = np.full(data['reward'].shape, np.nan)
             data['action_prob'] = np.full(data['reward'].shape, np.nan)
 
-        # Calculate visited (for MiniGrid/MiniWorld)
-
-        # if 'agent_pos' in data:
-        #     agent_pos = data['agent_pos']
-        #     agent_pos = np.floor(agent_pos / 2)
-        #     agent_pos_visited = len(np.unique(agent_pos, axis=0))
-        #     visited_pct = agent_pos_visited / 25
-        #     visited_stats.append(visited_pct)
-        # else:
-        #     visited_pct = np.nan
-
         # Log
 
         fps = epsteps / (time.time() - timer + 1e-6)
@@ -207,9 +198,10 @@ def main(env_id='MiniGrid-MazeS11N-v0',
               f"  steps: {epsteps}"
               f",  reward: {data['reward'].sum()}"
               f",  terminal: {data['terminal'].sum()}"
-              f",  fps: {fps:.0f}"
+              f",  visited: {(data.get('map_seen', np.zeros(1))[-1] > 0).mean():.1%}"
               f",  total steps: {steps:.0f}"
               f",  episodes: {episodes}"
+              f",  fps: {fps:.0f}"
               )
 
         if log_mlflow_metrics:
@@ -225,9 +217,9 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             # Calculate return_discounted
             rewards_v = data['reward'].copy()
             if not data['terminal'][-1]:
-                avg_value = rewards_v.mean() / (1.0 - model_conf.gamma)
+                avg_value = rewards_v.mean() / (1.0 - metrics_gamma)
                 rewards_v[-1] += avg_value
-            returns_discounted = discount(rewards_v, gamma=model_conf.gamma)
+            returns_discounted = discount(rewards_v, gamma=metrics_gamma)
             metrics[f'{metrics_prefix}/return_discounted'] = returns_discounted.mean()
 
             # Calculate policy_value_terminal
@@ -240,7 +232,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             for k, v in metrics.items():
                 if not np.isnan(v):
                     metrics_agg[k].append(v)
-            
+
             if len(metrics_agg[f'{metrics_prefix}/return']) >= log_every:
                 metrics_agg = {k: np.mean(v) for k, v in metrics_agg.items()}
                 mlflow.log_metrics(metrics_agg, step=model_step if model else 0)
@@ -607,6 +599,25 @@ class DictWrapper(gym.ObservationWrapper):
         return {'image': obs_img}
 
 
+class TimeLimitWrapper(gym.Wrapper):
+
+    def __init__(self, env, time_limit):
+        super().__init__(env)
+        self._time_limit = time_limit
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)  # type: ignore
+        self._step += 1
+        if self._step >= self._time_limit:
+            done = True
+            info['time_limit'] = True
+        return obs, reward, done, info
+
+    def reset(self):
+        self._step = 0
+        return self.env.reset()  # type: ignore
+
+
 class ActionRewardResetWrapper:
 
     def __init__(self, env, no_terminal):
@@ -628,7 +639,7 @@ class ActionRewardResetWrapper:
             action_onehot = action
         obs['action'] = action_onehot
         obs['reward'] = np.array(reward)
-        obs['terminal'] = np.array(False if self._no_terminal else done)
+        obs['terminal'] = np.array(False if self._no_terminal or info.get('time_limit') else done)
         obs['reset'] = np.array(False)
         return obs, reward, done, info
 
@@ -670,6 +681,6 @@ if __name__ == '__main__':
     parser.add_argument('--policy', type=str, required=True)
     parser.add_argument('--num_steps', type=int, default=1_000_000)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--env_max_steps', type=int, default=int(1e5))
+    parser.add_argument('--env_time_limit', type=int, default=0)
     args = parser.parse_args()
     main(**vars(args))

@@ -1,0 +1,12 @@
+train_steps,agent_steps,return,return_eval,env_steps,env,run
+5000,483064.0,0.6666666666666666,,1932256.0,dmlab_skymaze_irreversible_path_hard,dmlab_skymaze_irreversible_path_hard
+10000,703564.0,0.2,,2814256.0,dmlab_skymaze_irreversible_path_hard,dmlab_skymaze_irreversible_path_hard
+15000,1132264.0,0.0,,4529056.0,dmlab_skymaze_irreversible_path_hard,dmlab_skymaze_irreversible_path_hard
+20000,1554964.0,0.0,,6219856.0,dmlab_skymaze_irreversible_path_hard,dmlab_skymaze_irreversible_path_hard
+25000,1981186.6666666667,0.35714285714285715,,7924746.666666667,dmlab_skymaze_irreversible_path_hard,dmlab_skymaze_irreversible_path_hard
+30000,2398370.0,0.20833333333333334,,9593480.0,dmlab_skymaze_irreversible_path_hard,dmlab_skymaze_irreversible_path_hard
+35000,2814307.3333333335,0.18518518518518517,,11257229.333333334,dmlab_skymaze_irreversible_path_hard,dmlab_skymaze_irreversible_path_hard
+40000,3268599.5,0.2,,13074398.0,dmlab_skymaze_irreversible_path_hard,dmlab_skymaze_irreversible_path_hard
+45000,3650633.3333333335,0.8,,14602533.333333334,dmlab_skymaze_irreversible_path_hard,dmlab_skymaze_irreversible_path_hard
+50000,4040483.0,0.2,,16161932.0,dmlab_skymaze_irreversible_path_hard,dmlab_skymaze_irreversible_path_hard
+55000,4381791.0,0.0,,17527164.0,dmlab_skymaze_irreversible_path_hard,dmlab_skymaze_irreversible_path_hard

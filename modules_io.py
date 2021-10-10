@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 import torch
 import torch.nn as nn
 import torch.distributions as D
@@ -86,7 +86,7 @@ class ConvDecoder(nn.Module):
         loss = 0.5 * torch.square(output - target).sum(dim=[-1, -2, -3])  # MSE
         return unflatten_batch(loss, bd)
 
-    def accuracy(self, output: TensorNBICHW, target: Union[TensorNBICHW, IntTensorNBIHW], map_coord: TensorNBI4):
+    def accuracy(self, output: TensorNBICHW, target: Union[TensorNBICHW, IntTensorNBIHW], map_coord: TensorNBI4, map_seen_mask=None):
         output, bd = flatten_batch(output, 4)  # (*,I,C,H,W)
         target, _ = flatten_batch(target, 4)   # (*,I,C,H,W)
         map_coord, _ = flatten_batch(map_coord, 2)  # (*,I,4)
@@ -241,7 +241,7 @@ class DenseDecoder(nn.Module):
         assert len(loss.shape) == 1
         return unflatten_batch(loss, bd)
 
-    def accuracy(self, output: TensorNBICHW, target: Union[TensorNBICHW, IntTensorNBIHW], map_coord: TensorNBI4):
+    def accuracy(self, output: TensorNBICHW, target: Union[TensorNBICHW, IntTensorNBIHW], map_coord: TensorNBI4, map_seen_mask: Optional[Tensor] = None):
         if len(output.shape) == len(target.shape):
             target = target.argmax(dim=-3)  # float(*,I,C,H,W) => int(*,I,H,W)
         output, bd = flatten_batch(output, 4)
@@ -251,7 +251,11 @@ class DenseDecoder(nn.Module):
         target = target.select(-3, 0)  # int(*,I,H,W) => int(*,H,W)
 
         acc = output.argmax(dim=-3) == target
-        acc = acc.to(torch.float).mean(dim=[-1, -2])
+        if map_seen_mask is None:
+            acc = acc.to(torch.float).mean([-1, -2])
+        else:
+            map_seen_mask, _ = flatten_batch(map_seen_mask, 2)  # (*,H,W)
+            acc = (acc * map_seen_mask).sum([-1, -2]) / map_seen_mask.sum([-1, -2])
         acc = unflatten_batch(acc, bd)  # (N,B)
         return acc
 

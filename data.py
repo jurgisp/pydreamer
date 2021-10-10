@@ -39,7 +39,7 @@ class OfflineDataSequential(IterableDataset):
         files = []
         for dir in self.input_dirs:
             path = Pathy(dir) if dir.startswith('gs:/') or dir.startswith('s3:/') else Path(dir)
-            files.extend(list(path.glob('*.npz')))
+            files.extend(list(path.glob('**/*.npz')))
         files.sort()
         files_parsed = [(f, parse_episode_name(f.name)) for f in files]
         files_parsed.sort(key=lambda f__seed_ep_steps: -f__seed_ep_steps[1][1])  # Sort by episode number

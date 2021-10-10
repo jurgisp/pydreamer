@@ -1,7 +1,7 @@
 defaults:
   # Job
   n_steps: 1_000_000
-  run_name: none
+  run_name:
   resume_id:
   offline_data_dir:
   offline_prefill_dir:
@@ -97,7 +97,7 @@ defaults:
   generator_prefill_steps: 500_000
   env_id:
   env_id_eval:
-  env_max_steps: 100_000  # not used
+  env_time_limit: 0
   env_no_terminal: False
 
 minigrid:
@@ -118,6 +118,7 @@ minigrid:
   image_decoder: dense
   image_decoder_layers: 2
   map_model: direct
+  imag_horizon: 1
 
 miniworld:
   env_id: MiniWorld-MazeS7GridA4C-v0
@@ -134,12 +135,14 @@ miniworld:
 
   # Model
   map_model: direct
+  cnn_depth: 32
+  imag_horizon: 1
 
 atari:
   # Generator
   env_id: Atari-Pong
   action_dim: 18
-  # env_max_steps: 27_000  # =108_000/action_repeat = 30 minutes of game play.
+  env_time_limit: 27_000  # =108_000/action_repeat = 30 minutes of game play.
 
   # Model
   deter_dim: 1024
@@ -152,6 +155,7 @@ dmlab:
   action_dim: 15
   env_no_terminal: True
   generator_workers: 10
+  generator_workers_eval: 4
   reward_input: False
   kl_weight: 3.0
   gamma: 0.995

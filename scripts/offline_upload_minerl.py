@@ -28,6 +28,7 @@ args.add_argument('--run', default='minerl_treechop_obf')
 args.add_argument('--env', default='MineRLTreechopVectorObf-v0')
 args.add_argument('--ar', default=4, type=int)
 args.add_argument('--cluster', default=False)
+args.add_argument('--maxreturn', default=0, type=int)
 
 CLUSTER_REPEAT = 1
 N_ACTIONS = 100
@@ -96,23 +97,28 @@ def save_episodes(conf):
         imgs = []
         actions_vec = []
         rewards = []
+        states = []
         img_last = None
+        state_last = None
 
         for step in episode:
-            # TODO: state
             imgs.append(step[0]['pov'])
+            states.append(step[0]['vector'])
             actions_vec.append(step[1]['vector'])
             rewards.append(step[2])
             img_last = step[3]['pov']
+            state_last = step[3]['vector']
 
         while len(actions_vec) % ACTION_REPEAT != 0:
             # Pad end to make divisible by 4
             imgs.append(img_last)
+            states.append(state_last)
             actions_vec.append(actions_vec[-1])
             rewards.append(0.0)
 
         # Group by action repeat
         imgs = imgs[::ACTION_REPEAT]
+        states = states[::ACTION_REPEAT]
         rewards = np.array(rewards).reshape((-1, ACTION_REPEAT)).sum(-1)
 
         actions_vec = np.stack(actions_vec).reshape((-1, CLUSTER_REPEAT * 64))  # type: ignore
@@ -123,18 +129,32 @@ def save_episodes(conf):
 
         data = {
             'action': np.concatenate([[np.zeros(na)], actions_multihot]),
-            'image_t': np.stack(imgs + [img_last], -1),
+            'image': np.stack(imgs + [img_last]),
+            'vecobs': np.stack(states + [state_last]),
             'reward': np.concatenate([[0.0], rewards]),
             'terminal': np.array([False] * len(rewards) + [True]),
             'reset': np.array([True] + [False] * len(rewards)),
         }
+
+        if conf.maxreturn:
+            returns = np.cumsum(data['reward'])
+            total_reward = data['reward'].sum()
+            if total_reward < conf.maxreturn:
+                print(f'Skipping episode with return {total_reward}')
+                continue
+            i_rew = np.argmax(returns >= conf.maxreturn)
+            data = {key: data[key][:i_rew + 1] for key in data}
+
+        # NHWC => HWCN for better compression
+        data['image_t'] = data['image'].transpose(1, 2, 3, 0)
+        del data['image']
 
         if i == 0:
             print('Data sample: ', {k: v.shape for k, v in data.items()})
 
         fname = build_episode_name(0, i, i, int(data['reward'].sum()), len(data['reward']) - 1)
         mlflow_log_npz(data, fname, 'episodes', verbose=True)
-        step_counter += len(rewards)
+        step_counter += len(data['reward']) - 1
         mlflow.log_metrics({'_step': step_counter, '_timestamp': datetime.now().timestamp()})
 
 

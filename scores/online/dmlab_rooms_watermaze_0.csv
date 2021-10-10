@@ -1,0 +1,4 @@
+train_steps,agent_steps,return,return_eval,env_steps,env,run
+5000,,6.75,,,dmlab_rooms_watermaze,dmlab_rooms_watermaze_0
+10000,988200.0,12.64864864864865,,3952800.0,dmlab_rooms_watermaze,dmlab_rooms_watermaze_0
+15000,1368000.0,18.333333333333332,,5472000.0,dmlab_rooms_watermaze,dmlab_rooms_watermaze_0

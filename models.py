@@ -147,6 +147,7 @@ class Dreamer(nn.Module):
               reset: Tensor,      # (N,B)
               map: Tensor,
               map_coord: Tensor,  # (N,B,4)
+              map_seen_mask: Tensor,
               in_state: Any,
               I: int = 1,         # IWAE samples
               H: int = 1,        # Imagination horizon
@@ -186,7 +187,7 @@ class Dreamer(nn.Module):
         loss_model, metrics, loss_tensors = self.wm.loss(*output, image, reward, terminal, reset)
         metrics.update(loss=metrics['loss_wm'])
 
-        loss_map, metrics_map, loss_tensors_map = self.map_model.loss(*map_out, map, map_coord)    # type: ignore
+        loss_map, metrics_map, loss_tensors_map = self.map_model.loss(*map_out, map, map_coord, map_seen_mask)    # type: ignore
         metrics.update(**metrics_map)
         loss_tensors.update(**loss_tensors_map)
 
@@ -542,7 +543,7 @@ class WorldModel(nn.Module):
 
 class DirectHead(nn.Module):
 
-    def __init__(self, decoder: ConvDecoder):
+    def __init__(self, decoder: DenseDecoder):
         super().__init__()
         self._decoder = decoder
 
@@ -550,15 +551,17 @@ class DirectHead(nn.Module):
         obs_pred = self._decoder.forward(state)
         return (obs_pred, )
 
-    def loss(self, obs_pred: TensorNBICHW, obs_target: TensorNBICHW, map_coord: TensorNBI4):
+    def loss(self, obs_pred: TensorNBICHW, obs_target: TensorNBICHW, map_coord: TensorNBI4, map_seen_mask: Tensor):
         loss = self._decoder.loss(obs_pred, obs_target)  # (N,B,I)
         loss = -logavgexp(-loss, dim=-1)  # (N,B,I) => (N,B)
         with torch.no_grad():
             acc_map = self._decoder.accuracy(obs_pred, obs_target, map_coord)
+            acc_map_seen = self._decoder.accuracy(obs_pred, obs_target, map_coord, map_seen_mask)
             tensors = dict(loss_map=loss.detach(),
                            acc_map=acc_map)
             metrics = dict(loss_map=loss.mean(),
-                           acc_map=nanmean(acc_map))
+                           acc_map=nanmean(acc_map),
+                           acc_map_seen=nanmean(acc_map_seen))
         return loss.mean(), metrics, tensors
 
     def predict(self, obs_pred) -> Tensor:
@@ -598,7 +601,7 @@ class VAEHead(nn.Module):
 
     def loss(self,
              obs_rec, prior, post, obs_pred,  # forward() output
-             obs_target, map_coord,
+             obs_target, map_coord, map_seen_mask
              ):
         prior_d = diag_normal(prior)
         post_d = diag_normal(post)
@@ -645,7 +648,7 @@ class NoHead(nn.Module):
     def forward(self, state, obs, do_image_pred=False):
         return (obs,)
 
-    def loss(self, obs_pred: TensorNBICHW, obs_target: TensorNBICHW, map_coord: TensorNBI4):
+    def loss(self, obs_pred: TensorNBICHW, obs_target: TensorNBICHW, map_coord: TensorNBI4, map_seen_mask: Tensor):
         return torch.square(self._dummy), {}, {}
 
     def predict(self, output):
@@ -698,6 +701,7 @@ class BehavioralCloning(nn.Module):
               reset: Tensor,
               map: Tensor,
               map_coord: Tensor,
+              map_seen_mask: Tensor,
               in_state: Any,
               I: int = 1,
               H: int = 1,

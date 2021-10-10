@@ -25,22 +25,58 @@ dmlab_rooms_exploit_deferred_effects:
 
 # DMLab offline
 
-dmlabteleport_off:
+rlu_dmlab_rooms_select_nonmatching_object:
   env_id: DmLab-rooms_select_nonmatching_object
-  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_select_nonmatching_object/train
-  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_select_nonmatching_object/eval
+  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_select_nonmatching_object_300m/train
+  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_select_nonmatching_object_300m/eval
 
-dmlabobjectfew_off:
+rlu_dmlab_explore_object_rewards_few:
   env_id: DmLab-explore_object_rewards_few
-  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_few/train
-  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_few/eval
+  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_few_300m/train
+  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_few_300m/eval
 
-dmlabobjectmany_off:
+rlu_dmlab_explore_object_rewards_many:
   env_id: DmLab-explore_object_rewards_many
-  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_many/train
-  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_many/eval
+  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_many_300m/train
+  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_many_300m/eval
 
-dmlabwatermaze_off:
+rlu_dmlab_rooms_watermaze:
   env_id: DmLab-rooms_watermaze
-  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_watermaze/train
-  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_watermaze/eval
+  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_watermaze_300m/train
+  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_watermaze_300m/eval
+
+
+# MiniWorld offline
+
+mazelarge:
+  offline_data_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS9/train
+  offline_eval_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS9/eval
+  map_size: 17
+
+mazelarge_notbtt:
+  offline_data_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS9/train
+  offline_eval_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS9/eval
+  map_size: 17
+  keep_state: False
+
+mazesmall:
+  offline_data_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra-2/train
+  offline_eval_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra-2/eval
+  map_size: 9
+
+mazesmall_notbtt:
+  offline_data_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra-2/train
+  offline_eval_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra-2/eval
+  map_size: 9
+  keep_state: False
+
+maze2d:
+  offline_data_dir: gs://humanui-mlflow-episodes/MiniGrid-MazeS11N-v0_100M/episodes
+  offline_eval_dir: gs://humanui-mlflow-episodes/MiniGrid-MazeS11N-v0_100M/eval
+  map_size: 11
+
+maze2d_notbtt:
+  offline_data_dir: gs://humanui-mlflow-episodes/MiniGrid-MazeS11N-v0_100M/episodes
+  offline_eval_dir: gs://humanui-mlflow-episodes/MiniGrid-MazeS11N-v0_100M/eval
+  map_size: 11
+  keep_state: False

@@ -1,0 +1,14 @@
+train_steps,agent_steps,return,return_eval,env_steps,env,run
+5000,540000.0,-0.07,,2160000.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large
+10000,853200.0,-0.025,,3412800.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large
+15000,1384800.0,-0.19,,5539200.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large
+20000,1900800.0,-0.10000000000000002,,7603200.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large
+25000,2492400.0,-0.07222222222222223,,9969600.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large
+30000,3070800.0,-0.1416666666666667,,12283200.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large
+35000,3616800.0,-0.06999999999999999,,14467200.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large
+40000,4116600.0,-0.07,,16466400.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large
+45000,4666800.0,-0.12000000000000002,,18667200.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large
+50000,5225400.0,-0.10909090909090911,,20901600.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large
+55000,5737200.0,-0.13157894736842105,,22948800.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large
+60000,6285600.0,-0.10500000000000001,,25142400.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large
+65000,6620400.0,,,26481600.0,dmlab_lasertag_one_opponent_large,dmlab_lasertag_one_opponent_large

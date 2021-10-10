@@ -73,3 +73,5 @@ spec:
               - SYS_PTRACE
       restartPolicy: Never
 EOF
+
+sleep 1

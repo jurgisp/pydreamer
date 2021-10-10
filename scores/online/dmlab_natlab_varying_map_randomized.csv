@@ -1,0 +1,14 @@
+train_steps,agent_steps,return,return_eval,env_steps,env,run
+5000,421200.0,7.516666666666665,,1684800.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized
+10000,761400.0,15.463333333333331,,3045600.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized
+15000,1183200.0,16.075,,4732800.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized
+20000,1557000.0,14.78461538461538,,6228000.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized
+25000,1996200.0,15.640000000000002,,7984800.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized
+30000,2391300.0,17.60740740740741,,9565200.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized
+35000,2839200.0,17.000000000000004,,11356800.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized
+40000,3265200.0,18.533333333333335,,13060800.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized
+45000,3705000.0,16.725925925925928,,14820000.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized
+50000,4126500.0,17.97391304347826,,16506000.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized
+55000,4571400.0,16.63,,18285600.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized
+60000,5010300.0,19.465384615384615,,20041200.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized
+65000,5288400.0,17.325,,21153600.0,dmlab_natlab_varying_map_randomized,dmlab_natlab_varying_map_randomized

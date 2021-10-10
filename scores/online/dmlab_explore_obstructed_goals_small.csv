@@ -1,0 +1,13 @@
+train_steps,agent_steps,return,return_eval,env_steps,env,run
+5000,418500.0,6.88,,1674000.0,dmlab_explore_obstructed_goals_small,dmlab_explore_obstructed_goals_small
+10000,823500.0,6.375,,3294000.0,dmlab_explore_obstructed_goals_small,dmlab_explore_obstructed_goals_small
+15000,1350000.0,8.1,,5400000.0,dmlab_explore_obstructed_goals_small,dmlab_explore_obstructed_goals_small
+20000,1876500.0,17.625,,7506000.0,dmlab_explore_obstructed_goals_small,dmlab_explore_obstructed_goals_small
+25000,2403000.0,12.74,,9612000.0,dmlab_explore_obstructed_goals_small,dmlab_explore_obstructed_goals_small
+30000,2916000.0,8.525,,11664000.0,dmlab_explore_obstructed_goals_small,dmlab_explore_obstructed_goals_small
+35000,3476700.0,17.88,,13906800.0,dmlab_explore_obstructed_goals_small,dmlab_explore_obstructed_goals_small
+40000,3998700.0,18.7,,15994800.0,dmlab_explore_obstructed_goals_small,dmlab_explore_obstructed_goals_small
+45000,4562100.0,11.98,,18248400.0,dmlab_explore_obstructed_goals_small,dmlab_explore_obstructed_goals_small
+50000,5121900.0,28.375,,20487600.0,dmlab_explore_obstructed_goals_small,dmlab_explore_obstructed_goals_small
+55000,5644800.0,29.26,,22579200.0,dmlab_explore_obstructed_goals_small,dmlab_explore_obstructed_goals_small
+60000,6195150.0,27.37037037037037,,24780600.0,dmlab_explore_obstructed_goals_small,dmlab_explore_obstructed_goals_small

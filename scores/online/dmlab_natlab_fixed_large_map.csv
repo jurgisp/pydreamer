@@ -1,0 +1,14 @@
+train_steps,agent_steps,return,return_eval,env_steps,env,run
+5000,,1.9933333333333334,,,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
+10000,796500.0,3.09,,3186000.0,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
+15000,1178400.0,4.856,,4713600.0,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
+20000,1521900.0,6.095652173913044,,6087600.0,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
+25000,1810800.0,6.077272727272727,,7243200.0,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
+30000,2099700.0,6.410000000000001,,8398800.0,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
+35000,2421000.0,6.240000000000001,,9684000.0,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
+40000,2786400.0,6.375,,11145600.0,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
+45000,3137400.0,5.829999999999999,,12549600.0,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
+50000,3535200.0,5.8149999999999995,,14140800.0,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
+55000,3895800.0,7.099999999999999,,15583200.0,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
+60000,4228200.0,6.242857142857143,,16912800.0,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
+65000,4516200.0,6.249999999999999,,18064800.0,dmlab_natlab_fixed_large_map,dmlab_natlab_fixed_large_map
