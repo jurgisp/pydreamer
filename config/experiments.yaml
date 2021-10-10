@@ -1,82 +1,9 @@
+# Atari
+
+atari_pong:
+  env_id: Atari-Pong
+
 # DMLab online
 
-dmlabapplesmall:
-  env_id: DmLab-explore_object_locations_small
-
-dmlabgoalsmall:
-  env_id: DmLab-explore_goal_locations_small
-
-dmlabteleport:
+dmlab_rooms_select_nonmatching_object:
   env_id: DmLab-rooms_select_nonmatching_object
-
-dmlab_psychlab_arbitrary_vm:
-  env_id: DmLab-psychlab_arbitrary_visuomotor_mapping
-
-dmlab_language_select_described_object:
-  env_id: DmLab-language_select_described_object
-
-dmlab_rooms_collect_good_objects:
-  env_id: DmLab-rooms_collect_good_objects_train
-  env_id_eval: DmLab-rooms_collect_good_objects_test
-
-dmlab_rooms_exploit_deferred_effects:
-  env_id: DmLab-rooms_exploit_deferred_effects_train
-  env_id_eval: DmLab-rooms_exploit_deferred_effects_test
-
-# DMLab offline
-
-rlu_dmlab_rooms_select_nonmatching_object:
-  env_id: DmLab-rooms_select_nonmatching_object
-  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_select_nonmatching_object_300m/train
-  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_select_nonmatching_object_300m/eval
-
-rlu_dmlab_explore_object_rewards_few:
-  env_id: DmLab-explore_object_rewards_few
-  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_few_300m/train
-  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_few_300m/eval
-
-rlu_dmlab_explore_object_rewards_many:
-  env_id: DmLab-explore_object_rewards_many
-  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_many_300m/train
-  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_explore_object_rewards_many_300m/eval
-
-rlu_dmlab_rooms_watermaze:
-  env_id: DmLab-rooms_watermaze
-  offline_data_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_watermaze_300m/train
-  offline_test_dir: gs://xcloud_public_bucket/danijar/memory_world_models/offline/rlu_dmlab_rooms_watermaze_300m/eval
-
-
-# MiniWorld offline
-
-mazelarge:
-  offline_data_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS9/train
-  offline_eval_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS9/eval
-  map_size: 17
-
-mazelarge_notbtt:
-  offline_data_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS9/train
-  offline_eval_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS9/eval
-  map_size: 17
-  keep_state: False
-
-mazesmall:
-  offline_data_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra-2/train
-  offline_eval_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra-2/eval
-  map_size: 9
-
-mazesmall_notbtt:
-  offline_data_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra-2/train
-  offline_eval_dir: gs://humanui-mlflow-episodes/MiniWorld-MazeS5NS-dijkstra-2/eval
-  map_size: 9
-  keep_state: False
-
-maze2d:
-  offline_data_dir: gs://humanui-mlflow-episodes/MiniGrid-MazeS11N-v0_100M/episodes
-  offline_eval_dir: gs://humanui-mlflow-episodes/MiniGrid-MazeS11N-v0_100M/eval
-  map_size: 11
-
-maze2d_notbtt:
-  offline_data_dir: gs://humanui-mlflow-episodes/MiniGrid-MazeS11N-v0_100M/episodes
-  offline_eval_dir: gs://humanui-mlflow-episodes/MiniGrid-MazeS11N-v0_100M/eval
-  map_size: 11
-  keep_state: False

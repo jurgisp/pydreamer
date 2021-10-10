@@ -1,8 +1,0 @@
-train_steps,agent_steps,return,return_eval,env_steps,env,run
-5000,594000.0,1.0476190476190477,,2376000.0,dmlab_explore_object_rewards_few,dmlab_explore_object_rewards_few_0
-10000,904500.0,1.7826086956521738,,3618000.0,dmlab_explore_object_rewards_few,dmlab_explore_object_rewards_few_0
-15000,1517400.0,2.2291666666666665,,6069600.0,dmlab_explore_object_rewards_few,dmlab_explore_object_rewards_few_0
-20000,2061450.0,2.2916666666666665,,8245800.0,dmlab_explore_object_rewards_few,dmlab_explore_object_rewards_few_0
-25000,2610000.0,2.375,,10440000.0,dmlab_explore_object_rewards_few,dmlab_explore_object_rewards_few_0
-30000,3257550.0,2.7291666666666665,,13030200.0,dmlab_explore_object_rewards_few,dmlab_explore_object_rewards_few_0
-35000,3658500.0,5.0,,14634000.0,dmlab_explore_object_rewards_few,dmlab_explore_object_rewards_few_0

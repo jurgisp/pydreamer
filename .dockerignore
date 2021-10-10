@@ -1,11 +1,14 @@
 __pycache__/
-.vscode/
 data/*
-data_bak/
 log/
 mlruns/
+
 _*.*
 .*
 
-!.gcs_credentials
+!__init__.py
+!.gitignore
+!.dockerignore
 !data/minerl_*.npy
+
+!.gcs_credentials

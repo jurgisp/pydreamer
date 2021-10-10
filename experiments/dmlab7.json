@@ -1,9 +1,0 @@
-[
-    { "configs": ["defaults", "dmlab"], "resume_id": "dmlab_explore_object_locations_large", "env_id": "DmLab-explore_object_locations_large" },
-    { "configs": ["defaults", "dmlab"], "resume_id": "dmlab_explore_obstructed_goals_small", "env_id": "DmLab-explore_obstructed_goals_small" },
-    { "configs": ["defaults", "dmlab"], "resume_id": "dmlab_explore_obstructed_goals_large", "env_id": "DmLab-explore_obstructed_goals_large" },
-    { "configs": ["defaults", "dmlab"], "resume_id": "dmlab_explore_goal_locations_large", "env_id": "DmLab-explore_goal_locations_large" },
-    { "configs": ["defaults", "dmlab"], "resume_id": "dmlab_explore_object_rewards_few", "env_id": "DmLab-explore_object_rewards_few" },
-    { "configs": ["defaults", "dmlab"], "resume_id": "dmlab_explore_object_rewards_many", "env_id": "DmLab-explore_object_rewards_many" },
-    { "configs": ["defaults", "dmlab"], "resume_id": "dmlab_rooms_watermaze", "env_id": "DmLab-rooms_watermaze" }
-]

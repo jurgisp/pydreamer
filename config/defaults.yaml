@@ -97,6 +97,7 @@ defaults:
   generator_prefill_steps: 500_000
   env_id:
   env_id_eval:
+  env_action_repeat: 1
   env_time_limit: 0
   env_no_terminal: False
 
@@ -132,7 +133,6 @@ miniworld:
   map_channels: 4
   map_categorical: True
   action_dim: 3
-
   # Model
   map_model: direct
   cnn_depth: 32
@@ -142,17 +142,19 @@ atari:
   # Generator
   env_id: Atari-Pong
   action_dim: 18
+  env_action_repeat: 4
   env_time_limit: 27_000  # =108_000/action_repeat = 30 minutes of game play.
-
+  generator_workers: 1
   # Model
   deter_dim: 1024
-
+  reward_input: False
   # Optimizer
   kl_weight: 0.1
 
 dmlab:
   env_id: DmLab-rooms_watermaze
   action_dim: 15
+  env_action_repeat: 4
   env_no_terminal: True
   generator_workers: 10
   generator_workers_eval: 4
@@ -160,6 +162,17 @@ dmlab:
   kl_weight: 3.0
   gamma: 0.995
   generator_prefill_steps: 200_000
+
+dmlab_offline:
+  env_id: DmLab-rooms_watermaze
+  action_dim: 15
+  env_action_repeat: 4
+  env_no_terminal: True
+  reward_input: False
+  gamma: 0.995
+  kl_weight: 1.0
+  imag_horizon: 5
+  n_steps: 225_000
 
 minerl:
   env_id: MineRLObtainDiamondVectorObf-v0
@@ -178,3 +191,6 @@ minerl_bc:
   log_interval: 300
   save_interval: 1000
   eval_interval: 10000
+
+notbtt:
+  keep_state: False

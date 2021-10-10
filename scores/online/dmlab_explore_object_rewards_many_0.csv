@@ -1,5 +1,0 @@
-train_steps,agent_steps,return,return_eval,env_steps,env,run
-5000,495000.0,2.3225806451612905,,1980000.0,dmlab_explore_object_rewards_many,dmlab_explore_object_rewards_many_0
-10000,929700.0,3.0,,3718800.0,dmlab_explore_object_rewards_many,dmlab_explore_object_rewards_many_0
-15000,1515000.0,1.6,,6060000.0,dmlab_explore_object_rewards_many,dmlab_explore_object_rewards_many_0
-20000,1999800.0,3.533333333333333,,7999200.0,dmlab_explore_object_rewards_many,dmlab_explore_object_rewards_many_0

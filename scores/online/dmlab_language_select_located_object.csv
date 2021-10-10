@@ -1,4 +1,0 @@
-train_steps,agent_steps,return,return_eval,env_steps,env,run
-5000,432000.0,1.7533333333333334,,1728000.0,dmlab_language_select_located_object,dmlab_language_select_located_object
-10000,785700.0,2.8950000000000005,,3142800.0,dmlab_language_select_located_object,dmlab_language_select_located_object
-15000,1086000.0,10.15,,4344000.0,dmlab_language_select_located_object,dmlab_language_select_located_object
