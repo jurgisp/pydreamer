@@ -145,6 +145,7 @@ atari:
   env_action_repeat: 4
   env_time_limit: 27_000  # =108_000/action_repeat = 30 minutes of game play.
   generator_workers: 1
+  generator_prefill_steps: 50_000
   # Model
   deter_dim: 1024
   reward_input: False
@@ -192,5 +193,13 @@ minerl_bc:
   save_interval: 1000
   eval_interval: 10000
 
-notbtt:
-  keep_state: False
+debug:
+  device: cpu
+  log_interval: 5
+  save_interval: 10
+  data_workers: 0
+  generator_workers: 1
+  generator_prefill_steps: 20_000
+  batch_length: 15
+  batch_size: 5
+  imag_horizon: 3

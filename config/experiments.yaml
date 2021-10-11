@@ -3,6 +3,11 @@
 atari_pong:
   env_id: Atari-Pong
 
+# Miniworld
+
+maze3d_apples:
+  env_id: MiniWorld-MazeS7GridA4C-v0
+
 # DMLab online
 
 dmlab_rooms_select_nonmatching_object:

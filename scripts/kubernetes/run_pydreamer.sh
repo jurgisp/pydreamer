@@ -1,24 +1,25 @@
 #!/bin/bash -e
 
-MLFLOW_TRACKING_URI=">>TODO<<"
-DOCKER_REPO=">>TODO<<"
-DOCKER_FILE="Dockerfile"
-
 if [[ $# -eq 0 ]] ; then
     echo 'Usage: ./run_pydreamer experiment config [mlflow_experiment]'
-    exit 0
+    exit
 fi
-
 EXPERIMENT="$1"
 CONFIG="${2:-atari}"
 MLFLOW_EXPERIMENT_NAME="${3:-Default}"
-TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
-TAG=$(git describe --tags | sed 's/-g[a-z0-9]\{7\}//')
-RND=$(base64 < /dev/urandom | tr -d '[A-Z/+]' | head -c 6)
 
-docker build . -f $DOCKER_FILE -t $DOCKER_REPO:$TAG
+if [ ! -f ".env" ]; then
+    echo ".env file not found - need it to set DOCKER_REPO, MLFLOW_TRACKING_URI"
+    exit
+fi
+source .env
+echo "Loaded variables from .env: DOCKER_REPO=$DOCKER_REPO, MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI"
+
+TAG=$(git describe --tags | sed 's/-g[a-z0-9]\{7\}//')
+docker build . -f Dockerfile -t $DOCKER_REPO:$TAG
 docker push $DOCKER_REPO:$TAG
 
+RND=$(base64 < /dev/urandom | tr -d '[A-Z/+]' | head -c 6)
 cat <<EOF | kubectl apply -f -
 apiVersion: batch/v1
 kind: Job
@@ -26,7 +27,7 @@ metadata:
   name: pydreamer-${EXPERIMENT//_/}-$RND
   namespace: default
 spec:
-  backoffLimit: 5
+  backoffLimit: 3
   ttlSecondsAfterFinished: 86400
   template:
     spec:
@@ -43,6 +44,12 @@ spec:
               value: ${MLFLOW_TRACKING_URI}
             - name: MLFLOW_EXPERIMENT_NAME
               value: ${MLFLOW_EXPERIMENT_NAME}
+            - name: MLFLOW_TRACKING_USERNAME
+              value: ${MLFLOW_TRACKING_USERNAME}
+            - name: MLFLOW_TRACKING_PASSWORD
+              value: ${MLFLOW_TRACKING_PASSWORD}
+            - name: AZURE_STORAGE_ACCESS_KEY
+              value: ${AZURE_STORAGE_ACCESS_KEY}
           volumeMounts:
             - name: dshm
               mountPath: /dev/shm
@@ -72,4 +79,10 @@ spec:
               add:
               - SYS_PTRACE
       restartPolicy: Never
+      tolerations:  # Allow SPOT instances, if on Azure
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+      nodeSelector: ${K8S_NODE_SELECTOR}
 EOF

@@ -11,4 +11,5 @@ _*.*
 !.dockerignore
 !data/minerl_*.npy
 
+!config/*.yaml
 !.gcs_credentials
