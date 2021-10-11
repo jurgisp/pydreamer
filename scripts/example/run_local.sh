@@ -1,3 +1,1 @@
-# Run 
-
-python train.py --configs defaults miniworld --input_dir ./data/train --eval_dir ./data/eval --data_workers 2
+python pydreamer/train.py --configs defaults atari debug --env_id Atari-Breakout

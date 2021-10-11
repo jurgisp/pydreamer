@@ -11,8 +11,8 @@ defaults:
   logbatch_interval: 1000
   save_interval: 500
   eval_interval: 2000
-  data_workers: 6  # need 6 to not bottleneck on unzipping npz, 4 is not enough
-  enable_profiler: True
+  data_workers: 4
+  enable_profiler: False
   verbose: False
 
   # Features
@@ -112,7 +112,6 @@ minigrid:
   map_channels: 4
   map_categorical: True
   action_dim: 7
-
   # Model
   image_encoder: dense
   image_encoder_layers: 3
@@ -123,6 +122,7 @@ minigrid:
 
 miniworld:
   env_id: MiniWorld-MazeS7GridA4C-v0
+  data_workers: 6
   # Features
   image_key: image
   image_size: 64
@@ -157,6 +157,7 @@ dmlab:
   action_dim: 15
   env_action_repeat: 4
   env_no_terminal: True
+  data_workers: 6
   generator_workers: 10
   generator_workers_eval: 4
   reward_input: False
@@ -199,7 +200,7 @@ debug:
   save_interval: 10
   data_workers: 0
   generator_workers: 1
-  generator_prefill_steps: 20_000
+  generator_prefill_steps: 10_000
   batch_length: 15
   batch_size: 5
   imag_horizon: 3

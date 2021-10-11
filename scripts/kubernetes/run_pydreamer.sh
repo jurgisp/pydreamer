@@ -1,12 +1,11 @@
 #!/bin/bash -e
 
 if [[ $# -eq 0 ]] ; then
-    echo 'Usage: ./run_pydreamer experiment config [mlflow_experiment]'
+    echo 'Usage: ./run_pydreamer experiment config'
     exit
 fi
 EXPERIMENT="$1"
 CONFIG="${2:-atari}"
-MLFLOW_EXPERIMENT_NAME="${3:-Default}"
 
 if [ ! -f ".env" ]; then
     echo ".env file not found - need it to set DOCKER_REPO, MLFLOW_TRACKING_URI"
