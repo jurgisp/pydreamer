@@ -1,5 +1,6 @@
 import io
 import os
+import posixpath
 import tempfile
 import time
 import warnings
@@ -10,6 +11,8 @@ import mlflow
 import numpy as np
 import yaml
 from mlflow.store.artifact.artifact_repo import ArtifactRepository
+from mlflow.store.artifact.azure_blob_artifact_repo import \
+    AzureBlobArtifactRepository
 from mlflow.tracking.client import MlflowClient
 
 warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
@@ -175,3 +178,19 @@ class NoProfiler:
 
     def step(self):
         pass
+
+
+def azure_blob_artifact_repo_log_artifact(self, local_file, artifact_path=None):
+    (container, _, dest_path) = self.parse_wasbs_uri(self.artifact_uri)
+    container_client = self.client.get_container_client(container)
+    if artifact_path:
+        dest_path = posixpath.join(dest_path, artifact_path)
+    dest_path = posixpath.join(dest_path, os.path.basename(local_file))
+    with open(local_file, "rb") as file:
+        # container_client.upload_blob(dest_path, file)  # original
+        container_client.upload_blob(dest_path, file, overwrite=True)  # patched
+
+
+# Patching to enable artifact overwrite when using Azure, which is default in GCS
+#   https://github.com/mlflow/mlflow/blob/master/mlflow/store/artifact/azure_blob_artifact_repo.py#L75
+AzureBlobArtifactRepository.log_artifact = azure_blob_artifact_repo_log_artifact
