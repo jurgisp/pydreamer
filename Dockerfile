@@ -48,8 +48,10 @@ RUN wget -L -nv http://www.atarimania.com/roms/Roms.rar && \
 
 # MineRL
 
-# RUN apt-get install -y openjdk-8-jdk libx11-6 x11-xserver-utils
-# RUN pip3 install minerl==0.4.1a2
+RUN apt-get update && apt-get install -y \
+    openjdk-8-jdk libx11-6 x11-xserver-utils \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip3 install minerl==0.4.1a2
 
 # APP
 
