@@ -134,6 +134,11 @@ def param_count(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
+def discount(x: np.ndarray, gamma: float) -> np.ndarray:
+    import scipy.signal
+    return scipy.signal.lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]  # type: ignore
+
+
 class Timer:
 
     def __init__(self, name='timer', verbose=True):

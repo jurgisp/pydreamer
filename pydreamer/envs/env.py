@@ -1,0 +1,46 @@
+import gym
+import numpy as np
+
+from envs.wrappers import *
+
+
+def create_env(env_id: str, no_terminal: bool, env_time_limit: int, env_action_repeat: int):
+
+    if env_id.startswith('MiniGrid-'):
+        from envs.minigrid import MiniGrid
+        env = MiniGrid(env_id)
+
+    elif env_id.startswith('Atari-'):
+        from envs.atari import Atari
+        env = Atari(env_id.split('-')[1].lower(), action_repeat=env_action_repeat)
+
+    elif env_id.startswith('AtariGray-'):
+        from envs.atari import Atari
+        env = Atari(env_id.split('-')[1].lower(), action_repeat=env_action_repeat, grayscale=True)
+
+    elif env_id.startswith('MiniWorld-'):
+        import gym_miniworld.wrappers as wrap
+        env = gym.make(env_id)
+        env = wrap.DictWrapper(env)
+        env = wrap.MapWrapper(env)
+        # env = wrap.PixelMapWrapper(env)
+        env = wrap.AgentPosWrapper(env)
+
+    elif env_id.startswith('DmLab-'):
+        from envs.dmlab import DmLab
+        env = DmLab(env_id.split('-')[1].lower(), num_action_repeats=env_action_repeat)
+        env = DictWrapper(env)
+
+    elif env_id.startswith('MineRL'):
+        from envs.minerl import MineRL
+        env = MineRL(env_id, np.load('data/minerl_action_centroids_1.npy'), action_repeat=env_action_repeat)
+
+    else:
+        env = gym.make(env_id)
+        env = DictWrapper(env)
+
+    if env_time_limit > 0:
+        env = TimeLimitWrapper(env, env_time_limit)
+    env = ActionRewardResetWrapper(env, no_terminal)
+    env = CollectWrapper(env)
+    return env
