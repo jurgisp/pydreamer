@@ -35,6 +35,7 @@ defaults:
   kl_balance: 0.8
   kl_weight: 1.0
   image_weight: 1.0
+  vecobs_weight: 1.0
   reward_weight: 1.0
   terminal_weight: 1.0
   adam_lr: 3.0e-4
@@ -182,6 +183,7 @@ minerl:
   env_id: MineRLObtainDiamondVectorObf-v0
   action_dim: 100
   clip_rewards: log1p
+  vecobs_weight: 10.0
   generator_workers: 2
   entropy: 0.030
 

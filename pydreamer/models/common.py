@@ -102,6 +102,7 @@ class TrainableModel(nn.Module):
     @abstractmethod
     def forward(self,
                 image: TensorNBCHW,   # (1,B,C,H,W)
+                vecobs: Tensor,       # (1,V)
                 prev_reward: Tensor,  # (1,B)
                 prev_action: Tensor,  # (1,B,A)
                 reset: Tensor,        # (1,B)
@@ -112,6 +113,7 @@ class TrainableModel(nn.Module):
     @abstractmethod
     def train(self,
               image: TensorNBCHW,
+              vecobs: Tensor,
               reward: Tensor,
               terminal: Tensor,
               action_prev: Tensor,

@@ -154,10 +154,17 @@ class Preprocessor:
         else:
             batch['map_coord'] = np.zeros((T, B, 4), np.float32)
 
+        # vecobs
+
+        if 'vecobs' in batch:
+            batch['vecobs'] = batch['vecobs'].astype(np.float32)
+        else:
+            batch['vecobs'] = np.zeros((T, B, 64), np.float32)
+
         # => float16
 
         if self._amp:
-            for key in ['image', 'action', 'map', 'map_coord']:
+            for key in ['image', 'action', 'map', 'map_coord', 'vecobs']:
                 if key in batch:
                     batch[key] = batch[key].astype(np.float16)
 

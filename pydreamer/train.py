@@ -209,6 +209,7 @@ def run(conf):
 
                     batch, wid = next(data_iter)
                     image = batch['image'].to(device)
+                    vecobs = batch['vecobs'].to(device)
                     reward = batch['reward'].to(device)
                     terminal = batch['terminal'].to(device)
                     action = batch['action'].to(device)
@@ -224,7 +225,7 @@ def run(conf):
 
                         state = states.get(wid) or model.init_state(image.size(1) * conf.iwae_samples)
                         losses, loss_metrics, loss_tensors, new_state, out_tensors, dream_tensors = \
-                            model.train(image, reward, terminal, action, reset, map, map_coord, map_seen_mask, state,
+                            model.train(image, vecobs, reward, terminal, action, reset, map, map_coord, map_seen_mask, state,
                                         I=conf.iwae_samples,
                                         H=conf.imag_horizon,
                                         imagine_dropout=conf.imagine_dropout,
@@ -386,6 +387,7 @@ def evaluate(prefix: str,
 
             batch = next(data_iterator)
             image = batch['image'].to(device)
+            vecobs = batch['vecobs'].to(device)
             reward = batch['reward'].to(device)
             terminal = batch['terminal'].to(device)
             action = batch['action'].to(device)
@@ -416,7 +418,7 @@ def evaluate(prefix: str,
             if n_reset_episodes == 0 and i_batch == 1:  # just one batch
                 with autocast(enabled=conf.amp):
                     _, _, loss_tensors_im, _, out_tensors_im, _ = \
-                        model.train(image, reward, terminal,  # (image, reward, terminal) will be ignored in forward pass because of imagine=True
+                        model.train(image, vecobs, reward, terminal,  # observation will be ignored in forward pass because of imagine=True
                                     action, reset, map, map_coord, map_seen_mask, state,
                                     I=eval_samples,
                                     H=conf.imag_horizon,
@@ -437,7 +439,7 @@ def evaluate(prefix: str,
                     state = model.init_state(image.size(1) * eval_samples)
 
                 _, loss_metrics, loss_tensors, state, out_tensors, _ = \
-                    model.train(image, reward, terminal, action, reset, map, map_coord, map_seen_mask, state,
+                    model.train(image, vecobs, reward, terminal, action, reset, map, map_coord, map_seen_mask, state,
                                 I=eval_samples,
                                 H=conf.imag_horizon,
                                 imagine_dropout=0,
@@ -495,7 +497,7 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
             pass
 
         elif len(x.shape) == 3:  # 1D vector
-            assert key in ['action', 'action_pred', 'map_coord', 'agent_pos', 'agent_dir'], \
+            assert key in ['action', 'action_pred', 'map_coord', 'agent_pos', 'agent_dir', 'vecobs'], \
                 f'Unexpected 1D tensor: {key}: {x.shape}, {x.dtype}'
 
         elif len(x.shape) == 4:  # 2D tensor - categorical image

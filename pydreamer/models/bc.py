@@ -14,7 +14,7 @@ class BehavioralCloning(TrainableModel):
     def __init__(self, conf):
         super().__init__()
         self._encoder = ConvEncoder(in_channels=conf.image_channels, cnn_depth=conf.cnn_depth)
-        self._actor = MLP(self._encoder.out_dim, conf.action_dim, 400, 2, conf.layer_norm)
+        self._actor = MLP(self._encoder.out_dim + 64, conf.action_dim, 400, 4, conf.layer_norm)
 
     @property
     def submodels(self):
@@ -34,13 +34,14 @@ class BehavioralCloning(TrainableModel):
 
     def forward(self,
                 image: TensorNBCHW,   # (1,B,C,H,W)
+                vecobs: Tensor,       # (1,V)
                 prev_reward: Tensor,  # (1,B)
                 prev_action: Tensor,  # (1,B,A)
                 reset: Tensor,        # (1,B)
                 in_state: Any,
                 ):
         e = self._encoder(image)
-        y = self._actor.forward(e)
+        y = self._actor.forward(torch.cat((e, vecobs), -1))
         logits = y.log_softmax(-1)
         value = torch.zeros_like(logits).sum(-1)
         out_state = None
@@ -48,6 +49,7 @@ class BehavioralCloning(TrainableModel):
 
     def train(self,
               image: TensorNBCHW,
+              vecobs: Tensor,
               reward: Tensor,
               terminal: Tensor,
               action_prev: Tensor,
@@ -63,7 +65,7 @@ class BehavioralCloning(TrainableModel):
               do_output_tensors=False,
               do_dream_tensors=False,
               ):
-        logits, _, _ = self.forward(image, reward, action_prev, reset, in_state)
+        logits, _, _ = self.forward(image, vecobs, reward, action_prev, reset, in_state)
         action_prev = action_prev / (action_prev.sum(-1, keepdim=True) + 1e-6)  # normalize multihot action
         loss = (-(logits[:-1] * action_prev[1:]).sum(-1)).mean()
         entropy = (- (logits * logits.exp()).sum(-1)).mean()

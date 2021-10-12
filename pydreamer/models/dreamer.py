@@ -73,6 +73,7 @@ class Dreamer(TrainableModel):
             hidden_dim=conf.hidden_dim,
             kl_weight=conf.kl_weight,
             image_weight=conf.image_weight,
+            vecobs_weight=conf.vecobs_weight,
             reward_weight=conf.reward_weight,
             terminal_weight=conf.terminal_weight,
             embed_rnn=conf.embed_rnn != 'none',
@@ -117,6 +118,7 @@ class Dreamer(TrainableModel):
 
     def forward(self,
                 image: TensorNBCHW,   # (1,B,C,H,W)
+                vecobs: Tensor,       # (1,V)
                 prev_reward: Tensor,  # (1,B)
                 prev_action: Tensor,  # (1,B,A)
                 reset: Tensor,        # (1,B)
@@ -128,7 +130,7 @@ class Dreamer(TrainableModel):
         # Forward (world model)
 
         terminal = torch.zeros_like(reset)
-        output = self.wm.forward(image, prev_reward, terminal, prev_action, reset, in_state)
+        output = self.wm.forward(image, vecobs, prev_reward, terminal, prev_action, reset, in_state)
         features = output[0]
         out_state = output[-1]
 
@@ -142,6 +144,7 @@ class Dreamer(TrainableModel):
 
     def train(self,
               image: TensorNBCHW,
+              vecobs: Tensor,
               reward: Tensor,
               terminal: Tensor,
               action: Tensor,     # (N,B,A)
@@ -161,7 +164,7 @@ class Dreamer(TrainableModel):
 
         # Forward (world model)
 
-        output = self.wm.forward(image, reward, terminal, action, reset, in_state, I=I, imagine_dropout=imagine_dropout, do_image_pred=do_image_pred)
+        output = self.wm.forward(image, vecobs, reward, terminal, action, reset, in_state, I=I, imagine_dropout=imagine_dropout, do_image_pred=do_image_pred)
         features = output[0]
         states = output[-2]
         out_state = output[-1]
@@ -185,7 +188,7 @@ class Dreamer(TrainableModel):
 
         # Loss
 
-        loss_model, metrics, loss_tensors = self.wm.loss(*output, image, reward, terminal, reset)
+        loss_model, metrics, loss_tensors = self.wm.loss(*output, image, vecobs, reward, terminal, reset)
         metrics.update(loss=metrics['loss_wm'])
 
         loss_map, metrics_map, loss_tensors_map = self.map_model.loss(*map_out, map, map_coord, map_seen_mask)    # type: ignore
@@ -266,6 +269,7 @@ class WorldModel(nn.Module):
                  hidden_dim=200,
                  kl_weight=1.0,
                  image_weight=1.0,
+                 vecobs_weight=1.0,
                  reward_weight=1.0,
                  terminal_weight=1.0,
                  embed_rnn=False,
@@ -281,6 +285,7 @@ class WorldModel(nn.Module):
         self._global_dim = 0
         self._kl_weight = kl_weight
         self._image_weight = image_weight
+        self._vecobs_weight = vecobs_weight
         self._reward_weight = reward_weight
         self._terminal_weight = terminal_weight
         self._embed_rnn = embed_rnn
@@ -334,10 +339,11 @@ class WorldModel(nn.Module):
         else:
             self._decoder_reward = DenseNormalHead(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
         self._decoder_terminal = DenseBernoulliHead(in_dim=state_dim, hidden_layers=conf.terminal_decoder_layers, layer_norm=conf.layer_norm)
+        self._decoder_vecobs = DenseNormalHead(in_dim=state_dim, out_dim=64, hidden_layers=4, layer_norm=conf.layer_norm)
 
         # RSSM
 
-        self._core = RSSMCore(embed_dim=self._encoder.out_dim + 2 * embed_rnn_dim if embed_rnn else self._encoder.out_dim,
+        self._core = RSSMCore(embed_dim=self._encoder.out_dim + 64 + (2 * embed_rnn_dim if embed_rnn else 0),
                               action_dim=action_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
@@ -358,6 +364,7 @@ class WorldModel(nn.Module):
 
     def forward(self,
                 image: TensorNBCHW,
+                vecobs: Tensor,
                 reward: TensorNB,
                 terminal: TensorNB,
                 action: Tensor,    # tensor(N, B, A)
@@ -383,9 +390,10 @@ class WorldModel(nn.Module):
             observation = image
 
         embed = self._encoder.forward(observation)  # (N,B,E)
+        embed = torch.cat((embed, vecobs), dim=-1)  # (N,B,E+V)
         if self._input_rnn:
             embed_rnn, _ = self._input_rnn.forward(embed, action)  # (N,B,2E)
-            embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E)
+            embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E+V)
 
         # RSSM
 
@@ -394,6 +402,7 @@ class WorldModel(nn.Module):
         # Decoder
 
         image_rec = self._decoder_image.forward(features)
+        vecobs_rec = self._decoder_vecobs.forward(features)
         reward_rec = self._decoder_reward.forward(features)
         terminal_rec = self._decoder_terminal.forward(features)
 
@@ -413,6 +422,7 @@ class WorldModel(nn.Module):
             post,                        # (N,B,I,2S)
             post_samples,                # (N,B,I,S)
             image_rec,                   # (N,B,I,C,H,W)
+            vecobs_rec,
             reward_rec,
             terminal_rec,
             image_pred,                  # Optional[(N,B,I,C,H,W)]
@@ -423,7 +433,7 @@ class WorldModel(nn.Module):
         )
 
     def predict(self,
-                features, prior, post, post_samples, image_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, states, out_state,     # forward() output
+                features, prior, post, post_samples, image_rec, vecobs_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, states, out_state,     # forward() output
                 ) -> Tuple[Tensor, Tensor]:
         # TODO: obsolete this method
         if image_pred is not None:
@@ -432,18 +442,20 @@ class WorldModel(nn.Module):
         return (image_pred, image_rec)
 
     def loss(self,
-             features, prior, post, post_samples, image_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, states, out_state,     # forward() output
-             image, reward, terminal,
+             features, prior, post, post_samples, image_rec, vecobs_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, states, out_state,     # forward() output
+             image, vecobs, reward, terminal,
              reset,
              ):
         N, B, I = image_rec.shape[:3]
         image = image.unsqueeze(2).expand(N, B, I, *image.shape[2:])
+        vecobs = vecobs.unsqueeze(2).expand(N, B, I, *vecobs.shape[2:])
         reward = reward.unsqueeze(2).expand(N, B, I, *reward.shape[2:])
         terminal = terminal.unsqueeze(2).expand(N, B, I, *terminal.shape[2:])
 
         # Reconstruction
 
         loss_image = self._decoder_image.loss(image_rec, image)  # (N,B,I)
+        loss_vecobs = self._decoder_vecobs.loss(vecobs_rec, vecobs)  # (N,B,I)
         loss_reward = self._decoder_reward.loss(reward_rec, reward)  # (N,B,I)
         loss_terminal = self._decoder_terminal.loss(terminal_rec, terminal)  # (N,B,I)
         assert (loss_image.requires_grad and loss_reward.requires_grad and loss_terminal.requires_grad) or not features.requires_grad
@@ -469,10 +481,11 @@ class WorldModel(nn.Module):
 
         # Total loss
 
-        assert loss_kl.shape == loss_image.shape == loss_reward.shape == loss_terminal.shape
+        assert loss_kl.shape == loss_image.shape == loss_vecobs.shape == loss_reward.shape == loss_terminal.shape
         loss_model = -logavgexp(-(
             self._kl_weight * loss_kl
             + self._image_weight * loss_image
+            + self._vecobs_weight * loss_vecobs
             + self._reward_weight * loss_reward
             + self._terminal_weight * loss_terminal
         ), dim=-1)
@@ -487,6 +500,7 @@ class WorldModel(nn.Module):
 
         with torch.no_grad():
             loss_image = -logavgexp(-loss_image, dim=-1)
+            loss_vecobs = -logavgexp(-loss_vecobs, dim=-1)
             loss_reward = -logavgexp(-loss_reward, dim=-1)
             loss_terminal = -logavgexp(-loss_terminal, dim=-1)
             loss_kl = -logavgexp(-loss_kl_exact, dim=-1)  # Log exact KL loss even when using IWAE, it avoids random negative values
@@ -502,6 +516,7 @@ class WorldModel(nn.Module):
             metrics = dict(loss_wm=loss_model.mean(),
                            loss_wm_image=loss_image.mean(),
                            loss_wm_image_max=loss_image.max(),
+                           loss_wm_vecobs=loss_vecobs.mean(),
                            loss_wm_reward=loss_reward.mean(),
                            loss_wm_terminal=loss_terminal.mean(),
                            loss_wm_kl=loss_kl.mean(),

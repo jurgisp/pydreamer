@@ -249,12 +249,13 @@ class NetworkPolicy:
         batch = self.preprocess.apply(obs, expandTB=True)
 
         image = torch.from_numpy(batch['image'])
+        vecobs = torch.from_numpy(batch['vecobs'])
         reward = torch.from_numpy(batch['reward'])
         action = torch.from_numpy(batch['action'])
         reset = torch.from_numpy(batch['reset'])
 
         with torch.no_grad():
-            action_logits, value, new_state = self.model.forward(image, reward, action, reset, self._state)
+            action_logits, value, new_state = self.model.forward(image, vecobs, reward, action, reset, self._state)
             action_logits = action_logits[0, 0]  # (N=1,B=1,A) => (A)
             value = value[0, 0]
             action_distr = D.OneHotCategorical(logits=action_logits)
