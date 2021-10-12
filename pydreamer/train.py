@@ -147,6 +147,7 @@ def run(conf):
                               map_categorical=conf.map_channels if conf.map_categorical else None,
                               map_key=conf.map_key,
                               action_dim=conf.action_dim,
+                              clip_rewards=conf.clip_rewards,
                               amp=conf.device.startswith('cuda') and conf.amp)
 
     # MODEL

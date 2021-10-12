@@ -10,6 +10,7 @@ def to_onehot(x: np.ndarray, n_categories) -> np.ndarray:
     e = np.eye(n_categories, dtype=np.float32)
     return e[x]  # Nice trick: https://stackoverflow.com/a/37323404
 
+
 def img_to_onehot(x: np.ndarray, n_categories) -> np.ndarray:
     x = to_onehot(x, n_categories)
     x = x.transpose(0, 1, 4, 2, 3)  # (N, B, H, W, C) => (N, B, C, H, W)
@@ -64,12 +65,20 @@ class TransformedDataset(IterableDataset):
 
 class Preprocessor:
 
-    def __init__(self, image_categorical=33, image_key='image', map_categorical=33, map_key='map', action_dim=0, amp=False):
+    def __init__(self,
+                 image_key='image', 
+                 map_key='map', 
+                 image_categorical=None, 
+                 map_categorical=None, 
+                 action_dim=0,
+                 clip_rewards=None,
+                 amp=False):
         self._image_categorical = image_categorical
         self._image_key = image_key
         self._map_categorical = map_categorical
         self._map_key = map_key
         self._action_dim = action_dim
+        self._clip_rewards = clip_rewards
         self._amp = amp
 
     def __call__(self, dataset: IterableDataset) -> IterableDataset:
@@ -128,8 +137,12 @@ class Preprocessor:
 
         # reward, terminal
 
-        batch['reward'] = batch.get('reward', np.zeros((T, B))).astype(np.float32)
         batch['terminal'] = batch.get('terminal', np.zeros((T, B))).astype(np.float32)
+        batch['reward'] = batch.get('reward', np.zeros((T, B))).astype(np.float32)
+        if self._clip_rewards == 'tanh':
+            batch['reward'] = np.tanh(batch['reward'])  # type: ignore
+        if self._clip_rewards == 'log1p':
+            batch['reward'] = np.log1p(batch['reward'])  # type: ignore
 
         # map_coord
 

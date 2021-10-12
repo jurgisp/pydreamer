@@ -82,7 +82,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                                   image_key=conf.image_key,
                                   map_categorical=conf.map_channels if conf.map_categorical else None,
                                   map_key=conf.map_key,
-                                  action_dim=env.action_size)
+                                  action_dim=env.action_size,
+                                  clip_rewards=conf.clip_rewards)
         policy = NetworkPolicy(model, preprocess)
 
     elif policy == 'random':
