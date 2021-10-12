@@ -148,14 +148,17 @@ class DenseBernoulliHead(nn.Module):
 
 class DenseNormalHead(nn.Module):
 
-    def __init__(self, in_dim, hidden_dim=400, hidden_layers=2, layer_norm=True, std=0.3989422804):
+    def __init__(self, in_dim, out_dim=1, hidden_dim=400, hidden_layers=2, layer_norm=True, std=0.3989422804):
         super().__init__()
-        self._model = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
+        self._model = MLP(in_dim, out_dim, hidden_dim, hidden_layers, layer_norm)
         self._std = std
+        self._out_dim = out_dim
 
     def forward(self, features: Tensor) -> D.Distribution:
         y = self._model.forward(features)
         p = D.Normal(loc=y, scale=torch.ones_like(y) * self._std)
+        if self._out_dim > 1:
+            p = D.independent.Independent(p, 1)  # Makes p.logprob() sum over last dim
         return p
 
     def loss(self, output: D.Distribution, target: Tensor) -> Tensor:
