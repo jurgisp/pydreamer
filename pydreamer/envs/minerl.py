@@ -12,7 +12,8 @@ class MineRL(gym.Env):
         self._action_repeat = action_repeat
         self.action_space = gym.spaces.Discrete(len(self._action_set))  # type: ignore
         self.observation_space = gym.spaces.Dict({  # type: ignore
-            'image': gym.spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)  # type: ignore
+            'image': gym.spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8),  # type: ignore
+            'vecobs': gym.spaces.Box(low=-1, high=1, shape=(64,), dtype=np.float32)  # type: ignore
         })
 
     def reset(self):
@@ -35,5 +36,7 @@ class MineRL(gym.Env):
         return self._observation(obs), reward, done, info  # type: ignore
 
     def _observation(self, obs):
-        img = obs['pov']
-        return {'image': img}
+        return {
+            'image': obs['pov'],
+            'vecobs': obs['vector']
+        }
