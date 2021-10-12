@@ -173,12 +173,13 @@ class DataSequential(IterableDataset):
             # Concatenate the last batch of previous file and the first batch of new file to make a
             # full batch of length batch_size.
             if last_partial_batch is not None:
-                batch, partial = next(it)
-                assert not partial, 'First batch must be full. Is episode_length < batch_size?'
-                batch = cat_structure_np([last_partial_batch, batch])  # type: ignore
-                assert lenb(batch) == self.batch_length
-                last_partial_batch = None
-                yield batch
+                for batch, partial in it:
+                    assert not partial, 'First batch must be full. Is episode_length < batch_size?'
+                    batch = cat_structure_np([last_partial_batch, batch])  # type: ignore
+                    assert lenb(batch) == self.batch_length
+                    last_partial_batch = None
+                    yield batch
+                    break
 
             for batch, partial in it:
                 if partial:
