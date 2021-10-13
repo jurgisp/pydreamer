@@ -89,7 +89,7 @@ class Dreamer(TrainableModel):
                               layer_norm=conf.layer_norm,
                               gamma=conf.gamma,
                               lambda_gae=conf.lambda_gae,
-                              temperature=conf.entropy,
+                              entropy_weight=conf.entropy,
                               target_interval=conf.target_interval,
                               )
 

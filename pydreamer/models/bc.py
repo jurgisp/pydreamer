@@ -33,11 +33,11 @@ class BehavioralCloning(TrainableModel):
         return None
 
     def forward(self,
-                image: TensorNBCHW,   # (1,B,C,H,W)
-                vecobs: Tensor,       # (1,V)
-                prev_reward: Tensor,  # (1,B)
-                prev_action: Tensor,  # (1,B,A)
-                reset: Tensor,        # (1,B)
+                image: TensorNBCHW,   # (N,B,C,H,W)
+                vecobs: Tensor,       # (N,B,V)
+                prev_reward: Tensor,  # (N,B)
+                prev_action: Tensor,  # (N,B,A)
+                reset: Tensor,        # (N,B)
                 in_state: Any,
                 ):
         e = self._encoder(image)

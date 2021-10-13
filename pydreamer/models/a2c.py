@@ -10,13 +10,23 @@ from models.common import *
 
 class ActorCritic(nn.Module):
 
-    def __init__(self, in_dim, out_actions, hidden_dim=400, hidden_layers=4, layer_norm=True, gamma=0.999, lambda_gae=0.95, temperature=1e-3, target_interval=100):
+    def __init__(self,
+                 in_dim,
+                 out_actions,
+                 hidden_dim=400,
+                 hidden_layers=4,
+                 layer_norm=True,
+                 gamma=0.999,
+                 lambda_gae=0.95,
+                 entropy_weight=1e-3,
+                 target_interval=100,
+                 ):
         super().__init__()
         self.in_dim = in_dim
         self.out_actions = out_actions
         self._gamma = gamma
         self._lambda = lambda_gae
-        self._temperature = temperature
+        self._entropy_weight = entropy_weight
         self._target_interval = target_interval
         self._actor = MLP(in_dim, out_actions, hidden_dim, hidden_layers, layer_norm)
         self._critic = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
@@ -36,7 +46,13 @@ class ActorCritic(nn.Module):
         y = self._critic.forward(features)
         return y
 
-    def train(self, features: TensorJMF, rewards: D.Distribution, terminals: D.Distribution, actions: TensorHMA, log_only=False):
+    def train(self,
+              features: TensorJMF,
+              rewards: D.Distribution,
+              terminals: D.Distribution,
+              actions: TensorHMA,
+              log_only=False
+              ):
         if not log_only:
             if self._train_steps % self._target_interval == 0:
                 self.update_critic_target()
@@ -102,18 +118,12 @@ class ActorCritic(nn.Module):
         policy_entropy = - (policy_logits * policy_logits.exp()).sum(-1)
         assert (loss_policy.requires_grad and policy_entropy.requires_grad) or not loss_value.requires_grad
 
-        real_loss = False  # TODO: conf
-        if real_loss:
-            loss_value = (loss_value * reality_weight)[0].mean()
-            loss_policy = (loss_policy * reality_weight)[0].mean()
-            policy_entropy = (policy_entropy * reality_weight)[0].mean()
-        else:
-            loss_value = (loss_value * reality_weight).mean()
-            loss_policy = (loss_policy * reality_weight).mean()
-            policy_entropy = (policy_entropy * reality_weight).mean()
+        loss_value = (loss_value * reality_weight).mean()
+        loss_policy = (loss_policy * reality_weight).mean()
+        policy_entropy = (policy_entropy * reality_weight).mean()
 
         loss_critic = loss_value
-        loss_actor = loss_policy - self._temperature * policy_entropy
+        loss_actor = loss_policy - self._entropy_weight * policy_entropy
 
         with torch.no_grad():
             metrics = dict(loss_critic=loss_critic.detach(),
