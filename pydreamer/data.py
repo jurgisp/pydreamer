@@ -4,6 +4,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 from mlflow.store.artifact.artifact_repo import ArtifactRepository
@@ -57,12 +58,12 @@ class MlflowEpisodeRepository(EpisodeRepository):
         self.read_repos: List[ArtifactRepository] = [get_artifact_repository(uri) for uri in self.artifact_uris]
         self.write_repo = self.read_repos[0]
 
-    def save_data(self, data: Dict[str, np.ndarray], episode_from: int, episode_to: int):
+    def save_data(self, data: Dict[str, np.ndarray], episode_from: int, episode_to: int, chunk_seq: Optional[int] = None):
         n_episodes = data['reset'].sum()
         n_steps = len(data['reset']) - n_episodes
         reward = data['reward'].sum()
-        fname = self._build_episode_name(episode_from, episode_to, reward, n_steps)
-        print_once('Saving episode data:', self.write_repo.artifact_uri + '/' + fname)
+        fname = self._build_episode_name(episode_from, episode_to, reward, n_steps, chunk_seq=chunk_seq)
+        print_once(f'Saving episode data ({chunk_seq}):', self.write_repo.artifact_uri + '/' + fname)
         mlflow_log_npz(data, fname, repository=self.write_repo)
 
     def list_files(self) -> List[FileInfo]:
@@ -85,8 +86,11 @@ class MlflowEpisodeRepository(EpisodeRepository):
         return len(files), steps, episodes
 
     
-    def _build_episode_name(self, episode_from, episode, reward, steps):
-        return f'ep{episode_from:06}_{episode:06}-r{reward:.0f}-{steps:04}.npz'
+    def _build_episode_name(self, episode_from, episode, reward, steps, chunk_seq=None):
+        if chunk_seq is None:
+            return f'ep{episode_from:06}_{episode:06}-r{reward:.0f}-{steps:04}.npz'
+        else:
+            return f'ep{episode_from:06}_{episode:06}-{chunk_seq}-r{reward:.0f}-{steps:04}.npz'
 
 
     def _parse_episode_name(self, fname):
@@ -218,7 +222,8 @@ class DataSequential(IterableDataset):
 
         if not 'reset' in data:
             data['reset'] = np.zeros(n, bool)
-            data['reset'][0] = True  # Indicate episode start
+        data['reset'][0] = True  # File must start with reset
+        data['reward'][0] = 0.0  # ... and no rewards
 
         i = 0 if not skip_random else np.random.randint(n - batch_length + 1)
         l = first_shorter_length or batch_length

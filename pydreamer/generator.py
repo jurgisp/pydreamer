@@ -213,19 +213,23 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             for key in datas[0]:
                 data[key] = np.concatenate([b[key] for b in datas], axis=0)
             datas = []
+            print_once('Collected data sample: ', {k: v.shape for k, v in data.items()})
 
-            # NHWC => HWCN for better compression
+            # ... or chunk
 
-            data['image_t'] = data['image'].transpose(1, 2, 3, 0)
-            del data['image']
+            if datas_steps >= 2 * steps_per_npz:
+                chunks = chunk_episode_data(data, steps_per_npz)
+            else:
+                chunks = [data]
 
             # Save to npz
 
-            print_once('Collected data sample: ', {k: v.shape for k, v in data.items()})
-            if np.random.rand() > split_fraction:
-                repository.save_data(data, episodes - datas_episodes, episodes - 1)
-            else:
-                repository2.save_data(data, episodes - datas_episodes, episodes - 1)
+            repo = repository if (np.random.rand() > split_fraction) else repository2
+            for i, data in enumerate(chunks):
+                # NHWC => HWCN for better compression
+                data['image_t'] = data['image'].transpose(1, 2, 3, 0)
+                del data['image']
+                repo.save_data(data, episodes - datas_episodes, episodes - 1, i)
 
     print(f'[GEN{worker_id:>2}]  Generator done.')
 

@@ -194,3 +194,13 @@ def azure_blob_artifact_repo_log_artifact(self, local_file, artifact_path=None):
 # Patching to enable artifact overwrite when using Azure, which is default in GCS
 #   https://github.com/mlflow/mlflow/blob/master/mlflow/store/artifact/azure_blob_artifact_repo.py#L75
 AzureBlobArtifactRepository.log_artifact = azure_blob_artifact_repo_log_artifact
+
+
+def chunk_episode_data(data: Dict[str, np.ndarray], max_length: int):
+    n = len(data['reward'])
+    chunks = ((n - 1) // max_length) + 1
+    for i_chunk in range(chunks):
+        i_from = n * i_chunk // chunks
+        i_to = n * (i_chunk + 1) // chunks
+        data_chunk = {key: data[key][i_from:i_to] for key in data}
+        yield data_chunk
