@@ -224,7 +224,7 @@ class DataSequential(IterableDataset):
         l = first_shorter_length or batch_length
 
         if self.reset_interval:
-            random_resets = self.randomize_resets(data['reset'], self.reset_interval)
+            random_resets = self.randomize_resets(data['reset'], self.reset_interval, self.batch_length)
         else:
             random_resets = np.zeros_like(data['reset'])
 
@@ -246,7 +246,7 @@ class DataSequential(IterableDataset):
             f = np.random.choice(self._files)
             yield f
 
-    def randomize_resets(self, resets, reset_interval):
+    def randomize_resets(self, resets, reset_interval, batch_length):
         assert resets[0]
         ep_boundaries = np.where(resets)[0].tolist() + [len(resets)]
 
@@ -260,8 +260,8 @@ class DataSequential(IterableDataset):
 
             max_intervals = (ep_steps // reset_interval) + 1
             n_intervals = np.random.randint(1, max_intervals + 1)
-            i_boundaries = np.sort(np.random.choice(ep_steps - 50 * n_intervals, n_intervals - 1))
-            i_boundaries = ep_start + i_boundaries + np.arange(1, n_intervals) * 50
+            i_boundaries = np.sort(np.random.choice(ep_steps - batch_length * n_intervals, n_intervals - 1))
+            i_boundaries = ep_start + i_boundaries + np.arange(1, n_intervals) * batch_length
 
             random_resets[i_boundaries] = True
             assert (resets | random_resets)[ep_start:ep_end].sum() == n_intervals
