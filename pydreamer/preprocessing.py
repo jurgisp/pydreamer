@@ -44,6 +44,9 @@ class WorkerInfoPreprocess(IterableDataset):
         worker_info = get_worker_info()
         if worker_info:
             worker_id = worker_info.id
+            # Important: randomize global random seeds for spawned data generators.
+            # Otherwise they share the same global random state.
+            np.random.seed(np.random.RandomState().randint(999999))
             print(f'Started data worker ({worker_id})')
         else:
             worker_id = 0

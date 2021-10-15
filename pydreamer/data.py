@@ -153,6 +153,7 @@ class DataSequential(IterableDataset):
         return self.reload_interval and (time.time() - self._last_reload > self.reload_interval)
 
     def __iter__(self):
+        print('DEBUG different seeds:', np.random.randint(1000))
         # Parallel iteration over (batch_size) iterators
         # Iterates forever
         iters = [self._iter_single(ix) for ix in range(self.batch_size)]
