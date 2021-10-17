@@ -317,6 +317,8 @@ class WorldModel(nn.Module):
         else:
             self._input_rnn = None
 
+        self._encoder_vecobs = MLP(64, 256, hidden_dim=400, hidden_layers=2, layer_norm=conf.layer_norm)
+
         # Decoders
 
         state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1) + conf.global_dim
@@ -343,7 +345,7 @@ class WorldModel(nn.Module):
 
         # RSSM
 
-        self._core = RSSMCore(embed_dim=self._encoder.out_dim + 64 + (2 * embed_rnn_dim if embed_rnn else 0),
+        self._core = RSSMCore(embed_dim=self._encoder.out_dim + 256 + (2 * embed_rnn_dim if embed_rnn else 0),
                               action_dim=action_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
@@ -390,10 +392,11 @@ class WorldModel(nn.Module):
             observation = image
 
         embed = self._encoder.forward(observation)  # (N,B,E)
-        embed = torch.cat((embed, vecobs), dim=-1)  # (N,B,E+V)
+        embed_vecobs = self._encoder_vecobs(vecobs)
+        embed = torch.cat((embed, embed_vecobs), dim=-1)  # (N,B,E+256)
         if self._input_rnn:
             embed_rnn, _ = self._input_rnn.forward(embed, action)  # (N,B,2E)
-            embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E+V)
+            embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E+256)
 
         # RSSM
 
