@@ -546,7 +546,8 @@ class WorldModel(nn.Module):
                 metrics.update(logprob_reward=logprob_reward.mean(),
                                logprob_reward_pos=logprob_reward_pos,
                                logprob_reward_neg=logprob_reward_neg)
-                log_tensors.update(reward_pred=reward_pred.mean.mean(dim=-1))  # not quite loss tensor, but fine
+                log_tensors.update(reward_pred=reward_pred.mean.mean(dim=-1), # not quite loss tensor, but fine
+                                   logprob_reward=logprob_reward)  
 
             if terminal_pred is not None:
                 logprob_terminal = self._decoder_terminal.loss(terminal_pred, terminal)

@@ -416,6 +416,7 @@ def evaluate(prefix: str,
 
             reset_episodes = reset.any(dim=0)  # (B,)
             n_reset_episodes = reset_episodes.sum().item()
+            n_continued_episodes = (~reset_episodes).sum().item()
             if i_batch == 0:
                 n_finished_episodes = np.zeros(B)
             else:
@@ -429,7 +430,7 @@ def evaluate(prefix: str,
 
             # Open loop & unseen logprob
 
-            if n_reset_episodes == 0 and i_batch == 1:  # just one batch
+            if n_continued_episodes > 0:
                 with autocast(enabled=conf.amp):
                     _, _, loss_tensors_im, _, out_tensors_im, _ = \
                         model.training_step(image, vecobs, reward, terminal,  # observation will be ignored in forward pass because of imagine=True
@@ -440,11 +441,17 @@ def evaluate(prefix: str,
                                             do_image_pred=True,
                                             do_output_tensors=True)
 
-                    log_batch_npz(batch, loss_tensors_im, out_tensors_im, f'{steps:07}.npz', subdir=f'd2_wm_open_{prefix}', verbose=True)
+                    if np.random.rand() < 0.10:  # Save a small sample of batches
+                        r = reward.sum().item()
+                        log_batch_npz(batch, loss_tensors_im, out_tensors_im, f'{steps:07}_{i_batch}_r{r:.0f}.npz', subdir=f'd2_wm_open_{prefix}', verbose=True)
 
-                    # if 'logprob_img' in loss_tensors_im:
-                    #     metrics_eval['logprob_img_1step'].append(loss_tensors_im['logprob_img'][0].mean().item())
-                    #     metrics_eval['logprob_img_2step'].append(loss_tensors_im['logprob_img'][1].mean().item())
+                    mask = ~reset_episodes
+                    if 'logprob_img' in loss_tensors_im:
+                        metrics_eval['logprob_img_1step'].append(((loss_tensors_im['logprob_img'][0] * mask).sum() / mask.sum()).item())
+                        metrics_eval['logprob_img_2step'].append(((loss_tensors_im['logprob_img'][1] * mask).sum() / mask.sum()).item())
+                    if 'logprob_reward' in loss_tensors_im:
+                        metrics_eval['logprob_reward_1step'].append(((loss_tensors_im['logprob_reward'][0] * mask).sum() / mask.sum()).item())
+                        metrics_eval['logprob_reward_2step'].append(((loss_tensors_im['logprob_reward'][1] * mask).sum() / mask.sum()).item())
 
             # Closed loop & loss
 
