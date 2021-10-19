@@ -40,7 +40,7 @@ def run(conf):
         mlflow.log_params({k: v for k, v in vars(conf).items() if not len(repr(v)) > 250})  # filter too long
     except Exception as e:
         # This happens when resuming and config has different parameters - it's fine
-        print(f'ERROR in mlflow.log_params: {repr(e)}')
+        print(f'ERROR in mlflow.log_params: {repr(e)}', file=sys.stderr)
 
     device = torch.device(conf.device)
 
@@ -361,7 +361,7 @@ def run(conf):
 
                         except Exception as e:
                             # This catch is useful if there is no eval data generated yet
-                            print(f'ERROR while evaluating: {repr(e)}')
+                            print(f'ERROR while evaluating: {repr(e)}', file=sys.stderr)
 
             for k, v in timers.items():
                 metrics[f'timer_{k}'].append(v.dt_ms)
