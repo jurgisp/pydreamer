@@ -6,6 +6,7 @@ if [[ $# -eq 0 ]] ; then
 fi
 EXPERIMENT="$1"
 CONFIG="${2:-atari}"
+RESUMEID="$3"
 
 if [ ! -f ".env" ]; then
     echo ".env file not found - need it to set DOCKER_REPO, MLFLOW_TRACKING_URI"
@@ -19,6 +20,8 @@ docker build . -f Dockerfile -t $DOCKER_REPO:$TAG
 docker push $DOCKER_REPO:$TAG
 
 RND=$(base64 < /dev/urandom | tr -d '[A-Z/+]' | head -c 6)
+RESUMEID="${RESUMEID:-$RND}"
+
 cat <<EOF | kubectl apply -f -
 apiVersion: batch/v1
 kind: Job
@@ -65,7 +68,7 @@ spec:
             - --run_name
             - $EXPERIMENT
             - --resume_id
-            - $RND
+            - $RESUMEID
           resources:
             limits:
               nvidia.com/gpu: 1
