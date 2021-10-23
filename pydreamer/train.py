@@ -186,9 +186,9 @@ def run(conf):
 
     timers = {}
 
-    def timer(name):
+    def timer(name, verbose=False):
         if name not in timers:
-            timers[name] = Timer('total', False)
+            timers[name] = Timer(name, verbose)
         return timers[name]
 
     states = {}  # by worker
