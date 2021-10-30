@@ -328,6 +328,11 @@ def run(conf):
                 with timer('eval'):
                     if conf.eval_interval and steps % conf.eval_interval == 0:
                         try:
+                            # This is just to count steps in the buffer
+                            repository = MlflowEpisodeRepository(input_dirs)
+                            data_train = DataSequential(repository, conf.batch_length, conf.batch_size, buffer_size=conf.buffer_size)
+                            mlflow.log_metrics({'train/data_steps': data_train.stats_steps}, step=steps)
+
                             # Test = same settings as train
                             repository = MlflowEpisodeRepository(test_dirs)
                             data_test = DataSequential(repository, conf.batch_length, conf.test_batch_size, skip_first=False, reset_interval=conf.reset_interval)
@@ -339,11 +344,6 @@ def run(conf):
                             data_eval = DataSequential(repository, conf.batch_length, conf.eval_batch_size, skip_first=False)
                             eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
                             evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.eval_samples, True, conf)
-
-                            # This is just to count steps in the buffer
-                            repository = MlflowEpisodeRepository(input_dirs)
-                            data_train = DataSequential(repository, conf.batch_length, conf.batch_size, buffer_size=conf.buffer_size)
-                            mlflow.log_metrics({'train/data_steps': data_train.stats_steps}, step=steps)
 
                         except Exception as e:
                             # This catch is useful if there is no eval data generated yet
