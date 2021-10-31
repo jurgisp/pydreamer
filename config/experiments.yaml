@@ -2,6 +2,10 @@
 
 atari_pong:
   env_id: Atari-Pong
+atari_breakout:
+  env_id: Atari-Breakout
+atari_montezuma:
+  env_id: Atari-Montezuma_Revenge
 
 # Miniworld
 
