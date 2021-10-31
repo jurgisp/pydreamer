@@ -121,8 +121,8 @@ def run(conf):
                 p = run_generator(conf.env_id_eval or conf.env_id,
                                   conf,
                                   f'{artifact_uri}/episodes_eval/{i}',
-                                  worker_id=99 - i, 
-                                  policy='network', 
+                                  worker_id=99 - i,
+                                  policy='network',
                                   metrics_prefix='agent_eval')
                 eval_dirs.append(f'{artifact_uri}/episodes_eval/{i}')
                 subprocesses.append(p)
@@ -276,6 +276,14 @@ def run(conf):
                     if dream_tensors:
                         log_batch_npz(batch, loss_tensors, dream_tensors, f'{steps:07}.npz', subdir='d2_wm_dream', verbose=conf.verbose)
 
+                    # Log data buffer size
+
+                    if steps % conf.logbatch_interval == 0:
+                        repository = MlflowEpisodeRepository(input_dirs)
+                        data_train = DataSequential(repository, conf.batch_length, conf.batch_size, buffer_size=conf.buffer_size)
+                        metrics['data_steps'].append(data_train.stats_steps)
+                        metrics['data_env_steps'].append(data_train.stats_steps * conf.env_action_repeat)
+
                     # Log metrics
 
                     if steps % conf.log_interval == 0:
@@ -328,11 +336,6 @@ def run(conf):
                 with timer('eval'):
                     if conf.eval_interval and steps % conf.eval_interval == 0:
                         try:
-                            # This is just to count steps in the buffer
-                            repository = MlflowEpisodeRepository(input_dirs)
-                            data_train = DataSequential(repository, conf.batch_length, conf.batch_size, buffer_size=conf.buffer_size)
-                            mlflow.log_metrics({'train/data_steps': data_train.stats_steps}, step=steps)
-
                             # Test = same settings as train
                             repository = MlflowEpisodeRepository(test_dirs)
                             data_test = DataSequential(repository, conf.batch_length, conf.test_batch_size, skip_first=False, reset_interval=conf.reset_interval)
