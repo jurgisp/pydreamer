@@ -28,6 +28,7 @@ from data import DataSequential, MlflowEpisodeRepository
 from models import *
 from preprocessing import Preprocessor, WorkerInfoPreprocess
 from tools import *
+from models.functions import nanmean
 
 torch.distributions.Distribution.set_default_validate_args(False)
 torch.backends.cudnn.benchmark = True  # type: ignore
@@ -328,7 +329,6 @@ def run(conf):
                                     raise Exception(f'Generator process {p.pid} died with exitcode {p.exitcode}')
                         for p in subp_finished:
                             subprocesses.remove(p)
-                        
 
                     # Save model
 
@@ -445,13 +445,14 @@ def evaluate(prefix: str,
                         r = reward.sum().item()
                         log_batch_npz(batch, loss_tensors_im, out_tensors_im, f'{steps:07}_{i_batch}_r{r:.0f}.npz', subdir=f'd2_wm_open_{prefix}', verbose=True)
 
-                    mask = ~reset_episodes
-                    if 'logprob_img' in loss_tensors_im:
-                        metrics_eval['logprob_img_1step'].append(((loss_tensors_im['logprob_img'][0] * mask).sum() / mask.sum()).item())
-                        metrics_eval['logprob_img_2step'].append(((loss_tensors_im['logprob_img'][1] * mask).sum() / mask.sum()).item())
-                    if 'logprob_reward' in loss_tensors_im:
-                        metrics_eval['logprob_reward_1step'].append(((loss_tensors_im['logprob_reward'][0] * mask).sum() / mask.sum()).item())
-                        metrics_eval['logprob_reward_2step'].append(((loss_tensors_im['logprob_reward'][1] * mask).sum() / mask.sum()).item())
+                    mask = (~reset_episodes).float()
+                    for key, logprobs in loss_tensors_im.items():
+                        if key.startswith('logprob_'):  # logprob_img, logprob_reward, logprob_rewardp, logprob_rewardn, logprob_reward{i}
+                            # Many logprobs will be nans - that's fine. Just take mean of those tahat exist
+                            lps = (logprobs[:5] * mask) / mask  # set to nan where ~mask
+                            lp = nanmean(lps).item()
+                            if not np.isnan(lp):
+                                metrics_eval[f'{key}_open'].append(lp)  # logprob_img_open, ...
 
             # Closed loop & loss
 
