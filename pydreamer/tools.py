@@ -198,9 +198,9 @@ def azure_blob_artifact_repo_log_artifact(self, local_file, artifact_path=None):
 AzureBlobArtifactRepository.log_artifact = azure_blob_artifact_repo_log_artifact
 
 
-def chunk_episode_data(data: Dict[str, np.ndarray], max_length: int):
+def chunk_episode_data(data: Dict[str, np.ndarray], min_length: int):
     n = len(data['reward'])
-    chunks = ((n - 1) // max_length) + 1
+    chunks = n // min_length
     for i_chunk in range(chunks):
         i_from = n * i_chunk // chunks
         i_to = n * (i_chunk + 1) // chunks

@@ -33,7 +33,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          env_no_terminal=False,
          env_time_limit=0,
          env_action_repeat=1,
-         steps_per_npz=1750,
+         steps_per_npz=1000,
          model_reload_interval=120,
          model_conf=dict(),
          log_mlflow_metrics=True,
@@ -226,6 +226,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
             # ... or chunk
 
+            # if steps_per_npz=1000, then chunk size will be [1000,1999]
             if datas_steps >= 2 * steps_per_npz:
                 chunks = chunk_episode_data(data, steps_per_npz)
             else:
