@@ -94,6 +94,7 @@ def run(conf):
                                   conf,
                                   save_uri=f'{artifact_uri}/episodes/{i}',
                                   save_uri2=f'{artifact_uri}/episodes_eval/{i}',
+                                  num_steps=(conf.n_env_steps - conf.generator_prefill_steps) // conf.generator_workers,
                                   worker_id=i,
                                   policy='network',
                                   split_fraction=0.1)
@@ -104,6 +105,7 @@ def run(conf):
                 p = run_generator(conf.env_id,
                                   conf,
                                   f'{artifact_uri}/episodes/{i}',
+                                  num_steps=(conf.n_env_steps - conf.generator_prefill_steps) // conf.generator_workers,
                                   worker_id=i,
                                   policy='network')
                 input_dirs.append(f'{artifact_uri}/episodes/{i}')
@@ -314,11 +316,19 @@ def run(conf):
                         metrics = defaultdict(list)
                         metrics_max = defaultdict(list)
 
-                    # Check subprocess
+                        # Check subprocess
 
-                    for p in subprocesses:
-                        if not p.is_alive():
-                            raise Exception('Generator process died')
+                        subp_finished = []
+                        for p in subprocesses:
+                            if not p.is_alive():
+                                if p.exitcode == 0:
+                                    subp_finished.append(p)
+                                    print(f'Generator process {p.pid} finished')
+                                else:
+                                    raise Exception(f'Generator process {p.pid} died with exitcode {p.exitcode}')
+                        for p in subp_finished:
+                            subprocesses.remove(p)
+                        
 
                     # Save model
 
@@ -328,7 +338,7 @@ def run(conf):
 
                     # Stop
 
-                    if steps >= conf.n_steps:
+                    if steps >= conf.n_steps or (online_data and len(subprocesses) == 0):
                         print('[TRAIN]  Stopping')
                         break
 

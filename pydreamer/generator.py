@@ -48,7 +48,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     else:
         mlflow.start_run(run_name=f'{env_id}-{worker_id}')
 
-    print(f'Generator {worker_id} started: env={env_id}, split_fraction={split_fraction}, metrics={metrics_prefix if log_mlflow_metrics else None}, save_uri={save_uri}')
+    print(f'Generator {worker_id} started: env={env_id}, n_steps={num_steps}, split_fraction={split_fraction}, metrics={metrics_prefix if log_mlflow_metrics else None}, save_uri={save_uri}')
 
     if not save_uri:
         save_uri = f'{mlflow.active_run().info.artifact_uri}/episodes'  # type: ignore
