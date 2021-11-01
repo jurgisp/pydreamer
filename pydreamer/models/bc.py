@@ -47,24 +47,24 @@ class BehavioralCloning(TrainableModel):
         out_state = None
         return logits, value, out_state
 
-    def train(self,
-              image: TensorNBCHW,
-              vecobs: Tensor,
-              reward: Tensor,
-              terminal: Tensor,
-              action_prev: Tensor,
-              reset: Tensor,
-              map: Tensor,
-              map_coord: Tensor,
-              map_seen_mask: Tensor,
-              in_state: Any,
-              I: int = 1,
-              H: int = 1,
-              imagine_dropout=0,
-              do_image_pred=False,
-              do_output_tensors=False,
-              do_dream_tensors=False,
-              ):
+    def training_step(self,
+                      image: TensorNBCHW,
+                      vecobs: Tensor,
+                      reward: Tensor,
+                      terminal: Tensor,
+                      action_prev: Tensor,
+                      reset: Tensor,
+                      map: Tensor,
+                      map_coord: Tensor,
+                      map_seen_mask: Tensor,
+                      in_state: Any,
+                      I: int = 1,
+                      H: int = 1,
+                      imagine_dropout=0,
+                      do_image_pred=False,
+                      do_output_tensors=False,
+                      do_dream_tensors=False,
+                      ):
         logits, _, _ = self.forward(image, vecobs, reward, action_prev, reset, in_state)
         action_prev = action_prev / (action_prev.sum(-1, keepdim=True) + 1e-6)  # normalize multihot action
         loss = (-(logits[:-1] * action_prev[1:]).sum(-1)).mean()

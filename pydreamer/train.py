@@ -225,13 +225,13 @@ def run(conf):
 
                         state = states.get(wid) or model.init_state(image.size(1) * conf.iwae_samples)
                         losses, loss_metrics, loss_tensors, new_state, out_tensors, dream_tensors = \
-                            model.train(image, vecobs, reward, terminal, action, reset, map, map_coord, map_seen_mask, state,
-                                        I=conf.iwae_samples,
-                                        H=conf.imag_horizon,
-                                        imagine_dropout=conf.imagine_dropout,
-                                        do_image_pred=steps % conf.log_interval >= int(conf.log_interval * 0.9),  # 10% of batches
-                                        do_output_tensors=steps % conf.logbatch_interval == 1,
-                                        do_dream_tensors=steps % conf.logbatch_interval == 1)
+                            model.training_step(image, vecobs, reward, terminal, action, reset, map, map_coord, map_seen_mask, state,
+                                                I=conf.iwae_samples,
+                                                H=conf.imag_horizon,
+                                                imagine_dropout=conf.imagine_dropout,
+                                                do_image_pred=steps % conf.log_interval >= int(conf.log_interval * 0.9),  # 10% of batches
+                                                do_output_tensors=steps % conf.logbatch_interval == 1,
+                                                do_dream_tensors=steps % conf.logbatch_interval == 1)
                         if conf.keep_state:
                             states[wid] = new_state
 
@@ -422,13 +422,13 @@ def evaluate(prefix: str,
             if n_reset_episodes == 0 and i_batch == 1:  # just one batch
                 with autocast(enabled=conf.amp):
                     _, _, loss_tensors_im, _, out_tensors_im, _ = \
-                        model.train(image, vecobs, reward, terminal,  # observation will be ignored in forward pass because of imagine=True
-                                    action, reset, map, map_coord, map_seen_mask, state,
-                                    I=eval_samples,
-                                    H=conf.imag_horizon,
-                                    imagine_dropout=1,
-                                    do_image_pred=True,
-                                    do_output_tensors=True)
+                        model.training_step(image, vecobs, reward, terminal,  # observation will be ignored in forward pass because of imagine=True
+                                            action, reset, map, map_coord, map_seen_mask, state,
+                                            I=eval_samples,
+                                            H=conf.imag_horizon,
+                                            imagine_dropout=1,
+                                            do_image_pred=True,
+                                            do_output_tensors=True)
 
                     log_batch_npz(batch, loss_tensors_im, out_tensors_im, f'{steps:07}.npz', subdir=f'd2_wm_open_{prefix}', verbose=True)
 
@@ -443,12 +443,12 @@ def evaluate(prefix: str,
                     state = model.init_state(image.size(1) * eval_samples)
 
                 _, loss_metrics, loss_tensors, state, out_tensors, _ = \
-                    model.train(image, vecobs, reward, terminal, action, reset, map, map_coord, map_seen_mask, state,
-                                I=eval_samples,
-                                H=conf.imag_horizon,
-                                imagine_dropout=0,
-                                do_image_pred=True,
-                                do_output_tensors=do_output_tensors)
+                    model.training_step(image, vecobs, reward, terminal, action, reset, map, map_coord, map_seen_mask, state,
+                                        I=eval_samples,
+                                        H=conf.imag_horizon,
+                                        imagine_dropout=0,
+                                        do_image_pred=True,
+                                        do_output_tensors=do_output_tensors)
 
                 for k, v in loss_metrics.items():
                     if not np.isnan(v.item()):

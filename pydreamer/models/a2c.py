@@ -46,13 +46,13 @@ class ActorCritic(nn.Module):
         y = self._critic.forward(features)
         return y
 
-    def train(self,
-              features: TensorJMF,
-              rewards: D.Distribution,
-              terminals: D.Distribution,
-              actions: TensorHMA,
-              log_only=False
-              ):
+    def training_step(self,
+                      features: TensorJMF,
+                      rewards: D.Distribution,
+                      terminals: D.Distribution,
+                      actions: TensorHMA,
+                      log_only=False
+                      ):
         if not log_only:
             if self._train_steps % self._target_interval == 0:
                 self.update_critic_target()

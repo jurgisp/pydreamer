@@ -142,24 +142,24 @@ class Dreamer(TrainableModel):
 
         return action_logits, value, out_state
 
-    def train(self,
-              image: TensorNBCHW,
-              vecobs: Tensor,
-              reward: Tensor,
-              terminal: Tensor,
-              action: Tensor,     # (N,B,A)
-              reset: Tensor,      # (N,B)
-              map: Tensor,
-              map_coord: Tensor,  # (N,B,4)
-              map_seen_mask: Tensor,
-              in_state: Any,
-              I: int = 1,         # IWAE samples
-              H: int = 1,        # Imagination horizon
-              imagine_dropout=0,      # If True, will imagine sequence, not using observations to form posterior
-              do_image_pred=False,
-              do_output_tensors=False,
-              do_dream_tensors=False,
-              ):
+    def training_step(self,
+                      image: TensorNBCHW,
+                      vecobs: Tensor,
+                      reward: Tensor,
+                      terminal: Tensor,
+                      action: Tensor,     # (N,B,A)
+                      reset: Tensor,      # (N,B)
+                      map: Tensor,
+                      map_coord: Tensor,  # (N,B,4)
+                      map_seen_mask: Tensor,
+                      in_state: Any,
+                      I: int = 1,         # IWAE samples
+                      H: int = 1,        # Imagination horizon
+                      imagine_dropout=0,      # If True, will imagine sequence, not using observations to form posterior
+                      do_image_pred=False,
+                      do_output_tensors=False,
+                      do_dream_tensors=False,
+                      ):
         N, B = image.shape[:2]
 
         # Forward (world model)
@@ -195,7 +195,7 @@ class Dreamer(TrainableModel):
         metrics.update(**metrics_map)
         loss_tensors.update(**loss_tensors_map)
 
-        losses_ac, metrics_ac, loss_tensors_ac = self.ac.train(features_dream, rewards_dream, terminals_dream, actions_dream)
+        losses_ac, metrics_ac, loss_tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream)
         metrics.update(**metrics_ac)
         loss_tensors.update(policy_value=unflatten_batch(loss_tensors_ac['value'][0], (N, B, I)).mean(-1))
 
@@ -223,7 +223,7 @@ class Dreamer(TrainableModel):
                 rewards_dream = self.wm._decoder_reward.forward(features_dream)      # (H+1,B) = (N,B)
                 terminals_dream = self.wm._decoder_terminal.forward(features_dream)  # (H+1,B) = (N,B)
                 image_dream = self.wm._decoder_image.forward(features_dream)
-                _, _, loss_tensors_ac = self.ac.train(features_dream, rewards_dream, terminals_dream, actions_dream, log_only=True)
+                _, _, loss_tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream, log_only=True)
                 # The tensors are intentionally named same as in out_tensors, so the logged npz looks the same for dreamed or not
                 dream_tensors = dict(action_pred=torch.cat([action[:1], actions_dream]),  # first action is real from previous step
                                      reward_pred=rewards_dream.mean,  # reward_pred is also set in loss_tensors, if do_image_pred==True
@@ -555,5 +555,3 @@ class WorldModel(nn.Module):
                 log_tensors.update(terminal_pred=terminal_pred.mean.mean(dim=-1))  # not quite loss tensor, but fine
 
         return loss_model.mean(), metrics, log_tensors
-
-
