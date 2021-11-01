@@ -105,6 +105,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     last_model_load = 0
     model_step = 0
     metrics_agg = defaultdict(list)
+    all_returns = []
 
     while steps < num_steps:
 
@@ -166,6 +167,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
         if log_mlflow_metrics:
             metrics = {f'{metrics_prefix}/{k}': np.mean(v) for k, v in metrics.items()}
+            all_returns.append(data['reward'].sum())
             metrics.update({
                 f'{metrics_prefix}/episode_length': epsteps,
                 f'{metrics_prefix}/fps': fps,
@@ -173,6 +175,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 f'{metrics_prefix}/env_steps': steps * env_action_repeat,
                 f'{metrics_prefix}/episodes': episodes,
                 f'{metrics_prefix}/return': data['reward'].sum(),
+                f'{metrics_prefix}/return_cum': np.mean(all_returns[-100:]),
             })  # type: ignore
 
             # Calculate return_discounted
