@@ -141,7 +141,7 @@ miniworld:
   imag_horizon: 1
 
 atari:
-  # Generator
+  # Env
   env_id: Atari-Pong
   action_dim: 18
   env_action_repeat: 4
@@ -152,8 +152,9 @@ atari:
   # Model
   deter_dim: 1024
   reward_input: False
-  # Optimizer
   kl_weight: 0.1
+  gamma: 0.99
+  entropy: 0.001
 
 dmlab:
   env_id: DmLab-rooms_watermaze
