@@ -539,23 +539,30 @@ class WorldModel(nn.Module):
             if reward_pred is not None:
                 logprob_reward = self._decoder_reward.loss(reward_pred, reward)
                 logprob_reward = -logavgexp(-logprob_reward, dim=-1)
-                reward_pos = (reward.select(-1, 0) > 0)  # mask where reward is *positive*
-                logprob_reward_pos = (logprob_reward * reward_pos).sum() / reward_pos.sum()
-                reward_neg = (reward.select(-1, 0) < 0)  # mask where reward is *negative*
-                logprob_reward_neg = (logprob_reward * reward_neg).sum() / reward_neg.sum()
-                metrics.update(logprob_reward=logprob_reward.mean(),
-                               logprob_reward_pos=logprob_reward_pos,
-                               logprob_reward_neg=logprob_reward_neg)
+                metrics.update(logprob_reward=logprob_reward.mean())
                 log_tensors.update(reward_pred=reward_pred.mean.mean(dim=-1), # not quite loss tensor, but fine
-                                   logprob_reward=logprob_reward)  
+                                   logprob_reward=logprob_reward)
+                
+                mask_pos = (reward.select(-1, 0) > 0)  # mask where reward is *positive*
+                logprob_reward_pos = (logprob_reward * mask_pos) / mask_pos  # set to nan where ~mask
+                metrics.update(logprob_rewardp=nanmean(logprob_reward_pos))
+                log_tensors.update(logprob_rewardp=logprob_reward_pos)  
+
+                mask_neg = (reward.select(-1, 0) < 0)  # mask where reward is *negative*
+                logprob_reward_neg = (logprob_reward * mask_neg) / mask_neg # set to nan where ~mask
+                metrics.update(logprob_rewardn=nanmean(logprob_reward_neg))
+                log_tensors.update(logprob_rewardn=logprob_reward_neg)  
 
             if terminal_pred is not None:
                 logprob_terminal = self._decoder_terminal.loss(terminal_pred, terminal)
                 logprob_terminal = -logavgexp(-logprob_terminal, dim=-1)
-                terminal_1 = (terminal.select(-1, 0) == 1)  # mask where terminal is 1
-                logprob_terminal_1 = (logprob_terminal * terminal_1).sum() / terminal_1.sum()
-                metrics.update(logprob_terminal=logprob_terminal.mean(),
-                               logprob_terminal_1=logprob_terminal_1)
-                log_tensors.update(terminal_pred=terminal_pred.mean.mean(dim=-1))  # not quite loss tensor, but fine
+                metrics.update(logprob_terminal=logprob_terminal.mean())
+                log_tensors.update(terminal_pred=terminal_pred.mean.mean(dim=-1),    # not quite loss tensor, but fine
+                                   logprob_terminal=logprob_terminal)
+
+                mask_terminal1 = (terminal.select(-1, 0) == 1)  # mask where terminal is 1
+                logprob_terminal1 = (logprob_terminal * mask_terminal1) / mask_terminal1  # set to nan where ~mask
+                metrics.update(logprob_terminal1=nanmean(logprob_terminal1))
+                log_tensors.update(logprob_terminal1=logprob_terminal1)
 
         return loss_model.mean(), metrics, log_tensors
