@@ -3,6 +3,7 @@ import random
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from logging import debug, info
 from pathlib import Path
 from typing import Optional
 
@@ -128,7 +129,7 @@ class DataSequential(IterableDataset):
     def _reload_files(self, is_first=False):
         verbose = get_worker_id() == 0
         if is_first and verbose:
-            print(f'Reading files from {self.repository}...')
+            debug(f'Reading files from {self.repository}...')
 
         files_all = self.repository.list_files()
         files_all.sort(key=lambda e: -e.episode_to)
@@ -147,13 +148,12 @@ class DataSequential(IterableDataset):
         self.stats_steps = steps_total
 
         if verbose:
-            print(f'[TRAIN]  Found total files|steps: {len(files_all)}|{steps_total}, filtered: {len(self._files)}|{steps_filtered}')
+            debug(f'Found total files|steps: {len(files_all)}|{steps_total}, filtered: {len(self._files)}|{steps_filtered}')
 
     def _should_reload_files(self):
         return self.reload_interval and (time.time() - self._last_reload > self.reload_interval)
 
     def __iter__(self):
-        print('DEBUG different seeds:', np.random.randint(1000))
         # Parallel iteration over (batch_size) iterators
         # Iterates forever
         iters = [self._iter_single(ix) for ix in range(self.batch_size)]

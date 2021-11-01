@@ -1,10 +1,13 @@
 import argparse
+import logging
+import logging.config
 import os
 import sys
 import time
 from collections import defaultdict
 from datetime import datetime
 from itertools import chain
+from logging import critical, debug, error, info, warning
 from multiprocessing import Process
 from pathlib import Path
 from typing import Iterator, Optional
@@ -26,9 +29,9 @@ import generator
 import tools
 from data import DataSequential, MlflowEpisodeRepository
 from models import *
+from models.functions import nanmean
 from preprocessing import Preprocessor, WorkerInfoPreprocess
 from tools import *
-from models.functions import nanmean
 
 torch.distributions.Distribution.set_default_validate_args(False)
 torch.backends.cudnn.benchmark = True  # type: ignore
@@ -40,7 +43,7 @@ def run(conf):
         mlflow.log_params({k: v for k, v in vars(conf).items() if not len(repr(v)) > 250})  # filter too long
     except Exception as e:
         # This happens when resuming and config has different parameters - it's fine
-        print(f'ERROR in mlflow.log_params: {repr(e)}', file=sys.stderr)
+        error(f'ERROR in mlflow.log_params: {repr(e)}')
 
     device = torch.device(conf.device)
 
@@ -69,7 +72,7 @@ def run(conf):
             input_dirs.extend(to_list(conf.offline_prefill_dir))
         else:
             # Prefill with random policy
-            print(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
+            info(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
             for i in range(conf.generator_workers):
                 p = run_generator(conf.env_id,
                                   conf,
@@ -85,7 +88,7 @@ def run(conf):
 
         # Agents
 
-        print('Starting agent generators...')
+        info('Starting agent generators...')
         for i in range(conf.generator_workers):
             # If eval environment is the same, we can use one agent for both train and eval data
             share_eval_generator = not conf.env_id_eval
@@ -119,7 +122,7 @@ def run(conf):
     else:
         if not eval_dirs:
             # Separate eval generator
-            print('Starting eval generator...')
+            info('Starting eval generator...')
             for i in range(conf.generator_workers_eval):
                 p = run_generator(conf.env_id_eval or conf.env_id,
                                   conf,
@@ -175,7 +178,7 @@ def run(conf):
     optimizers = model.optimizers(conf)
     resume_step = tools.mlflow_load_checkpoint(model, optimizers)
     if resume_step:
-        print(f'Loaded model from checkpoint epoch {resume_step}')
+        info(f'Loaded model from checkpoint epoch {resume_step}')
 
     start_time = time.time()
     steps = resume_step or 0
@@ -303,15 +306,15 @@ def run(conf):
                         metrics['train/fps'] = fps  # type: ignore
                         last_time, last_steps = t, steps
 
-                        print(f"[TRAIN]  [{steps:06}]"
-                              f"  loss: {metrics.get('train/loss', 0):.3f}"
-                              f"  loss_wm: {metrics.get('train/loss_wm', 0):.3f}"
-                              f"  loss_critic: {metrics.get('train/loss_critic', 0):.3f}"
-                              f"  loss_map: {metrics.get('train/loss_map', 0):.3f}"
-                              f"  policy_value: {metrics.get('train/policy_value',0):.3f}"
-                              f"  policy_entropy: {metrics.get('train/policy_entropy',0):.3f}"
-                              f"  fps: {metrics['train/fps']:.3f}"
-                              )
+                        info(f"[{steps:06}]"
+                             f"  loss: {metrics.get('train/loss', 0):.3f}"
+                             f"  loss_wm: {metrics.get('train/loss_wm', 0):.3f}"
+                             f"  loss_critic: {metrics.get('train/loss_critic', 0):.3f}"
+                             f"  loss_map: {metrics.get('train/loss_map', 0):.3f}"
+                             f"  policy_value: {metrics.get('train/policy_value',0):.3f}"
+                             f"  policy_entropy: {metrics.get('train/policy_entropy',0):.3f}"
+                             f"  fps: {metrics['train/fps']:.3f}"
+                             )
                         if steps > conf.log_interval:  # Skip the first batch, because the losses are very high and mess up y axis
                             mlflow.log_metrics(metrics, step=steps)
                         metrics = defaultdict(list)
@@ -324,7 +327,7 @@ def run(conf):
                             if not p.is_alive():
                                 if p.exitcode == 0:
                                     subp_finished.append(p)
-                                    print(f'Generator process {p.pid} finished')
+                                    info(f'Generator process {p.pid} finished')
                                 else:
                                     raise Exception(f'Generator process {p.pid} died with exitcode {p.exitcode}')
                         for p in subp_finished:
@@ -334,12 +337,12 @@ def run(conf):
 
                     if steps % conf.save_interval == 0:
                         tools.mlflow_save_checkpoint(model, optimizers, steps)
-                        print(f'[TRAIN]  Saved model checkpoint {steps}')
+                        info(f'Saved model checkpoint {steps}')
 
                     # Stop
 
                     if steps >= conf.n_steps or (online_data and len(subprocesses) == 0):
-                        print('[TRAIN]  Stopping')
+                        info('Stopping')
                         break
 
                 # Evaluate
@@ -361,13 +364,13 @@ def run(conf):
 
                         except Exception as e:
                             # This catch is useful if there is no eval data generated yet
-                            print(f'ERROR while evaluating: {repr(e)}', file=sys.stderr)
+                            warning(f'Evaluation failed: {repr(e)}')
 
             for k, v in timers.items():
                 metrics[f'timer_{k}'].append(v.dt_ms)
 
             if conf.verbose:
-                print(f"[TRAIN]  [{steps:06}] timers"
+                info(f"[{steps:06}] timers"
                       f"  TOTAL: {timer('total').dt_ms:>4}"
                       f"  data: {timer('data').dt_ms:>4}"
                       f"  forward: {timer('forward').dt_ms:>4}"
@@ -412,7 +415,7 @@ def evaluate(prefix: str,
             N, B = image.shape[:2]
 
             if i_batch == 0:
-                print(f'[TRAIN]  Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
+                info(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
 
             reset_episodes = reset.any(dim=0)  # (B,)
             n_reset_episodes = reset_episodes.sum().item()
@@ -488,7 +491,7 @@ def evaluate(prefix: str,
         print_once(f'Saving batch d2_wm_closed_{prefix}: ', {k: tuple(v.shape) for k, v in npz_data.items()})  # type: ignore
         tools.mlflow_log_npz(npz_data, f'{steps:07}.npz', subdir=f'd2_wm_closed_{prefix}', verbose=True)
 
-    print(f'[TRAIN]  Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_finished_episodes.sum()} episodes')
+    info(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_finished_episodes.sum()} episodes')
 
 
 def log_batch_npz(batch: Dict[str, Tensor],
@@ -590,7 +593,21 @@ def get_profiler(conf):
         return NoProfiler()
 
 
+def configure_logging():
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(LogColorFormatter(
+        f'[TRAIN]  %(message)s',  # %(name)s
+        info_color=None
+    ))
+    logging.root.setLevel(logging.DEBUG)
+    logging.root.handlers = [handler]
+    for logname in ['urllib3', 'requests', 'mlflow', 'git', 'azure']:
+        logging.getLogger(logname).setLevel(logging.WARNING)  # disable other loggers
+
+
 if __name__ == '__main__':
+    configure_logging()
     parser = argparse.ArgumentParser()
     parser.add_argument('--configs', nargs='+', required=True)
     args, remaining = parser.parse_known_args()

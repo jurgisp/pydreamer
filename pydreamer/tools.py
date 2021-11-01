@@ -1,9 +1,11 @@
 import io
+import logging
 import os
 import posixpath
 import tempfile
 import time
 import warnings
+from logging import debug, info
 from pathlib import Path
 from typing import Dict, Tuple, Union
 
@@ -23,7 +25,7 @@ print_once_keys = set()
 def print_once(key, obj):
     if key not in print_once_keys:
         print_once_keys.add(key)
-        print(key, obj)
+        logging.debug(f'{key} {obj}')
 
 
 def to_list(s):
@@ -44,14 +46,14 @@ def read_yamls(dir):
 
 def mlflow_start_or_resume(run_name, resume_id=None):
     run_id = None
-    print(f'Starting or resuming mlflow run ({os.environ.get("MLFLOW_TRACKING_URI", "local")}) ...')
+    info(f'Starting or resuming mlflow run ({os.environ.get("MLFLOW_TRACKING_URI", "local")}) ...')
     if resume_id:
         runs = mlflow.search_runs(filter_string=f'tags.resume_id="{resume_id}"')
         if len(runs) > 0:
             run_id = runs.run_id.iloc[0]
-            print(f'Resumed mlflow run {run_id} ({resume_id})')
+            info(f'Resumed mlflow run {run_id} ({resume_id})')
     run = mlflow.start_run(run_name=run_name, run_id=run_id, tags={'resume_id': resume_id or ''})
-    print(f'Started mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
+    info(f'Started mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
     return run
 
 
@@ -204,3 +206,45 @@ def chunk_episode_data(data: Dict[str, np.ndarray], max_length: int):
         i_to = n * (i_chunk + 1) // chunks
         data_chunk = {key: data[key][i_from:i_to] for key in data}
         yield data_chunk
+
+
+class LogColorFormatter(logging.Formatter):
+    # see https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
+    GREY = '\033[90m'
+    WHITE = '\033[37m'
+    GREEN = '\033[32m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    RED_UNDERLINE = '\033[4;91m'
+
+    def __init__(self,
+                 fmt,
+                 debug_color=GREY,
+                 info_color=None,
+                 warning_color=YELLOW,
+                 error_color=RED,
+                 critical_color=RED_UNDERLINE
+                 ):
+        super().__init__(fmt)
+        self.fmt = fmt
+        self.debug_color = debug_color
+        self.info_color = info_color
+        self.warning_color = warning_color
+        self.error_color = error_color
+        self.critical_color = critical_color
+
+    def format(self, record):
+        RESET = '\033[0m'
+        if record.levelno == logging.DEBUG:
+            fmt = f'{self.debug_color or ""}{self.fmt}{RESET}'
+        elif record.levelno == logging.INFO:
+            fmt = f'{self.info_color or ""}{self.fmt}{RESET}'
+        elif record.levelno == logging.WARNING:
+            fmt = f'{self.warning_color or ""}{self.fmt}{RESET}'
+        elif record.levelno == logging.ERROR:
+            fmt = f'{self.error_color or ""}{self.fmt}{RESET}'
+        elif record.levelno == logging.CRITICAL:
+            fmt = f'{self.critical_color or ""}{self.fmt}{RESET}'
+        else:
+            fmt = self.fmt
+        return logging.Formatter(fmt).format(record)

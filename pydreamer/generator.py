@@ -1,9 +1,13 @@
 import argparse
-import sys
+import logging
+import logging.config
 import os
-from pathlib import Path
+import sys
 import time
 from collections import defaultdict
+from itertools import chain
+from logging import critical, debug, error, info, warning
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import mlflow
@@ -14,10 +18,10 @@ import torch.distributions as D
 sys.path.append(str(Path(__file__).parent))
 
 from data import MlflowEpisodeRepository
+from envs import create_env
 from models import *
 from preprocessing import Preprocessor
 from tools import *
-from envs import create_env
 
 
 def main(env_id='MiniGrid-MazeS11N-v0',
@@ -39,6 +43,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          log_every=10,
          ):
 
+    configure_logging(worker_id)
+
     # Mlflow
 
     if 'MLFLOW_RUN_ID' in os.environ:
@@ -48,7 +54,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     else:
         mlflow.start_run(run_name=f'{env_id}-{worker_id}')
 
-    print(f'Generator {worker_id} started: env={env_id}, n_steps={num_steps}, split_fraction={split_fraction}, metrics={metrics_prefix if log_mlflow_metrics else None}, save_uri={save_uri}')
+    info(f'Generator {worker_id} started: env={env_id}, n_steps={num_steps}, split_fraction={split_fraction}, metrics={metrics_prefix if log_mlflow_metrics else None}, save_uri={save_uri}')
 
     if not save_uri:
         save_uri = f'{mlflow.active_run().info.artifact_uri}/episodes'  # type: ignore
@@ -58,7 +64,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     repository = MlflowEpisodeRepository(save_uri)
     repository2 = MlflowEpisodeRepository(save_uri2) if save_uri2 else repository
     nfiles, steps, episodes = repository.count_steps()
-    print(f'Found existing {nfiles} files, {episodes} episodes, {steps} steps in {repository}')
+    info(f'Found existing {nfiles} files, {episodes} episodes, {steps} steps in {repository}')
 
     # Env
 
@@ -115,11 +121,11 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                     # takes ~10sec to load checkpoint
                     model_step = mlflow_load_checkpoint(policy.model, map_location='cpu')  # type: ignore
                     if model_step:
-                        print(f'[GEN{worker_id:>2}]  Generator loaded model checkpoint {model_step}')
+                        info(f'Generator loaded model checkpoint {model_step}')
                         last_model_load = time.time()
                         break
                     else:
-                        print(f'[GEN{worker_id:>2}]  Generator model checkpoint not found, waiting...')
+                        debug('Generator model checkpoint not found, waiting...')
                         time.sleep(10)
 
         # Unroll one episode
@@ -132,14 +138,14 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
         while not done:
             action, mets = policy(obs)
-            obs, reward, done, info = env.step(action)
+            obs, reward, done, inf = env.step(action)
             steps += 1
             epsteps += 1
             for k, v in mets.items():
                 metrics[k].append(v)
 
         episodes += 1
-        data = info['episode']  # type: ignore
+        data = inf['episode']  # type: ignore
         if 'policy_value' in metrics:
             data['policy_value'] = np.array(metrics['policy_value'] + [np.nan])     # last terminal value is null
             data['policy_entropy'] = np.array(metrics['policy_entropy'] + [np.nan])  # last policy is null
@@ -155,15 +161,15 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         fps = epsteps / (time.time() - timer + 1e-6)
         print_once('Episode data sample: ', {k: v.shape for k, v in data.items()})
 
-        print(f"[GEN{worker_id:>2}]  Episode recorded:"
-              f"  steps: {epsteps}"
-              f",  reward: {data['reward'].sum()}"
-              f",  terminal: {data['terminal'].sum()}"
-              f",  visited: {(data.get('map_seen', np.zeros(1))[-1] > 0).mean():.1%}"
-              f",  total steps: {steps:.0f}"
-              f",  episodes: {episodes}"
-              f",  fps: {fps:.0f}"
-              )
+        info(f"Episode recorded:"
+             f"  steps: {epsteps}"
+             f",  reward: {data['reward'].sum()}"
+             f",  terminal: {data['terminal'].sum()}"
+             f",  visited: {(data.get('map_seen', np.zeros(1))[-1] > 0).mean():.1%}"
+             f",  total steps: {steps:.0f}"
+             f",  episodes: {episodes}"
+             f",  fps: {fps:.0f}"
+             )
 
         if log_mlflow_metrics:
             metrics = {f'{metrics_prefix}/{k}': np.mean(v) for k, v in metrics.items()}
@@ -234,7 +240,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 del data['image']
                 repo.save_data(data, episodes - datas_episodes, episodes - 1, i)
 
-    print(f'[GEN{worker_id:>2}]  Generator done.')
+    info('Generator done.')
 
 
 class RandomPolicy:
@@ -275,6 +281,19 @@ class NetworkPolicy:
                        policy_entropy=action_distr.entropy().item())
 
         return action.item(), metrics
+
+
+def configure_logging(worker_id):
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(LogColorFormatter(
+        f'[GEN {worker_id}]  %(message)s',
+        info_color=LogColorFormatter.GREEN
+    ))
+    logging.root.setLevel(logging.DEBUG)
+    logging.root.handlers = [handler]
+    for logname in ['urllib3', 'requests', 'mlflow', 'git', 'azure']:
+        logging.getLogger(logname).setLevel(logging.WARNING)  # disable other loggers
 
 
 if __name__ == '__main__':
