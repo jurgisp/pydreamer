@@ -2,7 +2,7 @@
 
 if [[ $# -eq 0 ]] ; then
     echo 'Usage: ./run_pydreamer experiment config'
-    exit
+    exit 1
 fi
 EXPERIMENT="$1"
 CONFIG="${2:-atari}"
@@ -10,9 +10,13 @@ RESUMEID="$3"
 
 if [ ! -f ".env" ]; then
     echo ".env file not found - need it to set DOCKER_REPO, MLFLOW_TRACKING_URI"
-    exit
+    exit 1
 fi
 source .env
+if [[ -z "$MLFLOW_TRACKING_URI" ]]; then
+    echo "Must set MLFLOW_TRACKING_URI in .env"
+    exit 1
+fi
 echo "Loaded variables from .env: DOCKER_REPO=$DOCKER_REPO, MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI"
 
 TAG=$(git describe --tags | sed 's/-g[a-z0-9]\{7\}//')
