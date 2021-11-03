@@ -204,7 +204,9 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                     metrics_agg[k].append(v)
 
             if len(metrics_agg[f'{metrics_prefix}/return']) >= log_every:
+                metrics_agg_max = {k: np.max(v) for k, v in metrics_agg.items()}
                 metrics_agg = {k: np.mean(v) for k, v in metrics_agg.items()}
+                metrics_agg[f'{metrics_prefix}/return_max'] = metrics_agg_max[f'{metrics_prefix}/return']
                 mlflow.log_metrics(metrics_agg, step=model_step if model else 0)
                 metrics_agg = defaultdict(list)
 

@@ -62,7 +62,7 @@ def mlflow_log_npz(data: dict, name, subdir=None, verbose=False, repository: Art
         path = Path(tmpdir) / name
         save_npz(data, path)
         if verbose:
-            print(f'Uploading artifact {subdir}/{name} size {path.stat().st_size/1024/1024:.2f} MB')
+            debug(f'Uploading artifact {subdir}/{name} size {path.stat().st_size/1024/1024:.2f} MB')
         if repository:
             repository.log_artifact(str(path), artifact_path=subdir)
         else:
