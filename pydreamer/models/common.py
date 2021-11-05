@@ -50,11 +50,11 @@ class MLP(nn.Module):
             layers += [
                 nn.Flatten(0),
             ]
-        self._model = nn.Sequential(*layers)
+        self.model = nn.Sequential(*layers)
 
     def forward(self, x: Tensor) -> Tensor:
         x, bd = flatten_batch(x)
-        y = self._model(x)
+        y = self.model(x)
         y = unflatten_batch(y, bd)
         return y
 
@@ -73,11 +73,11 @@ class CategoricalSupport(D.Categorical):
     def __init__(self, logits, support):
         assert logits.shape[-1:] == support.shape
         super().__init__(logits=logits)
-        self._support = support
+        self.support = support
 
     @property
     def mean(self):
-        return torch.einsum('...i,i->...', self.probs, self._support)
+        return torch.einsum('...i,i->...', self.probs, self.support)
 
 
 class TrainableModel(nn.Module):

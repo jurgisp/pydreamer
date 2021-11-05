@@ -92,8 +92,8 @@ class DmLab(gym.Env):
     """DeepMind Lab wrapper."""
 
     def __init__(self, game, num_action_repeats, action_set=ACTION_SET):
-        self._num_action_repeats = num_action_repeats
-        self._env = deepmind_lab.Lab(
+        self.num_action_repeats = num_action_repeats
+        self.env = deepmind_lab.Lab(
             level='contributed/dmlab30/' + game,
             observations=['RGB_INTERLEAVED'],
             config=dict(
@@ -108,25 +108,25 @@ class DmLab(gym.Env):
                 allowHoldOutLevels='true',
                 ),
         )
-        self._action_set = action_set
-        self.action_space = gym.spaces.Discrete(len(self._action_set))  # type: ignore
+        self.action_set = action_set
+        self.action_space = gym.spaces.Discrete(len(self.action_set))  # type: ignore
         self.observation_space = gym.spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)  # type: ignore
 
-    def _observation(self):
-        img = self._env.observations()['RGB_INTERLEAVED']
+    def observation(self):
+        img = self.env.observations()['RGB_INTERLEAVED']
         img = np.array(Image.fromarray(img).resize((64, 64), Image.NEAREST))
         return img
 
     def reset(self):
-        self._env.reset()
-        return self._observation()
+        self.env.reset()
+        return self.observation()
 
     def step(self, action):
-        raw_action = np.array(self._action_set[action], np.intc)
-        reward = self._env.step(raw_action, num_steps=self._num_action_repeats)
-        done = not self._env.is_running()
+        raw_action = np.array(self.action_set[action], np.intc)
+        reward = self.env.step(raw_action, num_steps=self.num_action_repeats)
+        done = not self.env.is_running()
         if not done:
-            observation = self._observation()
+            observation = self.observation()
         else:
             # Do not have actual observation in done state, but need to return something
             observation = np.zeros(self.observation_space.shape, dtype=self.observation_space.dtype)  # type: ignore

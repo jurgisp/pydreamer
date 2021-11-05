@@ -258,7 +258,7 @@ class NetworkPolicy:
     def __init__(self, model: TrainableModel, preprocess: Preprocessor):
         self.model = model
         self.preprocess = preprocess
-        self._state = model.init_state(1)
+        self.state = model.init_state(1)
 
     def __call__(self, obs) -> Tuple[int, dict]:
         batch = self.preprocess.apply(obs, expandTB=True)
@@ -270,11 +270,11 @@ class NetworkPolicy:
         reset = torch.from_numpy(batch['reset'])
 
         with torch.no_grad():
-            action_logits, value, new_state = self.model.forward(image, vecobs, reward, action, reset, self._state)
+            action_logits, value, new_state = self.model.forward(image, vecobs, reward, action, reset, self.state)
             action_logits = action_logits[0, 0]  # (N=1,B=1,A) => (A)
             value = value[0, 0]
             action_distr = D.OneHotCategorical(logits=action_logits)
-            self._state = new_state
+            self.state = new_state
 
         action = action_distr.sample()
         action = action.argmax(-1)  # one-hot => int

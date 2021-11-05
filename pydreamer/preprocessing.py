@@ -76,13 +76,13 @@ class Preprocessor:
                  action_dim=0,
                  clip_rewards=None,
                  amp=False):
-        self._image_categorical = image_categorical
-        self._image_key = image_key
-        self._map_categorical = map_categorical
-        self._map_key = map_key
-        self._action_dim = action_dim
-        self._clip_rewards = clip_rewards
-        self._amp = amp
+        self.image_categorical = image_categorical
+        self.image_key = image_key
+        self.map_categorical = map_categorical
+        self.map_key = map_key
+        self.action_dim = action_dim
+        self.clip_rewards = clip_rewards
+        self.amp = amp
 
     def __call__(self, dataset: IterableDataset) -> IterableDataset:
         return TransformedDataset(dataset, self.apply)
@@ -100,19 +100,19 @@ class Preprocessor:
 
         # image
 
-        batch['image'] = batch[self._image_key]  # Use something else (e.g. map_masked) as image
+        batch['image'] = batch[self.image_key]  # Use something else (e.g. map_masked) as image
         T, B = batch['image'].shape[:2]
-        if self._image_categorical:
-            batch['image'] = img_to_onehot(batch['image'], self._image_categorical)
+        if self.image_categorical:
+            batch['image'] = img_to_onehot(batch['image'], self.image_categorical)
         else:
             batch['image'] = to_image(batch['image'])
 
         # map
 
-        if self._map_key:
-            batch['map'] = batch[self._map_key]
-            if self._map_categorical:
-                batch['map'] = img_to_onehot(batch['map'], self._map_categorical)
+        if self.map_key:
+            batch['map'] = batch[self.map_key]
+            if self.map_categorical:
+                batch['map'] = img_to_onehot(batch['map'], self.map_categorical)
             else:
                 batch['map'] = to_image(batch['map'])
             # cleanup unused
@@ -134,7 +134,7 @@ class Preprocessor:
         # action
 
         if len(batch['action'].shape) == 2:
-            batch['action'] = to_onehot(batch['action'], self._action_dim)
+            batch['action'] = to_onehot(batch['action'], self.action_dim)
         assert len(batch['action'].shape) == 3
         batch['action'] = batch['action'].astype(np.float32)
 
@@ -142,9 +142,9 @@ class Preprocessor:
 
         batch['terminal'] = batch.get('terminal', np.zeros((T, B))).astype(np.float32)
         batch['reward'] = batch.get('reward', np.zeros((T, B))).astype(np.float32)
-        if self._clip_rewards == 'tanh':
+        if self.clip_rewards == 'tanh':
             batch['reward'] = np.tanh(batch['reward'])  # type: ignore
-        if self._clip_rewards == 'log1p':
+        if self.clip_rewards == 'log1p':
             batch['reward'] = np.log1p(batch['reward'])  # type: ignore
 
         # map_coord
@@ -166,7 +166,7 @@ class Preprocessor:
 
         # => float16
 
-        if self._amp:
+        if self.amp:
             for key in ['image', 'action', 'map', 'map_coord', 'vecobs']:
                 if key in batch:
                     batch[key] = batch[key].astype(np.float16)

@@ -11,18 +11,18 @@ class GRU2Inputs(nn.Module):
 
     def __init__(self, input1_dim, input2_dim, mlp_dim=200, state_dim=200, num_layers=1, bidirectional=False, input_activation=F.elu):
         super().__init__()
-        self._in_mlp1 = nn.Linear(input1_dim, mlp_dim)
-        self._in_mlp2 = nn.Linear(input2_dim, mlp_dim, bias=False)
-        self._act = input_activation
-        self._gru = nn.GRU(input_size=mlp_dim, hidden_size=state_dim, num_layers=num_layers, bidirectional=bidirectional)
-        self._directions = 2 if bidirectional else 1
+        self.in_mlp1 = nn.Linear(input1_dim, mlp_dim)
+        self.in_mlp2 = nn.Linear(input2_dim, mlp_dim, bias=False)
+        self.act = input_activation
+        self.gru = nn.GRU(input_size=mlp_dim, hidden_size=state_dim, num_layers=num_layers, bidirectional=bidirectional)
+        self.directions = 2 if bidirectional else 1
 
     def init_state(self, batch_size):
-        device = next(self._gru.parameters()).device
+        device = next(self.gru.parameters()).device
         return torch.zeros((
-            self._gru.num_layers * self._directions,
+            self.gru.num_layers * self.directions,
             batch_size,
-            self._gru.hidden_size), device=device)
+            self.gru.hidden_size), device=device)
 
     def forward(self,
                 input1_seq: Tensor,  # (N,B,X1)
@@ -31,8 +31,8 @@ class GRU2Inputs(nn.Module):
                 ) -> Tuple[Tensor, Tensor]:
         if in_state is None:
             in_state = self.init_state(input1_seq.size(1))
-        inp = self._act(self._in_mlp1(input1_seq) + self._in_mlp2(input2_seq))
-        output, out_state = self._gru(inp, in_state)
+        inp = self.act(self.in_mlp1(input1_seq) + self.in_mlp2(input2_seq))
+        output, out_state = self.gru(inp, in_state)
         # NOTE: Different from nn.GRU: detach output state
         return output, out_state.detach()
 
@@ -122,7 +122,7 @@ class NormGRUCellLateReset(nn.Module):
         self.weight_ih = nn.Linear(input_size, 3 * hidden_size, bias=False)
         self.weight_hh = nn.Linear(hidden_size, 3 * hidden_size, bias=False)
         self.lnorm = nn.LayerNorm(3 * hidden_size, eps=1e-3)
-        self._update_bias = -1
+        self.update_bias = -1
 
     def forward(self, input: Tensor, state: Tensor) -> Tensor:
         gates = self.weight_ih(input) + self.weight_hh(state)
@@ -130,7 +130,7 @@ class NormGRUCellLateReset(nn.Module):
         reset, update, newval = gates.chunk(3, 1)
 
         reset = torch.sigmoid(reset)
-        update = torch.sigmoid(update + self._update_bias)
+        update = torch.sigmoid(update + self.update_bias)
         newval = torch.tanh(reset * newval)  # late reset, diff from normal GRU
         h = update * newval + (1 - update) * state
         return h

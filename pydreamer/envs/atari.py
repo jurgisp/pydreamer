@@ -29,35 +29,35 @@ class Atari(gym.Env):
                 repeat_action_probability=0.25 if sticky_actions else 0.0,
                 full_action_space=all_actions)
         # Avoid unnecessary rendering in inner env.
-        env._get_obs = lambda: None  # type: ignore
+        env.get_obs = lambda: None  # type: ignore
         # Tell wrapper that the inner env has no action repeat.
         env.spec = gym.envs.registration.EnvSpec('NoFrameskip-v0')  # type: ignore
         env = gym.wrappers.AtariPreprocessing(env, noops, action_repeat, size[0], life_done, grayscale)
-        self._env = env
-        self._grayscale = grayscale
+        self.env = env
+        self.grayscale = grayscale
 
     @property
     def observation_space(self):
-        return gym.spaces.Dict({'image': self._env.observation_space})  # type: ignore
+        return gym.spaces.Dict({'image': self.env.observation_space})  # type: ignore
 
     @property
     def action_space(self):
-        return self._env.action_space
+        return self.env.action_space
 
     def reset(self):
         with self.LOCK:
-            image = self._env.reset()
-        if self._grayscale:
+            image: np.ndarray = self.env.reset()  # type: ignore
+        if self.grayscale:
             image = image[..., None]
         obs = {'image': image}
         return obs
 
     def step(self, action):
-        image, reward, done, info = self._env.step(action)
-        if self._grayscale:
+        image, reward, done, info = self.env.step(action)
+        if self.grayscale:
             image = image[..., None]
         obs = {'image': image}
         return obs, reward, done, info
 
     def render(self, mode):
-        return self._env.render(mode)
+        return self.env.render(mode)

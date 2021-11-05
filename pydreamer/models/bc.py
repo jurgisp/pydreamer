@@ -13,12 +13,12 @@ from models.io import *
 class BehavioralCloning(TrainableModel):
     def __init__(self, conf):
         super().__init__()
-        self._encoder = ConvEncoder(in_channels=conf.image_channels, cnn_depth=conf.cnn_depth)
-        self._actor = MLP(self._encoder.out_dim + 64, conf.action_dim, 400, 4, conf.layer_norm)
+        self.encoder = ConvEncoder(in_channels=conf.image_channels, cnn_depth=conf.cnn_depth)
+        self.actor = MLP(self.encoder.out_dim + 64, conf.action_dim, 400, 4, conf.layer_norm)
 
     @property
     def submodels(self):
-        return (self._encoder, self._actor)
+        return (self.encoder, self.actor)
 
     def optimizers(self, conf):
         optimizer = torch.optim.AdamW(self.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)
@@ -40,8 +40,8 @@ class BehavioralCloning(TrainableModel):
                 reset: Tensor,        # (N,B)
                 in_state: Any,
                 ):
-        e = self._encoder(image)
-        y = self._actor.forward(torch.cat((e, vecobs), -1))
+        e = self.encoder(image)
+        y = self.actor.forward(torch.cat((e, vecobs), -1))
         logits = y.log_softmax(-1)
         value = torch.zeros_like(logits).sum(-1)
         out_state = None

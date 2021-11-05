@@ -42,8 +42,8 @@ def diag_normal(x: Tensor, min_std=0.1, max_std=2.0):
     # std = {
     #     'softplus': lambda: tf.nn.softplus(std),
     #     'sigmoid2': lambda: 2 * tf.nn.sigmoid(std / 2),
-    # }[self._std_act]()
-    # std = std + self._min_std
+    # }[self.std_act]()
+    # std = std + self.min_std
 
     mean, std = x.chunk(2, -1)
     # std = F.softplus(std) + min_std

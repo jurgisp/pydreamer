@@ -95,21 +95,21 @@ class Dreamer(TrainableModel):
 
     @property
     def submodels(self):
-        return (self.wm._encoder, self.wm._decoder_image, self.wm._core, self.wm._input_rnn, self.map_model)
+        return (self.wm.encoder, self.wm.decoder_image, self.wm.core, self.wm.input_rnn, self.map_model)
 
     def optimizers(self, conf):
         optimizer_wm = torch.optim.AdamW(self.wm.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
         optimizer_map = torch.optim.AdamW(self.map_model.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
-        optimizer_actor = torch.optim.AdamW(self.ac._actor.parameters(), lr=conf.adam_lr_actor, eps=conf.adam_eps)  # type: ignore
-        optimizer_critic = torch.optim.AdamW(self.ac._critic.parameters(), lr=conf.adam_lr_critic, eps=conf.adam_eps)  # type: ignore
+        optimizer_actor = torch.optim.AdamW(self.ac.actor.parameters(), lr=conf.adam_lr_actor, eps=conf.adam_eps)  # type: ignore
+        optimizer_critic = torch.optim.AdamW(self.ac.critic.parameters(), lr=conf.adam_lr_critic, eps=conf.adam_eps)  # type: ignore
         return optimizer_wm, optimizer_map, optimizer_actor, optimizer_critic
 
     def grad_clip(self, conf):
         grad_metrics = {
             'grad_norm': nn.utils.clip_grad_norm_(self.wm.parameters(), conf.grad_clip),
             'grad_norm_map': nn.utils.clip_grad_norm_(self.map_model.parameters(), conf.grad_clip),
-            'grad_norm_actor': nn.utils.clip_grad_norm_(self.ac._actor.parameters(), conf.grad_clip_ac),
-            'grad_norm_critic': nn.utils.clip_grad_norm_(self.ac._critic.parameters(), conf.grad_clip_ac),
+            'grad_norm_actor': nn.utils.clip_grad_norm_(self.ac.actor.parameters(), conf.grad_clip_ac),
+            'grad_norm_critic': nn.utils.clip_grad_norm_(self.ac.critic.parameters(), conf.grad_clip_ac),
         }
         return grad_metrics
 
@@ -183,8 +183,8 @@ class Dreamer(TrainableModel):
         features_dream, actions_dream = self.dream(in_state_dream, H)   # (H+1,NBI,D) - features_dream includes the starting "real" features at features_dream[0]
         features_dream = features_dream.detach()  # Not using dynamics gradients for now, just Reinforce
         with torch.no_grad():  # careful not to invoke modules first time under no_grad (https://github.com/pytorch/pytorch/issues/60164)
-            rewards_dream = self.wm._decoder_reward.forward(features_dream)      # (H+1,NBI)
-            terminals_dream = self.wm._decoder_terminal.forward(features_dream)  # (H+1,NBI)
+            rewards_dream = self.wm.decoder_reward.forward(features_dream)      # (H+1,NBI)
+            terminals_dream = self.wm.decoder_terminal.forward(features_dream)  # (H+1,NBI)
 
         # Loss
 
@@ -220,9 +220,9 @@ class Dreamer(TrainableModel):
                 # Oh, and we set here H=N-1, so we get (N,B), and the dreamed experience aligns with actual.
                 in_state_dream: StateB = map_structure(states, lambda x: x.detach()[0, :, 0])  # type: ignore  # (N,B,I) => (B)
                 features_dream, actions_dream = self.dream(in_state_dream, N - 1)      # H = N-1
-                rewards_dream = self.wm._decoder_reward.forward(features_dream)      # (H+1,B) = (N,B)
-                terminals_dream = self.wm._decoder_terminal.forward(features_dream)  # (H+1,B) = (N,B)
-                image_dream = self.wm._decoder_image.forward(features_dream)
+                rewards_dream = self.wm.decoder_reward.forward(features_dream)      # (H+1,B) = (N,B)
+                terminals_dream = self.wm.decoder_terminal.forward(features_dream)  # (H+1,B) = (N,B)
+                image_dream = self.wm.decoder_image.forward(features_dream)
                 _, _, loss_tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream, log_only=True)
                 # The tensors are intentionally named same as in out_tensors, so the logged npz looks the same for dreamed or not
                 dream_tensors = dict(action_pred=torch.cat([action[:1], actions_dream]),  # first action is real from previous step
@@ -238,19 +238,19 @@ class Dreamer(TrainableModel):
 
     def dream(self, in_state: StateB, H: int):
         NBI = len(in_state[0])  # Imagine batch size = N*B*I
-        noises = self.wm._core.generate_noises(H, (NBI, ), in_state[0].device)
+        noises = self.wm.core.generate_noises(H, (NBI, ), in_state[0].device)
         features = []
         actions = []
         state = in_state
 
         for i in range(H):
-            feature = self.wm._core.to_feature(*state)
+            feature = self.wm.core.to_feature(*state)
             action = D.OneHotCategorical(logits=self.ac.forward_actor(feature)).sample()
             features.append(feature)
             actions.append(action)
-            _, state = self.wm._core._cell.forward_prior(action, None, state, noises[i])
+            _, state = self.wm.core.cell.forward_prior(action, None, state, noises[i])
 
-        feature = self.wm._core.to_feature(*state)
+        feature = self.wm.core.to_feature(*state)
         features.append(feature)
 
         features = torch.stack(features)  # (H+1,NBI,D)
@@ -279,79 +279,79 @@ class WorldModel(nn.Module):
                  kl_balance=0.5,
                  ):
         super().__init__()
-        self._deter_dim = deter_dim
-        self._stoch_dim = stoch_dim
-        self._stoch_discrete = stoch_discrete
-        self._global_dim = 0
-        self._kl_weight = kl_weight
-        self._image_weight = image_weight
-        self._vecobs_weight = vecobs_weight
-        self._reward_weight = reward_weight
-        self._terminal_weight = terminal_weight
-        self._embed_rnn = embed_rnn
-        self._kl_balance = None if kl_balance == 0.5 else kl_balance
+        self.deter_dim = deter_dim
+        self.stoch_dim = stoch_dim
+        self.stoch_discrete = stoch_discrete
+        self.global_dim = 0
+        self.kl_weight = kl_weight
+        self.image_weight = image_weight
+        self.vecobs_weight = vecobs_weight
+        self.reward_weight = reward_weight
+        self.terminal_weight = terminal_weight
+        self.embed_rnn = embed_rnn
+        self.kl_balance = None if kl_balance == 0.5 else kl_balance
 
         # Encoder
 
-        self._reward_input = conf.reward_input
+        self.reward_input = conf.reward_input
         if conf.reward_input:
             encoder_channels = conf.image_channels + 2  # + reward, terminal
         else:
             encoder_channels = conf.image_channels
 
         if conf.image_encoder == 'cnn':
-            self._encoder = ConvEncoder(in_channels=encoder_channels,
+            self.encoder = ConvEncoder(in_channels=encoder_channels,
                                         cnn_depth=conf.cnn_depth)
         else:
-            self._encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * encoder_channels,
+            self.encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * encoder_channels,
                                          out_dim=256,
                                          hidden_layers=conf.image_encoder_layers,
                                          layer_norm=conf.layer_norm)
 
-        if self._embed_rnn:
-            self._input_rnn = GRU2Inputs(input1_dim=self._encoder.out_dim,
+        if self.embed_rnn:
+            self.input_rnn = GRU2Inputs(input1_dim=self.encoder.out_dim,
                                          input2_dim=action_dim,
                                          mlp_dim=embed_rnn_dim,
                                          state_dim=embed_rnn_dim,
                                          bidirectional=True)
         else:
-            self._input_rnn = None
+            self.input_rnn = None
 
-        self._encoder_vecobs = MLP(64, 256, hidden_dim=400, hidden_layers=2, layer_norm=conf.layer_norm)
+        self.encoder_vecobs = MLP(64, 256, hidden_dim=400, hidden_layers=2, layer_norm=conf.layer_norm)
 
         # Decoders
 
         state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1) + conf.global_dim
         if conf.image_decoder == 'cnn':
-            self._decoder_image = ConvDecoder(in_dim=state_dim,
+            self.decoder_image = ConvDecoder(in_dim=state_dim,
                                               out_channels=conf.image_channels,
                                               cnn_depth=conf.cnn_depth)
         else:
-            self._decoder_image = DenseDecoder(in_dim=state_dim,
+            self.decoder_image = DenseDecoder(in_dim=state_dim,
                                                out_shape=(conf.image_channels, conf.image_size, conf.image_size),
                                                hidden_layers=conf.image_decoder_layers,
                                                layer_norm=conf.layer_norm,
                                                min_prob=conf.image_decoder_min_prob)
 
         if conf.reward_decoder_categorical:
-            self._decoder_reward = DenseCategoricalSupportHead(in_dim=state_dim,
+            self.decoder_reward = DenseCategoricalSupportHead(in_dim=state_dim,
                                                                support=conf.reward_decoder_categorical,
                                                                hidden_layers=conf.reward_decoder_layers,
                                                                layer_norm=conf.layer_norm)
         else:
-            self._decoder_reward = DenseNormalHead(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
-        self._decoder_terminal = DenseBernoulliHead(in_dim=state_dim, hidden_layers=conf.terminal_decoder_layers, layer_norm=conf.layer_norm)
-        self._decoder_vecobs = DenseNormalHead(in_dim=state_dim, out_dim=64, hidden_layers=4, layer_norm=conf.layer_norm)
+            self.decoder_reward = DenseNormalHead(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
+        self.decoder_terminal = DenseBernoulliHead(in_dim=state_dim, hidden_layers=conf.terminal_decoder_layers, layer_norm=conf.layer_norm)
+        self.decoder_vecobs = DenseNormalHead(in_dim=state_dim, out_dim=64, hidden_layers=4, layer_norm=conf.layer_norm)
 
         # RSSM
 
-        self._core = RSSMCore(embed_dim=self._encoder.out_dim + 256 + (2 * embed_rnn_dim if embed_rnn else 0),
+        self.core = RSSMCore(embed_dim=self.encoder.out_dim + 256 + (2 * embed_rnn_dim if embed_rnn else 0),
                               action_dim=action_dim,
                               deter_dim=deter_dim,
                               stoch_dim=stoch_dim,
                               stoch_discrete=stoch_discrete,
                               hidden_dim=hidden_dim,
-                              global_dim=self._global_dim,
+                              global_dim=self.global_dim,
                               gru_layers=gru_layers,
                               gru_type=gru_type,
                               layer_norm=conf.layer_norm)
@@ -362,7 +362,7 @@ class WorldModel(nn.Module):
             init_weights_tf2(m)
 
     def init_state(self, batch_size: int) -> Tuple[Any, Any]:
-        return self._core.init_state(batch_size)
+        return self.core.init_state(batch_size)
 
     def forward(self,
                 image: TensorNBCHW,
@@ -378,11 +378,11 @@ class WorldModel(nn.Module):
                 ):
 
         N, B, C, H, W = image.shape
-        noises = self._core.generate_noises(N, (B * I, ), image.device)  # Belongs to RSSM but need to do here for perf
+        noises = self.core.generate_noises(N, (B * I, ), image.device)  # Belongs to RSSM but need to do here for perf
 
         # Encoder
 
-        if self._reward_input:
+        if self.reward_input:
             reward_plane = reward.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
             terminal_plane = terminal.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
             observation = torch.cat([image,  # (N,B,C+2,H,W)
@@ -391,33 +391,33 @@ class WorldModel(nn.Module):
         else:
             observation = image
 
-        embed = self._encoder.forward(observation)  # (N,B,E)
-        embed_vecobs = self._encoder_vecobs(vecobs)
+        embed = self.encoder.forward(observation)  # (N,B,E)
+        embed_vecobs = self.encoder_vecobs(vecobs)
         embed = torch.cat((embed, embed_vecobs), dim=-1)  # (N,B,E+256)
-        if self._input_rnn:
-            embed_rnn, _ = self._input_rnn.forward(embed, action)  # (N,B,2E)
+        if self.input_rnn:
+            embed_rnn, _ = self.input_rnn.forward(embed, action)  # (N,B,2E)
             embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E+256)
 
         # RSSM
 
-        prior, post, post_samples, features, states, out_state = self._core.forward(embed, action, reset, in_state, None, noises, I=I, imagine_dropout=imagine_dropout)
+        prior, post, post_samples, features, states, out_state = self.core.forward(embed, action, reset, in_state, None, noises, I=I, imagine_dropout=imagine_dropout)
 
         # Decoder
 
-        image_rec = self._decoder_image.forward(features)
-        vecobs_rec = self._decoder_vecobs.forward(features)
-        reward_rec = self._decoder_reward.forward(features)
-        terminal_rec = self._decoder_terminal.forward(features)
+        image_rec = self.decoder_image.forward(features)
+        vecobs_rec = self.decoder_vecobs.forward(features)
+        reward_rec = self.decoder_reward.forward(features)
+        terminal_rec = self.decoder_terminal.forward(features)
 
         # Predictions
 
         image_pred, reward_pred, terminal_pred = None, None, None
         if do_image_pred:
-            prior_samples = self._core.zdistr(prior).sample().reshape(post_samples.shape)
-            features_prior = self._core.feature_replace_z(features, prior_samples)
-            image_pred = self._decoder_image.forward(features_prior)
-            reward_pred = self._decoder_reward.forward(features_prior)
-            terminal_pred = self._decoder_terminal.forward(features_prior)
+            prior_samples = self.core.zdistr(prior).sample().reshape(post_samples.shape)
+            features_prior = self.core.feature_replace_z(features, prior_samples)
+            image_pred = self.decoder_image.forward(features_prior)
+            reward_pred = self.decoder_reward.forward(features_prior)
+            terminal_pred = self.decoder_terminal.forward(features_prior)
 
         return (
             features,
@@ -457,26 +457,26 @@ class WorldModel(nn.Module):
 
         # Reconstruction
 
-        loss_image = self._decoder_image.loss(image_rec, image)  # (N,B,I)
-        loss_vecobs = self._decoder_vecobs.loss(vecobs_rec, vecobs)  # (N,B,I)
-        loss_reward = self._decoder_reward.loss(reward_rec, reward)  # (N,B,I)
-        loss_terminal = self._decoder_terminal.loss(terminal_rec, terminal)  # (N,B,I)
+        loss_image = self.decoder_image.loss(image_rec, image)  # (N,B,I)
+        loss_vecobs = self.decoder_vecobs.loss(vecobs_rec, vecobs)  # (N,B,I)
+        loss_reward = self.decoder_reward.loss(reward_rec, reward)  # (N,B,I)
+        loss_terminal = self.decoder_terminal.loss(terminal_rec, terminal)  # (N,B,I)
         assert (loss_image.requires_grad and loss_reward.requires_grad and loss_terminal.requires_grad) or not features.requires_grad
 
         # KL
 
-        d = self._core.zdistr
+        d = self.core.zdistr
         dprior = d(prior)
         dpost = d(post)
         loss_kl_exact = D.kl.kl_divergence(dpost, dprior)  # (N,B,I)
         if I == 1:
             # Analytic KL loss, standard for VAE
-            if not self._kl_balance:
+            if not self.kl_balance:
                 loss_kl = loss_kl_exact
             else:
                 loss_kl_postgrad = D.kl.kl_divergence(dpost, d(prior.detach()))
                 loss_kl_priograd = D.kl.kl_divergence(d(post.detach()), dprior)
-                loss_kl = (1 - self._kl_balance) * loss_kl_postgrad + self._kl_balance * loss_kl_priograd
+                loss_kl = (1 - self.kl_balance) * loss_kl_postgrad + self.kl_balance * loss_kl_priograd
         else:
             # Sampled KL loss, for IWAE
             z = post_samples.reshape(dpost.batch_shape + dpost.event_shape)
@@ -486,11 +486,11 @@ class WorldModel(nn.Module):
 
         assert loss_kl.shape == loss_image.shape == loss_vecobs.shape == loss_reward.shape == loss_terminal.shape
         loss_model = -logavgexp(-(
-            self._kl_weight * loss_kl
-            + self._image_weight * loss_image
-            + self._vecobs_weight * loss_vecobs
-            + self._reward_weight * loss_reward
-            + self._terminal_weight * loss_terminal
+            self.kl_weight * loss_kl
+            + self.image_weight * loss_image
+            + self.vecobs_weight * loss_vecobs
+            + self.reward_weight * loss_reward
+            + self.terminal_weight * loss_terminal
         ), dim=-1)
 
         # IWAE according to paper
@@ -531,13 +531,13 @@ class WorldModel(nn.Module):
             # Predictions from prior
 
             if image_pred is not None:
-                logprob_img = self._decoder_image.loss(image_pred, image)
+                logprob_img = self.decoder_image.loss(image_pred, image)
                 logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
                 log_tensors.update(logprob_img=logprob_img)
                 metrics.update(logprob_img=logprob_img.mean())
 
             if reward_pred is not None:
-                logprob_reward = self._decoder_reward.loss(reward_pred, reward)
+                logprob_reward = self.decoder_reward.loss(reward_pred, reward)
                 logprob_reward = -logavgexp(-logprob_reward, dim=-1)
                 metrics.update(logprob_reward=logprob_reward.mean())
                 log_tensors.update(reward_pred=reward_pred.mean.mean(dim=-1), # not quite loss tensor, but fine
@@ -554,7 +554,7 @@ class WorldModel(nn.Module):
                 log_tensors.update(logprob_rewardn=logprob_reward_neg)  
 
             if terminal_pred is not None:
-                logprob_terminal = self._decoder_terminal.loss(terminal_pred, terminal)
+                logprob_terminal = self.decoder_terminal.loss(terminal_pred, terminal)
                 logprob_terminal = -logavgexp(-logprob_terminal, dim=-1)
                 metrics.update(logprob_terminal=logprob_terminal.mean())
                 log_tensors.update(terminal_pred=terminal_pred.mean.mean(dim=-1),    # not quite loss tensor, but fine

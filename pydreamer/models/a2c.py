@@ -24,26 +24,26 @@ class ActorCritic(nn.Module):
         super().__init__()
         self.in_dim = in_dim
         self.out_actions = out_actions
-        self._gamma = gamma
-        self._lambda = lambda_gae
-        self._entropy_weight = entropy_weight
-        self._target_interval = target_interval
-        self._actor = MLP(in_dim, out_actions, hidden_dim, hidden_layers, layer_norm)
-        self._critic = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
-        self._critic_target = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
-        self._train_steps = 0
+        self.gamma = gamma
+        self.lambda_ = lambda_gae
+        self.entropy_weight = entropy_weight
+        self.target_interval = target_interval
+        self.actor = MLP(in_dim, out_actions, hidden_dim, hidden_layers, layer_norm)
+        self.critic = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
+        self.critic_target = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
+        self.train_steps = 0
 
     def forward_actor(self, features: Tensor) -> Tensor:
         # Would be nice to return D.OneHotCategorical here, but there's a potential problem with AMP:
         # D.Categorical(logits=y).logits remains float16, because logsumexp() doesn't autocast to float32,
         # whereas y.log_softmax(-1) does autocast
         # TODO: D.OneHotCategorical(logits=y.float()) seems to work fine to force float32
-        y = self._actor.forward(features)
+        y = self.actor.forward(features)
         logits = y.log_softmax(-1)
         return logits
 
     def forward_value(self, features: Tensor) -> Tensor:
-        y = self._critic.forward(features)
+        y = self.critic.forward(features)
         return y
 
     def training_step(self,
@@ -54,21 +54,21 @@ class ActorCritic(nn.Module):
                       log_only=False
                       ):
         if not log_only:
-            if self._train_steps % self._target_interval == 0:
+            if self.train_steps % self.target_interval == 0:
                 self.update_critic_target()
-            self._train_steps += 1
+            self.train_steps += 1
 
         reward1: TensorHM = rewards.mean[1:]
         terminal0: TensorHM = terminals.mean[:-1]
         terminal1: TensorHM = terminals.mean[1:]
         policy_logits = self.forward_actor(features[:-1])
-        value: TensorJM = self._critic.forward(features)
+        value: TensorJM = self.critic.forward(features)
         value0: TensorHM = value[:-1]
         with torch.no_grad():
-            value_t: TensorJM = self._critic_target.forward(features)
+            value_t: TensorJM = self.critic_target.forward(features)
             value0t: TensorHM = value_t[:-1]
             value1t: TensorHM = value_t[1:]
-            advantage = - value0t + reward1 + self._gamma * (1.0 - terminal1) * value1t
+            advantage = - value0t + reward1 + self.gamma * (1.0 - terminal1) * value1t
             assert not advantage.requires_grad
 
         # GAE from https://arxiv.org/abs/1506.02438 eq (16)
@@ -79,7 +79,7 @@ class ActorCritic(nn.Module):
             if agae is None:
                 agae = adv
             else:
-                agae = adv + self._lambda * self._gamma * (1.0 - term) * agae
+                agae = adv + self.lambda_ * self.gamma * (1.0 - term) * agae
             advantage_gae.append(agae)
         advantage_gae.reverse()
         advantage_gae = torch.stack(advantage_gae)
@@ -97,11 +97,11 @@ class ActorCritic(nn.Module):
         #   g[t] = gamma * (1 - terminal[t])
         # is the adjusted discount
 
-        # if self._lambda == 1:
+        # if self.lambda_ == 1:
         #     value_target_mc = []
         #     v = value1t[-1]
         #     for rew, term in zip(reversed(reward.unbind()), reversed(terminal1.unbind())):
-        #         v = rew + self._gamma * (1.0 - term) * v
+        #         v = rew + self.gamma * (1.0 - term) * v
         #         value_target_mc.append(v)
         #     value_target_mc.reverse()
         #     value_target_mc = torch.stack(value_target_mc)
@@ -123,7 +123,7 @@ class ActorCritic(nn.Module):
         policy_entropy = (policy_entropy * reality_weight).mean()
 
         loss_critic = loss_value
-        loss_actor = loss_policy - self._entropy_weight * policy_entropy
+        loss_actor = loss_policy - self.entropy_weight * policy_entropy
 
         with torch.no_grad():
             metrics = dict(loss_critic=loss_critic.detach(),
@@ -145,4 +145,4 @@ class ActorCritic(nn.Module):
         return (loss_actor, loss_critic), metrics, tensors
 
     def update_critic_target(self):
-        self._critic_target.load_state_dict(self._critic.state_dict())  # type: ignore
+        self.critic_target.load_state_dict(self.critic.state_dict())  # type: ignore

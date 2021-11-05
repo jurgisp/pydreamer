@@ -55,15 +55,15 @@ class MiniGrid(gym.Env):
     ])
 
     def __init__(self, env_name, max_steps=1000, seed=None, agent_init_pos=None, agent_init_dir=0):
-        self._env = gym.make(env_name)
-        self._env.max_steps = max_steps
+        self.env = gym.make(env_name)
+        self.env.max_steps = max_steps
         if seed:
-            self._env.seed(seed)
+            self.env.seed(seed)
         self.max_steps = max_steps
         self.agent_init_pos = agent_init_pos
         self.agent_init_dir = agent_init_dir
 
-        grid = self._env.grid.encode()  # Grid is already generated when env is created
+        grid = self.env.grid.encode()  # Grid is already generated when env is created
         self.map_size = n = grid.shape[0]
         self.map_centered_size = m = 2 * n - 3  # 11x11 => 19x19
 
@@ -75,40 +75,40 @@ class MiniGrid(gym.Env):
         spaces['map_vis'] = gym.spaces.Box(0, self.max_steps, (n, n), np.uint16)
         spaces['map_centered'] = gym.spaces.Box(0, 255, (m, m), np.uint8)
         self.observation_space = gym.spaces.Dict(spaces)
-        self.action_space = self._env.action_space
+        self.action_space = self.env.action_space
 
-        self._map_last_seen = np.zeros(grid.shape[0:2], dtype=np.uint16)
+        self.map_last_seen = np.zeros(grid.shape[0:2], dtype=np.uint16)
 
     @staticmethod
     def has_action_repeat():
         return False
 
     def step(self, action):
-        obs, reward, done, info = self._env.step(action)
-        return self._observation(obs), reward, done, info
+        obs, reward, done, info = self.env.step(action)
+        return self.observation(obs), reward, done, info
 
     def reset(self):
-        obs = self._env.reset()
+        obs = self.env.reset()
         if self.agent_init_pos:
             # Initialize agent in a fixed position, so it can build a map
-            self._env.agent_pos = np.array(self.agent_init_pos)
-            self._env.agent_dir = self.agent_init_dir
-            self._env.grid.set(*self._env.agent_pos, None)  # Remove if something was there
-            obs = self._env.gen_obs()
-        self._reset_map_last_seen()
-        return self._observation(obs)
+            self.env.agent_pos = np.array(self.agent_init_pos)
+            self.env.agent_dir = self.agent_init_dir
+            self.env.grid.set(*self.env.agent_pos, None)  # Remove if something was there
+            obs = self.env.gen_obs()
+        self.reset_map_last_seen()
+        return self.observation(obs)
 
-    def _observation(self, obs_in):
+    def observation(self, obs_in):
         img = obs_in['image']
 
         obs = {}
         obs['image'] = self.to_categorical(img)
-        obs['map'] = self.to_categorical(self._map(with_agent=False))
-        obs['map_agent'] = self.to_categorical(self._map(with_agent=True))
-        vis_mask = self._global_vis_mask(img)
+        obs['map'] = self.to_categorical(self.map(with_agent=False))
+        obs['map_agent'] = self.to_categorical(self.map(with_agent=True))
+        vis_mask = self.global_vis_mask(img)
         obs['map_masked'] = obs['map_agent'] * vis_mask
-        obs['map_vis'] = self._update_map_last_seen(vis_mask)
-        obs['map_centered'] = self.to_categorical(self._map_centered())
+        obs['map_vis'] = self.update_map_last_seen(vis_mask)
+        obs['map_centered'] = self.to_categorical(self.map_centered())
 
         for k in obs:
             assert obs[k].shape == self.observation_space[k].shape, f"Wrong shape {k}: {obs[k].shape} != {self.observation_space[k].shape}"
@@ -128,59 +128,59 @@ class MiniGrid(gym.Env):
     def from_categorical(img):
         return MiniGrid.GRID_VALUES[img]
 
-    def _map(self, with_agent=True):
-        out = self._env.grid.encode()
+    def map(self, with_agent=True):
+        out = self.env.grid.encode()
         if with_agent:
-            out[self._env.agent_pos[0]][self._env.agent_pos[1]] = np.array([
+            out[self.env.agent_pos[0]][self.env.agent_pos[1]] = np.array([
                 gym_minigrid.minigrid.OBJECT_TO_IDX['agent'],
                 gym_minigrid.minigrid.COLOR_TO_IDX['red'],
-                self._env.agent_dir
+                self.env.agent_dir
             ])
         return out
 
-    def _map_centered(self):
+    def map_centered(self):
         n = self.map_centered_size
-        x, y = self._env.agent_pos
-        grid = self._env.grid.slice(x - (n - 1) // 2, y - (n - 1) // 2, n, n)
-        for i in range(self._env.agent_dir + 1):
+        x, y = self.env.agent_pos
+        grid = self.env.grid.slice(x - (n - 1) // 2, y - (n - 1) // 2, n, n)
+        for i in range(self.env.agent_dir + 1):
             grid = grid.rotate_left()
         image = grid.encode()
         return image
 
-    def _reset_map_last_seen(self):
-        self._map_last_seen *= 0
-        self._map_last_seen += self.max_steps
+    def reset_map_last_seen(self):
+        self.map_last_seen *= 0
+        self.map_last_seen += self.max_steps
 
-    def _update_map_last_seen(self, map_vis):
+    def update_map_last_seen(self, map_vis):
         # Update how long ago each map grid was seen. If not seen, then set to max_steps
-        self._map_last_seen += 1
-        np.clip(self._map_last_seen, 0, self.max_steps, out=self._map_last_seen)
-        self._map_last_seen *= (~map_vis)
-        return self._map_last_seen.copy()
+        self.map_last_seen += 1
+        np.clip(self.map_last_seen, 0, self.max_steps, out=self.map_last_seen)
+        self.map_last_seen *= (~map_vis)
+        return self.map_last_seen.copy()
 
-    def _global_vis_mask(self, img):
+    def global_vis_mask(self, img):
         # Mark which cells are visible on the global map
         obs_vis_mask = img[:, :, 0] > 0
-        glb_vis_mask = np.zeros((self._env.width, self._env.height), dtype=np.bool)
-        x, y, mask = self._obs_global_coords()
+        glb_vis_mask = np.zeros((self.env.width, self.env.height), dtype=np.bool)
+        x, y, mask = self.obs_global_coords()
         glb_vis_mask[x[mask], y[mask]] = obs_vis_mask[mask]
         return glb_vis_mask
 
-    def _obs_global_coords(self):
-        n = self._env.agent_view_size  # =7
+    def obs_global_coords(self):
+        n = self.env.agent_view_size  # =7
         x = np.zeros((n, n), int)
         y = np.zeros((n, n), int)
         mask = np.zeros((n, n), bool)
 
         # Transform from local to global coordinates
         # TODO perf: do without loops
-        f_vec = self._env.dir_vec
-        r_vec = self._env.right_vec
-        top_left = self._env.agent_pos + f_vec * (n - 1) - r_vec * (n // 2)
+        f_vec = self.env.dir_vec
+        r_vec = self.env.right_vec
+        top_left = self.env.agent_pos + f_vec * (n - 1) - r_vec * (n // 2)
         for vis_j in range(0, n):
             for vis_i in range(0, n):
                 abs_i, abs_j = top_left - (f_vec * vis_j) + (r_vec * vis_i)
-                mask[vis_i, vis_j] = (abs_i >= 0 and abs_i < self._env.width and abs_j >= 0 and abs_j < self._env.height)
+                mask[vis_i, vis_j] = (abs_i >= 0 and abs_i < self.env.width and abs_j >= 0 and abs_j < self.env.height)
                 if mask[vis_i, vis_j]:
                     x[vis_i, vis_j] = abs_i
                     y[vis_i, vis_j] = abs_j

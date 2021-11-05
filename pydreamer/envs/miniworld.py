@@ -63,8 +63,8 @@ class MazeDijkstraPolicy:
         self.step_size = step_size
         self.turn_size = turn_size
         self.epsilon = epsilon
-        self._goal = None
-        self._expected_pos = None
+        self.goal = None
+        self.expected_pos = None
 
     def __call__(self, obs) -> Tuple[int, dict]:
         assert 'agent_pos' in obs, 'Need agent position'
@@ -77,21 +77,21 @@ class MazeDijkstraPolicy:
         # assert map[int(x), int(y)] >= 3, 'Agent should be here'
 
         if obs['reset']:
-            self._goal = None  # new episode
-            self._expected_pos = None
-        if self._goal is None:
-            self._goal = self._generate_goal(map)
+            self.goal = None  # new episode
+            self.expected_pos = None
+        if self.goal is None:
+            self.goal = self.generate_goal(map)
 
-        if self._expected_pos is not None:
-            if not np.isclose(self._expected_pos[:2], [x, y], 1e-3).all():
+        if self.expected_pos is not None:
+            if not np.isclose(self.expected_pos[:2], [x, y], 1e-3).all():
                 print('WARN: unexpected position - stuck? Generating new goal...')
-                self._goal = self._generate_goal(map)
+                self.goal = self.generate_goal(map)
 
         while True:
             t = time.time()
-            actions, path, nvis = find_shortest(map, (x, y, d), self._goal, self.step_size, self.turn_size)
+            actions, path, nvis = find_shortest(map, (x, y, d), self.goal, self.step_size, self.turn_size)
             # print(f'Pos: {tuple(np.round([x,y,d], 2))}'
-            #       f', Goal: {self._goal}'
+            #       f', Goal: {self.goal}'
             #       f', Len: {len(actions)}'
             #       f', Actions: {actions[:1]}'
             #       # f', Path: {path[:1]}'
@@ -100,16 +100,16 @@ class MazeDijkstraPolicy:
             #       )
             if len(actions) > 0:
                 if np.random.rand() < self.epsilon:
-                    self._expected_pos = None
+                    self.expected_pos = None
                     return np.random.randint(3), {}  # random action
                 else:
-                    self._expected_pos = path[0]
+                    self.expected_pos = path[0]
                     return actions[0], {}  # best action
             else:
-                self._goal = self._generate_goal(map)
+                self.goal = self.generate_goal(map)
 
     @staticmethod
-    def _generate_goal(map):
+    def generate_goal(map):
         while True:
             x = np.random.randint(map.shape[0])
             y = np.random.randint(map.shape[1])

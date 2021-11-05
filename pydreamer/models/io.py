@@ -15,7 +15,7 @@ class ConvEncoder(nn.Module):
         kernels = (4, 4, 4, 4)
         stride = 2
         d = cnn_depth
-        self._model = nn.Sequential(
+        self.model = nn.Sequential(
             nn.Conv2d(in_channels, d, kernels[0], stride),
             activation(),
             nn.Conv2d(d, d * 2, kernels[1], stride),
@@ -29,7 +29,7 @@ class ConvEncoder(nn.Module):
 
     def forward(self, x):
         x, bd = flatten_batch(x, 3)
-        y = self._model(x)
+        y = self.model(x)
         y = unflatten_batch(y, bd)
         return y
 
@@ -60,7 +60,7 @@ class ConvDecoder(nn.Module):
                     norm(hidden_dim, eps=1e-3),
                     activation()]
 
-        self._model = nn.Sequential(
+        self.model = nn.Sequential(
             # FC
             *layers,
             nn.Unflatten(-1, (d * 32, 1, 1)),  # type: ignore
@@ -75,7 +75,7 @@ class ConvDecoder(nn.Module):
 
     def forward(self, x):
         x, bd = flatten_batch(x)
-        y = self._model(x)
+        y = self.model(x)
         y = unflatten_batch(y, bd)
         return y
 
@@ -122,11 +122,11 @@ class DenseEncoder(nn.Module):
         layers += [
             nn.Linear(hidden_dim, out_dim),
             activation()]
-        self._model = nn.Sequential(*layers)
+        self.model = nn.Sequential(*layers)
 
     def forward(self, x):
         x, bd = flatten_batch(x, 3)
-        y = self._model(x)
+        y = self.model(x)
         y = unflatten_batch(y, bd)
         return y
 
@@ -135,10 +135,10 @@ class DenseBernoulliHead(nn.Module):
 
     def __init__(self, in_dim, hidden_dim=400, hidden_layers=2, layer_norm=True):
         super().__init__()
-        self._model = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
+        self.model = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
 
     def forward(self, features: Tensor) -> D.Distribution:
-        y = self._model.forward(features)
+        y = self.model.forward(features)
         p = D.Bernoulli(logits=y.float())
         return p
 
@@ -150,19 +150,19 @@ class DenseNormalHead(nn.Module):
 
     def __init__(self, in_dim, out_dim=1, hidden_dim=400, hidden_layers=2, layer_norm=True, std=0.3989422804):
         super().__init__()
-        self._model = MLP(in_dim, out_dim, hidden_dim, hidden_layers, layer_norm)
-        self._std = std
-        self._out_dim = out_dim
+        self.model = MLP(in_dim, out_dim, hidden_dim, hidden_layers, layer_norm)
+        self.std = std
+        self.out_dim = out_dim
 
     def forward(self, features: Tensor) -> D.Distribution:
-        y = self._model.forward(features)
-        p = D.Normal(loc=y, scale=torch.ones_like(y) * self._std)
-        if self._out_dim > 1:
+        y = self.model.forward(features)
+        p = D.Normal(loc=y, scale=torch.ones_like(y) * self.std)
+        if self.out_dim > 1:
             p = D.independent.Independent(p, 1)  # Makes p.logprob() sum over last dim
         return p
 
     def loss(self, output: D.Distribution, target: Tensor) -> Tensor:
-        var = self._std ** 2  # var cancels denominator, which makes loss = 0.5 (target-output)^2
+        var = self.std ** 2  # var cancels denominator, which makes loss = 0.5 (target-output)^2
         return -output.log_prob(target) * var
 
 
@@ -175,21 +175,21 @@ class DenseCategoricalSupportHead(nn.Module):
     def __init__(self, in_dim, support=[0.0, 1.0], hidden_dim=400, hidden_layers=2, layer_norm=True):
         assert isinstance(support, list)
         super().__init__()
-        self._model = MLP(in_dim, len(support), hidden_dim, hidden_layers, layer_norm)
-        self._support = nn.Parameter(torch.tensor(support), requires_grad=False)
+        self.model = MLP(in_dim, len(support), hidden_dim, hidden_layers, layer_norm)
+        self.support = nn.Parameter(torch.tensor(support), requires_grad=False)
 
     def forward(self, features: Tensor) -> D.Distribution:
-        y = self._model.forward(features)
-        p = CategoricalSupport(logits=y.float(), support=self._support.data)
+        y = self.model.forward(features)
+        p = CategoricalSupport(logits=y.float(), support=self.support.data)
         return p
 
     def loss(self, output: D.Distribution, target: Tensor) -> Tensor:
-        target = self._to_categorical(target)
+        target = self.to_categorical(target)
         return -output.log_prob(target)
 
-    def _to_categorical(self, target: Tensor) -> Tensor:
+    def to_categorical(self, target: Tensor) -> Tensor:
         # TODO: should interpolate between adjacent values, like in MuZero
-        distances = torch.square(target.unsqueeze(-1) - self._support)
+        distances = torch.square(target.unsqueeze(-1) - self.support)
         return distances.argmin(-1)
 
 
@@ -213,12 +213,12 @@ class DenseDecoder(nn.Module):
         layers += [
             nn.Linear(hidden_dim, np.prod(out_shape)),
             nn.Unflatten(-1, out_shape)]
-        self._model = nn.Sequential(*layers)
-        self._min_prob = min_prob
+        self.model = nn.Sequential(*layers)
+        self.min_prob = min_prob
 
     def forward(self, x: Tensor) -> Tensor:
         x, bd = flatten_batch(x)
-        y = self._model(x)
+        y = self.model(x)
         y = unflatten_batch(y, bd)
         return y
 
@@ -232,11 +232,11 @@ class DenseDecoder(nn.Module):
         output, bd = flatten_batch(output, len(self.out_shape))     # (*,C,H,W) => (B,C,H,W)
         target, _ = flatten_batch(target, len(self.out_shape) - 1)  # (*,H,W) => (B,H,W)
 
-        if self._min_prob == 0:
+        if self.min_prob == 0:
             loss = F.nll_loss(F.log_softmax(output, 1), target, reduction='none')  # = F.cross_entropy()
         else:
             prob = F.softmax(output, 1)
-            prob = (1.0 - self._min_prob) * prob + self._min_prob * (1.0 / prob.size(1))  # mix with uniform prob
+            prob = (1.0 - self.min_prob) * prob + self.min_prob * (1.0 / prob.size(1))  # mix with uniform prob
             loss = F.nll_loss(prob.log(), target, reduction='none')
 
         if len(self.out_shape) == 3:
