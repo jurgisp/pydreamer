@@ -5,6 +5,7 @@ import torch.distributions as D
 import torch.nn as nn
 import torch.nn.functional as F
 
+from tools import *
 from models.a2c import *
 from models.common import *
 from models.functions import *
@@ -14,7 +15,7 @@ from models.rssm import *
 from models.heads import *
 
 
-class Dreamer(TrainableModel):
+class Dreamer(nn.Module):
 
     def __init__(self, conf):
         super().__init__()
@@ -93,11 +94,7 @@ class Dreamer(TrainableModel):
                               target_interval=conf.target_interval,
                               )
 
-    @property
-    def submodels(self):
-        return (self.wm.encoder, self.wm.decoder_image, self.wm.core, self.wm.input_rnn, self.map_model)
-
-    def optimizers(self, conf):
+    def init_optimizers(self, conf):
         optimizer_wm = torch.optim.AdamW(self.wm.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
         optimizer_map = torch.optim.AdamW(self.map_model.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
         optimizer_actor = torch.optim.AdamW(self.ac.actor.parameters(), lr=conf.adam_lr_actor, eps=conf.adam_eps)  # type: ignore
@@ -257,6 +254,19 @@ class Dreamer(TrainableModel):
         actions = torch.stack(actions)  # (H,NBI,A)
         return features, actions
 
+    def __str__(self):
+        # Short representation
+        s = []
+        s.append(f'Model: {param_count(self)} parameters')
+        for submodel in (self.wm.encoder, self.wm.decoder_image, self.wm.core, self.ac, self.map_model):
+            if submodel is not None:
+                s.append(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
+        return '\n'.join(s)
+
+    def __repr__(self):
+        # Long representation
+        return super().__repr__()
+
 
 class WorldModel(nn.Module):
 
@@ -301,19 +311,19 @@ class WorldModel(nn.Module):
 
         if conf.image_encoder == 'cnn':
             self.encoder = ConvEncoder(in_channels=encoder_channels,
-                                        cnn_depth=conf.cnn_depth)
+                                       cnn_depth=conf.cnn_depth)
         else:
             self.encoder = DenseEncoder(in_dim=conf.image_size * conf.image_size * encoder_channels,
-                                         out_dim=256,
-                                         hidden_layers=conf.image_encoder_layers,
-                                         layer_norm=conf.layer_norm)
+                                        out_dim=256,
+                                        hidden_layers=conf.image_encoder_layers,
+                                        layer_norm=conf.layer_norm)
 
         if self.embed_rnn:
             self.input_rnn = GRU2Inputs(input1_dim=self.encoder.out_dim,
-                                         input2_dim=action_dim,
-                                         mlp_dim=embed_rnn_dim,
-                                         state_dim=embed_rnn_dim,
-                                         bidirectional=True)
+                                        input2_dim=action_dim,
+                                        mlp_dim=embed_rnn_dim,
+                                        state_dim=embed_rnn_dim,
+                                        bidirectional=True)
         else:
             self.input_rnn = None
 
@@ -324,20 +334,20 @@ class WorldModel(nn.Module):
         state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1) + conf.global_dim
         if conf.image_decoder == 'cnn':
             self.decoder_image = ConvDecoder(in_dim=state_dim,
-                                              out_channels=conf.image_channels,
-                                              cnn_depth=conf.cnn_depth)
+                                             out_channels=conf.image_channels,
+                                             cnn_depth=conf.cnn_depth)
         else:
             self.decoder_image = DenseDecoder(in_dim=state_dim,
-                                               out_shape=(conf.image_channels, conf.image_size, conf.image_size),
-                                               hidden_layers=conf.image_decoder_layers,
-                                               layer_norm=conf.layer_norm,
-                                               min_prob=conf.image_decoder_min_prob)
+                                              out_shape=(conf.image_channels, conf.image_size, conf.image_size),
+                                              hidden_layers=conf.image_decoder_layers,
+                                              layer_norm=conf.layer_norm,
+                                              min_prob=conf.image_decoder_min_prob)
 
         if conf.reward_decoder_categorical:
             self.decoder_reward = DenseCategoricalSupportHead(in_dim=state_dim,
-                                                               support=conf.reward_decoder_categorical,
-                                                               hidden_layers=conf.reward_decoder_layers,
-                                                               layer_norm=conf.layer_norm)
+                                                              support=conf.reward_decoder_categorical,
+                                                              hidden_layers=conf.reward_decoder_layers,
+                                                              layer_norm=conf.layer_norm)
         else:
             self.decoder_reward = DenseNormalHead(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
         self.decoder_terminal = DenseBernoulliHead(in_dim=state_dim, hidden_layers=conf.terminal_decoder_layers, layer_norm=conf.layer_norm)
@@ -346,15 +356,15 @@ class WorldModel(nn.Module):
         # RSSM
 
         self.core = RSSMCore(embed_dim=self.encoder.out_dim + 256 + (2 * embed_rnn_dim if embed_rnn else 0),
-                              action_dim=action_dim,
-                              deter_dim=deter_dim,
-                              stoch_dim=stoch_dim,
-                              stoch_discrete=stoch_discrete,
-                              hidden_dim=hidden_dim,
-                              global_dim=self.global_dim,
-                              gru_layers=gru_layers,
-                              gru_type=gru_type,
-                              layer_norm=conf.layer_norm)
+                             action_dim=action_dim,
+                             deter_dim=deter_dim,
+                             stoch_dim=stoch_dim,
+                             stoch_discrete=stoch_discrete,
+                             hidden_dim=hidden_dim,
+                             global_dim=self.global_dim,
+                             gru_layers=gru_layers,
+                             gru_type=gru_type,
+                             layer_norm=conf.layer_norm)
 
         # Init
 
@@ -540,18 +550,18 @@ class WorldModel(nn.Module):
                 logprob_reward = self.decoder_reward.loss(reward_pred, reward)
                 logprob_reward = -logavgexp(-logprob_reward, dim=-1)
                 metrics.update(logprob_reward=logprob_reward.mean())
-                log_tensors.update(reward_pred=reward_pred.mean.mean(dim=-1), # not quite loss tensor, but fine
+                log_tensors.update(reward_pred=reward_pred.mean.mean(dim=-1),  # not quite loss tensor, but fine
                                    logprob_reward=logprob_reward)
-                
+
                 mask_pos = (reward.select(-1, 0) > 0)  # mask where reward is *positive*
                 logprob_reward_pos = (logprob_reward * mask_pos) / mask_pos  # set to nan where ~mask
                 metrics.update(logprob_rewardp=nanmean(logprob_reward_pos))
-                log_tensors.update(logprob_rewardp=logprob_reward_pos)  
+                log_tensors.update(logprob_rewardp=logprob_reward_pos)
 
                 mask_neg = (reward.select(-1, 0) < 0)  # mask where reward is *negative*
-                logprob_reward_neg = (logprob_reward * mask_neg) / mask_neg # set to nan where ~mask
+                logprob_reward_neg = (logprob_reward * mask_neg) / mask_neg  # set to nan where ~mask
                 metrics.update(logprob_rewardn=nanmean(logprob_reward_neg))
-                log_tensors.update(logprob_rewardn=logprob_reward_neg)  
+                log_tensors.update(logprob_rewardn=logprob_reward_neg)
 
             if terminal_pred is not None:
                 logprob_terminal = self.decoder_terminal.loss(terminal_pred, terminal)

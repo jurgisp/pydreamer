@@ -160,22 +160,17 @@ def run(conf):
 
     if conf.model == 'dreamer':
         model = Dreamer(conf)
-    elif conf.model == 'bc':
-        model = BehavioralCloning(conf)
     else:
-        assert False
+        assert False, conf.model
     model.to(device)
 
-    print(f'Model: {param_count(model)} parameters')
-    for submodel in model.submodels:
-        if submodel is not None:
-            print(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
-    # print(model)
-    mlflow_log_text(str(model), 'architecture.txt')
+    print(model)
+    # print(repr(model))
+    mlflow_log_text(repr(model), 'architecture.txt')
 
     # Training
 
-    optimizers = model.optimizers(conf)
+    optimizers = model.init_optimizers(conf)
     resume_step = tools.mlflow_load_checkpoint(model, optimizers)
     if resume_step:
         info(f'Loaded model from checkpoint epoch {resume_step}')
@@ -383,7 +378,7 @@ def run(conf):
 
 def evaluate(prefix: str,
              steps: int,
-             model: TrainableModel,
+             model: Dreamer,
              data_iterator: Iterator,
              device,
              eval_batches: int,

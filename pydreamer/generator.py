@@ -77,10 +77,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         conf = model_conf
         if conf.model == 'dreamer':
             model = Dreamer(conf)
-        elif conf.model == 'bc':
-            model = BehavioralCloning(conf)
         else:
-            assert False
+            assert False, conf.model
         preprocess = Preprocessor(image_categorical=conf.image_channels if conf.image_categorical else None,
                                   image_key=conf.image_key,
                                   map_categorical=conf.map_channels if conf.map_categorical else None,
@@ -259,7 +257,7 @@ class RandomPolicy:
 
 
 class NetworkPolicy:
-    def __init__(self, model: TrainableModel, preprocess: Preprocessor):
+    def __init__(self, model: Dreamer, preprocess: Preprocessor):
         self.model = model
         self.preprocess = preprocess
         self.state = model.init_state(1)
