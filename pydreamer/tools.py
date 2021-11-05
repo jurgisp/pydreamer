@@ -213,9 +213,9 @@ class LogColorFormatter(logging.Formatter):
     GREY = '\033[90m'
     WHITE = '\033[37m'
     GREEN = '\033[32m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    RED_UNDERLINE = '\033[4;91m'
+    YELLOW = '\033[33m'
+    RED = '\033[31m'
+    RED_UNDERLINE = '\033[4;31m'
 
     def __init__(self,
                  fmt,
