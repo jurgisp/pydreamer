@@ -105,6 +105,7 @@ defaults:
   env_no_terminal: False
 
 minigrid:
+  env_id: MiniGrid-MazeS11N-v0
   # Features
   image_key: image
   image_size: 7
@@ -132,7 +133,7 @@ miniworld:
   image_channels: 3
   image_categorical: False
   map_key: map
-  map_size: 9
+  map_size: 13
   map_channels: 4
   map_categorical: True
   action_dim: 3

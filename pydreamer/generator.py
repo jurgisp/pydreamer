@@ -238,9 +238,13 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
             repo = repository if (np.random.rand() > split_fraction) else repository2
             for i, data in enumerate(chunks):
-                # NHWC => HWCN for better compression
-                data['image_t'] = data['image'].transpose(1, 2, 3, 0)
-                del data['image']
+                if len(data['image'].shape) == 4:
+                    # NHWC => HWCN for better compression
+                    data['image_t'] = data['image'].transpose(1, 2, 3, 0)
+                    del data['image']
+                else:
+                    # Categorical image, leave it alone
+                    pass
                 repo.save_data(data, episodes - datas_episodes, episodes - 1, i)
 
     info('Generator done.')

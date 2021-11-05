@@ -1,8 +1,11 @@
 from typing import Tuple
 
 import gym
+import gym.spaces
 import gym_minigrid
 import gym_minigrid.envs
+import gym_minigrid.minigrid
+from gym_minigrid.minigrid import COLOR_TO_IDX, OBJECT_TO_IDX
 import numpy as np
 
 
@@ -55,7 +58,9 @@ class MiniGrid(gym.Env):
     ])
 
     def __init__(self, env_name, max_steps=1000, seed=None, agent_init_pos=None, agent_init_dir=0):
-        self.env = gym.make(env_name)
+        env = gym.make(env_name)
+        assert isinstance(env, gym_minigrid.envs.MiniGridEnv)
+        self.env = env
         self.env.max_steps = max_steps
         if seed:
             self.env.seed(seed)
@@ -63,7 +68,7 @@ class MiniGrid(gym.Env):
         self.agent_init_pos = agent_init_pos
         self.agent_init_dir = agent_init_dir
 
-        grid = self.env.grid.encode()  # Grid is already generated when env is created
+        grid = self.env.grid.encode()  # type: ignore  # Grid is already generated when env is created
         self.map_size = n = grid.shape[0]
         self.map_centered_size = m = 2 * n - 3  # 11x11 => 19x19
 
@@ -93,7 +98,7 @@ class MiniGrid(gym.Env):
             # Initialize agent in a fixed position, so it can build a map
             self.env.agent_pos = np.array(self.agent_init_pos)
             self.env.agent_dir = self.agent_init_dir
-            self.env.grid.set(*self.env.agent_pos, None)  # Remove if something was there
+            self.env.grid.set(*self.env.agent_pos, None)  # type: ignore  # Remove if something was there
             obs = self.env.gen_obs()
         self.reset_map_last_seen()
         return self.observation(obs)
@@ -111,7 +116,7 @@ class MiniGrid(gym.Env):
         obs['map_centered'] = self.to_categorical(self.map_centered())
 
         for k in obs:
-            assert obs[k].shape == self.observation_space[k].shape, f"Wrong shape {k}: {obs[k].shape} != {self.observation_space[k].shape}"
+            assert obs[k].shape == self.observation_space[k].shape, f"Wrong shape {k}: {obs[k].shape} != {self.observation_space[k].shape}"  # type: ignore
         return obs
 
     @staticmethod
@@ -129,20 +134,20 @@ class MiniGrid(gym.Env):
         return MiniGrid.GRID_VALUES[img]
 
     def map(self, with_agent=True):
-        out = self.env.grid.encode()
+        out = self.env.grid.encode()  # type: ignore
         if with_agent:
-            out[self.env.agent_pos[0]][self.env.agent_pos[1]] = np.array([
-                gym_minigrid.minigrid.OBJECT_TO_IDX['agent'],
-                gym_minigrid.minigrid.COLOR_TO_IDX['red'],
+            out[self.env.agent_pos[0]][self.env.agent_pos[1]] = np.array([  # type: ignore
+                OBJECT_TO_IDX['agent'],
+                COLOR_TO_IDX['red'],
                 self.env.agent_dir
             ])
         return out
 
     def map_centered(self):
         n = self.map_centered_size
-        x, y = self.env.agent_pos
-        grid = self.env.grid.slice(x - (n - 1) // 2, y - (n - 1) // 2, n, n)
-        for i in range(self.env.agent_dir + 1):
+        x, y = self.env.agent_pos  # type: ignore
+        grid = self.env.grid.slice(x - (n - 1) // 2, y - (n - 1) // 2, n, n)  # type: ignore
+        for i in range(self.env.agent_dir + 1):  # type: ignore
             grid = grid.rotate_left()
         image = grid.encode()
         return image
@@ -193,7 +198,7 @@ class MiniGrid(gym.Env):
 
         # Find and remove special "agent" object
         agent_pos, agent_dir = None, None
-        x, y = (map_[:, :, 0] == gym_minigrid.minigrid.OBJECT_TO_IDX['agent']).nonzero()
+        x, y = (map_[:, :, 0] == OBJECT_TO_IDX['agent']).nonzero()
         if len(x) > 0:
             x, y = x[0], y[0]
             agent_pos = x, y
