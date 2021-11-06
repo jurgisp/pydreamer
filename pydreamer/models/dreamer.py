@@ -122,9 +122,7 @@ class Dreamer(nn.Module):
 
         # Forward (world model)
 
-        output = self.wm.forward(obs, in_state)
-        features = output[0]
-        out_state = output[-1]
+        features, out_state = self.wm.forward(obs, in_state)
 
         # Forward (actor critic)
 
@@ -147,12 +145,11 @@ class Dreamer(nn.Module):
         action = obs['action']
         N, B = action.shape[:2]
 
-        # Forward (world model)
+        # World model
 
-        output = self.wm.forward(obs, in_state, I=I, imagine_dropout=imagine_dropout, do_image_pred=do_image_pred)
-        features = output[0]
-        states = output[-2]
-        out_state = output[-1]
+        loss_model, features, states, out_state, metrics, loss_tensors, out_tensors = \
+            self.wm.training_step(obs, in_state, I=I, imagine_dropout=imagine_dropout, do_image_pred=do_image_pred)
+        metrics.update(loss=metrics['loss_wm'])
 
         # Forward (map)
 
@@ -173,9 +170,6 @@ class Dreamer(nn.Module):
 
         # Loss
 
-        loss_model, metrics, loss_tensors = self.wm.loss(obs, *output)
-        metrics.update(loss=metrics['loss_wm'])
-
         loss_map, metrics_map, loss_tensors_map = self.map_model.loss(*map_out, obs['map'], obs['map_coord'], obs['map_seen_mask'])
         metrics.update(**metrics_map)
         loss_tensors.update(**loss_tensors_map)
@@ -186,14 +180,12 @@ class Dreamer(nn.Module):
 
         # Predict
 
-        out_tensors = {}
         if do_output_tensors:
             with torch.no_grad():
-                image_pred, image_rec = self.wm.predict(*output)
                 map_rec = self.map_model.predict(*map_out)
-                out_tensors = dict(image_rec=image_rec, map_rec=map_rec)
-                if image_pred is not None:
-                    out_tensors.update(image_pred=image_pred)
+                out_tensors['map_rec'] = map_rec
+        else:
+            out_tensors = {}  # TODO: train loop checks this whether to log sample. Return always instead
 
         # Dream for a log sample.
 
@@ -352,11 +344,20 @@ class WorldModel(nn.Module):
 
     def forward(self,
                 obs: Dict[str, Tensor],
-                in_state: Any,
-                I: int = 1,
-                imagine_dropout=0,     # If 1, will imagine sequence, not using observations to form posterior
-                do_image_pred=False,
+                in_state: Any
                 ):
+        loss, features, states, out_state, metrics, loss_tensors, out_tensors = \
+            self.training_step(obs, in_state, forward_only=True)
+        return features, out_state
+
+    def training_step(self,
+                      obs: Dict[str, Tensor],
+                      in_state: Any,
+                      I: int = 1,
+                      imagine_dropout=0,     # If 1, will imagine sequence, not using observations to form posterior
+                      do_image_pred=False,
+                      forward_only=False
+                      ):
 
         N, B = obs['action'].shape[:2]
         noises = self.core.generate_noises(N, (B * I, ), obs['action'].device)  # Belongs to RSSM but need to do here for perf
@@ -382,7 +383,11 @@ class WorldModel(nn.Module):
 
         # RSSM
 
-        prior, post, post_samples, features, states, out_state = self.core.forward(embed, obs['action'], obs['reset'], in_state, None, noises, I=I, imagine_dropout=imagine_dropout)
+        prior, post, post_samples, features, states, out_state = \
+            self.core.forward(embed, obs['action'], obs['reset'], in_state, None, noises, I=I, imagine_dropout=imagine_dropout)
+
+        if forward_only:
+            return torch.tensor(0.0), features, states, out_state, {}, {}, {}
 
         # Decoder
 
@@ -401,42 +406,14 @@ class WorldModel(nn.Module):
             reward_pred = self.decoder_reward.forward(features_prior)
             terminal_pred = self.decoder_terminal.forward(features_prior)
 
-        return (
-            features,
-            prior,                       # (N,B,I,2S)
-            post,                        # (N,B,I,2S)
-            post_samples,                # (N,B,I,S)
-            image_rec,                   # (N,B,I,C,H,W)
-            vecobs_rec,
-            reward_rec,
-            terminal_rec,
-            image_pred,                  # Optional[(N,B,I,C,H,W)]
-            reward_pred,
-            terminal_pred,
-            states,
-            out_state,
-        )
+        # ------ LOSS -------
 
-    def predict(self,
-                features, prior, post, post_samples, image_rec, vecobs_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, states, out_state,     # forward() output
-                ) -> Tuple[Tensor, Tensor]:
-        # TODO: obsolete this method
-        if image_pred is not None:
-            image_pred = image_pred.mean(dim=2)
-        image_rec = image_rec.mean(dim=2)  # (N,B,I,C.H,W) => (N,B,C.H,W)
-        return (image_pred, image_rec)
-
-    def loss(self,
-             obs: Dict[str, Tensor],
-             features, prior, post, post_samples, image_rec, vecobs_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, states, out_state,     # forward() output
-             ):
-        N, B, I = image_rec.shape[:3]
         image = insert_dim(obs['image'], 2, I)
         vecobs = insert_dim(obs['vecobs'], 2, I)
         reward = insert_dim(obs['reward'], 2, I)
         terminal = insert_dim(obs['terminal'], 2, I)
 
-        # Reconstruction
+        # Decoder loss
 
         loss_image = self.decoder_image.loss(image_rec, image)  # (N,B,I)
         loss_vecobs = self.decoder_vecobs.loss(vecobs_rec, vecobs)  # (N,B,I)
@@ -444,7 +421,7 @@ class WorldModel(nn.Module):
         loss_terminal = self.decoder_terminal.loss(terminal_rec, terminal)  # (N,B,I)
         assert (loss_image.requires_grad and loss_reward.requires_grad and loss_terminal.requires_grad) or not features.requires_grad
 
-        # KL
+        # KL loss
 
         d = self.core.zdistr
         dprior = d(prior)
@@ -509,6 +486,9 @@ class WorldModel(nn.Module):
                            entropy_post=entropy_post.mean(),
                            )
 
+            out_tensors = {}
+            out_tensors['image_rec'] = image_rec.mean(dim=2)  # (N,B,I,C,H,W) => (N,B,C,H,W)
+
             # Predictions from prior
 
             if image_pred is not None:
@@ -516,6 +496,7 @@ class WorldModel(nn.Module):
                 logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
                 log_tensors.update(logprob_img=logprob_img)
                 metrics.update(logprob_img=logprob_img.mean())
+                out_tensors['image_pred'] = image_pred.mean(dim=2)
 
             if reward_pred is not None:
                 logprob_reward = self.decoder_reward.loss(reward_pred, reward)
@@ -546,4 +527,4 @@ class WorldModel(nn.Module):
                 metrics.update(logprob_terminal1=nanmean(logprob_terminal1))
                 log_tensors.update(logprob_terminal1=logprob_terminal1)
 
-        return loss_model.mean(), metrics, log_tensors
+        return loss_model.mean(), features, states, out_state, metrics, log_tensors, out_tensors
