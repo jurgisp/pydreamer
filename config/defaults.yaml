@@ -61,7 +61,6 @@ defaults:
 
   # Model
   model: dreamer
-  embed_rnn: none
   deter_dim: 2048
   stoch_dim: 32
   stoch_discrete: 32

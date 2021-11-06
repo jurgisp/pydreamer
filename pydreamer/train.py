@@ -29,7 +29,7 @@ import generator
 import tools
 from data import DataSequential, MlflowEpisodeRepository
 from models import *
-from models.functions import nanmean
+from models.functions import map_structure, nanmean
 from preprocessing import Preprocessor, WorkerInfoPreprocess
 from tools import *
 
@@ -209,24 +209,16 @@ def run(conf):
                 with timer('data'):
 
                     batch, wid = next(data_iter)
-                    image = batch['image'].to(device)
-                    vecobs = batch['vecobs'].to(device)
-                    reward = batch['reward'].to(device)
-                    terminal = batch['terminal'].to(device)
-                    action = batch['action'].to(device)
-                    reset = batch['reset'].to(device)
-                    map = batch['map'].to(device)
-                    map_coord = batch['map_coord'].to(device)
-                    map_seen_mask = batch['map_seen_mask'].to(device)
+                    obs: Dict[str, Tensor] = map_structure(batch, lambda x: x.to(device))  # type: ignore
 
                 # Forward
 
                 with timer('forward'):
                     with autocast(enabled=conf.amp):
 
-                        state = states.get(wid) or model.init_state(image.size(1) * conf.iwae_samples)
+                        state = states.get(wid) or model.init_state(conf.batch_size * conf.iwae_samples)
                         losses, loss_metrics, loss_tensors, new_state, out_tensors, dream_tensors = \
-                            model.training_step(image, vecobs, reward, terminal, action, reset, map, map_coord, map_seen_mask, state,
+                            model.training_step(obs, state,
                                                 I=conf.iwae_samples,
                                                 H=conf.imag_horizon,
                                                 imagine_dropout=conf.imagine_dropout,
@@ -267,9 +259,10 @@ def run(conf):
                         if np.isfinite(v.item()):  # It's ok for grad norm to be inf, when using amp
                             metrics[k].append(v.item())
                             metrics_max[k].append(v.item())
-                    for k, v in {'reward': reward, 'reset': reset, 'terminal': terminal}.items():
-                        metrics[f'data_{k}'].append(v.float().mean().item())
-                    metrics_max[f'data_reward'].append(reward.max().item())
+                    for k in ['reward', 'reset', 'terminal']:
+                        metrics[f'data_{k}'].append(batch[k].float().mean().item())
+                    for k in ['reward']:
+                        metrics_max[f'data_{k}'].append(batch[k].max().item())
 
                     # Log sample
 
@@ -366,14 +359,14 @@ def run(conf):
 
             if conf.verbose:
                 info(f"[{steps:06}] timers"
-                      f"  TOTAL: {timer('total').dt_ms:>4}"
-                      f"  data: {timer('data').dt_ms:>4}"
-                      f"  forward: {timer('forward').dt_ms:>4}"
-                      f"  backward: {timer('backward').dt_ms:>4}"
-                      f"  gradstep: {timer('gradstep').dt_ms:>4}"
-                      f"  eval: {timer('eval').dt_ms:>4}"
-                      f"  other: {timer('other').dt_ms:>4}"
-                      )
+                     f"  TOTAL: {timer('total').dt_ms:>4}"
+                     f"  data: {timer('data').dt_ms:>4}"
+                     f"  forward: {timer('forward').dt_ms:>4}"
+                     f"  backward: {timer('backward').dt_ms:>4}"
+                     f"  gradstep: {timer('gradstep').dt_ms:>4}"
+                     f"  eval: {timer('eval').dt_ms:>4}"
+                     f"  other: {timer('other').dt_ms:>4}"
+                     )
 
 
 def evaluate(prefix: str,
@@ -398,21 +391,13 @@ def evaluate(prefix: str,
         with torch.no_grad():
 
             batch = next(data_iterator)
-            image = batch['image'].to(device)
-            vecobs = batch['vecobs'].to(device)
-            reward = batch['reward'].to(device)
-            terminal = batch['terminal'].to(device)
-            action = batch['action'].to(device)
-            reset = batch['reset'].to(device)
-            map = batch['map'].to(device)
-            map_coord = batch['map_coord'].to(device)
-            map_seen_mask = batch['map_seen_mask'].to(device)
-            N, B = image.shape[:2]
+            obs: Dict[str, Tensor] = map_structure(batch, lambda x: x.to(device))  # type: ignore
+            N, B = obs['action'].shape[:2]
 
             if i_batch == 0:
-                info(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): {tuple(image.shape[0:2])+(eval_samples,)}')
+                info(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): ({N},{B},{eval_samples})')
 
-            reset_episodes = reset.any(dim=0)  # (B,)
+            reset_episodes = batch['reset'].any(dim=0)  # (B,)
             n_reset_episodes = reset_episodes.sum().item()
             n_continued_episodes = (~reset_episodes).sum().item()
             if i_batch == 0:
@@ -431,8 +416,8 @@ def evaluate(prefix: str,
             if n_continued_episodes > 0:
                 with autocast(enabled=conf.amp):
                     _, _, loss_tensors_im, _, out_tensors_im, _ = \
-                        model.training_step(image, vecobs, reward, terminal,  # observation will be ignored in forward pass because of imagine=True
-                                            action, reset, map, map_coord, map_seen_mask, state,
+                        model.training_step(obs,  # observation will be ignored in forward pass because of imagine=True
+                                            state,
                                             I=eval_samples,
                                             H=conf.imag_horizon,
                                             imagine_dropout=1,
@@ -440,7 +425,7 @@ def evaluate(prefix: str,
                                             do_output_tensors=True)
 
                     if np.random.rand() < 0.10:  # Save a small sample of batches
-                        r = reward.sum().item()
+                        r = batch['reward'].sum().item()
                         log_batch_npz(batch, loss_tensors_im, out_tensors_im, f'{steps:07}_{i_batch}_r{r:.0f}.npz', subdir=f'd2_wm_open_{prefix}', verbose=True)
 
                     mask = (~reset_episodes).float()
@@ -456,10 +441,11 @@ def evaluate(prefix: str,
 
             with autocast(enabled=conf.amp):
                 if state is None or not keep_state:
-                    state = model.init_state(image.size(1) * eval_samples)
+                    state = model.init_state(B * eval_samples)
 
                 _, loss_metrics, loss_tensors, state, out_tensors, _ = \
-                    model.training_step(image, vecobs, reward, terminal, action, reset, map, map_coord, map_seen_mask, state,
+                    model.training_step(obs,
+                                        state,
                                         I=eval_samples,
                                         H=conf.imag_horizon,
                                         imagine_dropout=0,
@@ -517,8 +503,7 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
             pass
 
         elif len(x.shape) == 3:  # 1D vector
-            assert key in ['action', 'action_pred', 'map_coord', 'agent_pos', 'agent_dir', 'vecobs'], \
-                f'Unexpected 1D tensor: {key}: {x.shape}, {x.dtype}'
+            pass
 
         elif len(x.shape) == 4:  # 2D tensor - categorical image
             assert (x.dtype == np.int64 or x.dtype == np.uint8) and key.startswith('map'), \

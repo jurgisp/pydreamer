@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Dict, List, Tuple, TypeVar, Union
 import numpy as np
 import torch
 import torch.nn as nn
@@ -36,6 +36,11 @@ def unflatten_batch(x: Tensor, batch_dim: Union[Size, Tuple]) -> Tensor:
     x = torch.reshape(x, batch_dim + x.shape[1:])
     return x
 
+def insert_dim(x: Tensor, dim: int, size: int) -> Tensor:
+    """Inserts dimension and expands it to size."""
+    x = x.unsqueeze(dim)
+    x = x.expand(*x.shape[:dim], size, *x.shape[dim+1:])
+    return x
 
 def diag_normal(x: Tensor, min_std=0.1, max_std=2.0):
     # DreamerV2:
@@ -80,11 +85,16 @@ def logavgexp(x: Tensor, dim: int) -> Tensor:
     else:
         return x.squeeze(dim)
 
+T = TypeVar('T', Tensor, np.ndarray)
 
-def map_structure(data: Tuple[Tensor, ...], f: Callable[[Tensor], Tensor]) -> Tuple[Tensor, ...]:
+def map_structure(data: Union[Tuple[T, ...], Dict[str, T]], f: Callable[[T], T]) -> Union[Tuple[T, ...], Dict[str, T]]:
     # Like tf.nest.map_structure
-    assert isinstance(data, tuple), 'Not implemented for other types'
-    return tuple(f(d) for d in data)
+    if isinstance(data, tuple):
+        return tuple(f(d) for d in data)
+    elif isinstance(data, dict):
+        return {k: f(v) for k, v in data.items()}
+    else:
+        raise NotImplementedError(type(data))
 
 
 def stack_structure(data: List[Tuple[Tensor, ...]]) -> Tuple[Tensor, ...]:
@@ -116,12 +126,6 @@ def stack_structure_np(datas: Tuple[Dict[str, np.ndarray]]) -> Dict[str, np.ndar
         key: np.stack([d[key] for d in datas])
         for key in keys
     }
-
-
-def map_structure_np(data: Dict[str, np.ndarray], f: Callable[[np.ndarray], np.ndarray]) -> Dict[str, np.ndarray]:
-    assert isinstance(data, dict), 'Not implemented for other types'
-    return {k: f(v) for k, v in data.items()}
-
 
 def nanmean(x: Tensor) -> Tensor:
     return torch.nansum(x) / (~torch.isnan(x)).sum()

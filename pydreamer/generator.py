@@ -20,6 +20,7 @@ sys.path.append(str(Path(__file__).parent))
 from data import MlflowEpisodeRepository
 from envs import create_env
 from models import *
+from models.functions import map_structure
 from preprocessing import Preprocessor
 from tools import *
 
@@ -264,15 +265,10 @@ class NetworkPolicy:
 
     def __call__(self, obs) -> Tuple[int, dict]:
         batch = self.preprocess.apply(obs, expandTB=True)
-
-        image = torch.from_numpy(batch['image'])
-        vecobs = torch.from_numpy(batch['vecobs'])
-        reward = torch.from_numpy(batch['reward'])
-        action = torch.from_numpy(batch['action'])
-        reset = torch.from_numpy(batch['reset'])
+        obs_model: Dict[str, Tensor] = map_structure(batch, torch.from_numpy)  # type: ignore
 
         with torch.no_grad():
-            action_logits, value, new_state = self.model.forward(image, vecobs, reward, action, reset, self.state)
+            action_logits, value, new_state = self.model.forward(obs_model, self.state)
             action_logits = action_logits[0, 0]  # (N=1,B=1,A) => (A)
             value = value[0, 0]
             action_distr = D.OneHotCategorical(logits=action_logits)

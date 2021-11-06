@@ -159,7 +159,7 @@ class DataSequential(IterableDataset):
         iters = [self.iter_single(ix) for ix in range(self.batch_size)]
         for batches in zip(*iters):
             batch = stack_structure_np(batches)
-            batch = map_structure_np(batch, lambda d: d.swapaxes(0, 1))
+            batch = map_structure(batch, lambda d: d.swapaxes(0, 1))
             yield batch
 
     def iter_single(self, ix):

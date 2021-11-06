@@ -77,7 +77,6 @@ class Dreamer(nn.Module):
             vecobs_weight=conf.vecobs_weight,
             reward_weight=conf.reward_weight,
             terminal_weight=conf.terminal_weight,
-            embed_rnn=conf.embed_rnn != 'none',
             gru_layers=conf.gru_layers,
             gru_type=conf.gru_type,
             kl_balance=conf.kl_balance,
@@ -114,20 +113,16 @@ class Dreamer(nn.Module):
         return self.wm.init_state(batch_size)
 
     def forward(self,
-                image: TensorNBCHW,   # (1,B,C,H,W)
-                vecobs: Tensor,       # (1,V)
-                prev_reward: Tensor,  # (1,B)
-                prev_action: Tensor,  # (1,B,A)
-                reset: Tensor,        # (1,B)
+                obs: Dict[str, Tensor],
                 in_state: Any,
                 ):
-        N, B = image.shape[:2]
-        assert N == 1
+        assert 'action' in obs, 'Observation should contain previous action'
+        act_shape = obs['action'].shape
+        assert len(act_shape) == 3 and act_shape[0] == 1, f'Expected shape (1,B,A), got {act_shape}'
 
         # Forward (world model)
 
-        terminal = torch.zeros_like(reset)
-        output = self.wm.forward(image, vecobs, prev_reward, terminal, prev_action, reset, in_state)
+        output = self.wm.forward(obs, in_state)
         features = output[0]
         out_state = output[-1]
 
@@ -140,15 +135,7 @@ class Dreamer(nn.Module):
         return action_logits, value, out_state
 
     def training_step(self,
-                      image: TensorNBCHW,
-                      vecobs: Tensor,
-                      reward: Tensor,
-                      terminal: Tensor,
-                      action: Tensor,     # (N,B,A)
-                      reset: Tensor,      # (N,B)
-                      map: Tensor,
-                      map_coord: Tensor,  # (N,B,4)
-                      map_seen_mask: Tensor,
+                      obs: Dict[str, Tensor],
                       in_state: Any,
                       I: int = 1,         # IWAE samples
                       H: int = 1,        # Imagination horizon
@@ -157,19 +144,20 @@ class Dreamer(nn.Module):
                       do_output_tensors=False,
                       do_dream_tensors=False,
                       ):
-        N, B = image.shape[:2]
+        action = obs['action']
+        N, B = action.shape[:2]
 
         # Forward (world model)
 
-        output = self.wm.forward(image, vecobs, reward, terminal, action, reset, in_state, I=I, imagine_dropout=imagine_dropout, do_image_pred=do_image_pred)
+        output = self.wm.forward(obs, in_state, I=I, imagine_dropout=imagine_dropout, do_image_pred=do_image_pred)
         features = output[0]
         states = output[-2]
         out_state = output[-1]
 
         # Forward (map)
 
-        map_coord = map_coord.unsqueeze(2).expand(N, B, I, -1)  # TODO: move inside map_model.forward()
-        map = map.unsqueeze(2).expand(N, B, I, *map.shape[2:])
+        map_coord = insert_dim(obs['map_coord'], 2, I)  # TODO: move inside map_model.forward()
+        map = insert_dim(obs['map'], 2, I)
         map_features = torch.cat((features, map_coord), dim=-1)
         map_features = map_features.detach()
         map_out = self.map_model.forward(map_features, map, do_image_pred=do_image_pred)
@@ -185,10 +173,10 @@ class Dreamer(nn.Module):
 
         # Loss
 
-        loss_model, metrics, loss_tensors = self.wm.loss(*output, image, vecobs, reward, terminal, reset)
+        loss_model, metrics, loss_tensors = self.wm.loss(obs, *output)
         metrics.update(loss=metrics['loss_wm'])
 
-        loss_map, metrics_map, loss_tensors_map = self.map_model.loss(*map_out, map, map_coord, map_seen_mask)    # type: ignore
+        loss_map, metrics_map, loss_tensors_map = self.map_model.loss(*map_out, obs['map'], obs['map_coord'], obs['map_seen_mask'])
         metrics.update(**metrics_map)
         loss_tensors.update(**loss_tensors_map)
 
@@ -227,8 +215,8 @@ class Dreamer(nn.Module):
                                      terminal_pred=terminals_dream.mean,
                                      image_pred=image_dream,
                                      **loss_tensors_ac)
-                assert dream_tensors['action_pred'].shape == action.shape
-                assert dream_tensors['image_pred'].shape == image.shape
+                assert dream_tensors['action_pred'].shape == obs['action'].shape
+                assert dream_tensors['image_pred'].shape == obs['image'].shape
 
         losses = (loss_model, loss_map, *losses_ac)
         return losses, metrics, loss_tensors, out_state, out_tensors, dream_tensors
@@ -282,8 +270,6 @@ class WorldModel(nn.Module):
                  vecobs_weight=1.0,
                  reward_weight=1.0,
                  terminal_weight=1.0,
-                 embed_rnn=False,
-                 embed_rnn_dim=512,
                  gru_layers=1,
                  gru_type='gru',
                  kl_balance=0.5,
@@ -298,7 +284,6 @@ class WorldModel(nn.Module):
         self.vecobs_weight = vecobs_weight
         self.reward_weight = reward_weight
         self.terminal_weight = terminal_weight
-        self.embed_rnn = embed_rnn
         self.kl_balance = None if kl_balance == 0.5 else kl_balance
 
         # Encoder
@@ -317,15 +302,6 @@ class WorldModel(nn.Module):
                                         out_dim=256,
                                         hidden_layers=conf.image_encoder_layers,
                                         layer_norm=conf.layer_norm)
-
-        if self.embed_rnn:
-            self.input_rnn = GRU2Inputs(input1_dim=self.encoder.out_dim,
-                                        input2_dim=action_dim,
-                                        mlp_dim=embed_rnn_dim,
-                                        state_dim=embed_rnn_dim,
-                                        bidirectional=True)
-        else:
-            self.input_rnn = None
 
         self.encoder_vecobs = MLP(64, 256, hidden_dim=400, hidden_layers=2, layer_norm=conf.layer_norm)
 
@@ -355,7 +331,7 @@ class WorldModel(nn.Module):
 
         # RSSM
 
-        self.core = RSSMCore(embed_dim=self.encoder.out_dim + 256 + (2 * embed_rnn_dim if embed_rnn else 0),
+        self.core = RSSMCore(embed_dim=self.encoder.out_dim + 256,
                              action_dim=action_dim,
                              deter_dim=deter_dim,
                              stoch_dim=stoch_dim,
@@ -375,24 +351,23 @@ class WorldModel(nn.Module):
         return self.core.init_state(batch_size)
 
     def forward(self,
-                image: TensorNBCHW,
-                vecobs: Tensor,
-                reward: TensorNB,
-                terminal: TensorNB,
-                action: Tensor,    # tensor(N, B, A)
-                reset: Tensor,     # tensor(N, B)
+                obs: Dict[str, Tensor],
                 in_state: Any,
                 I: int = 1,
                 imagine_dropout=0,     # If 1, will imagine sequence, not using observations to form posterior
                 do_image_pred=False,
                 ):
 
-        N, B, C, H, W = image.shape
-        noises = self.core.generate_noises(N, (B * I, ), image.device)  # Belongs to RSSM but need to do here for perf
+        N, B = obs['action'].shape[:2]
+        noises = self.core.generate_noises(N, (B * I, ), obs['action'].device)  # Belongs to RSSM but need to do here for perf
 
         # Encoder
 
+        image = obs['image']
+        N, B, C, H, W = image.shape
         if self.reward_input:
+            reward = obs['reward']
+            terminal = obs['terminal']
             reward_plane = reward.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
             terminal_plane = terminal.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand((N, B, 1, H, W))
             observation = torch.cat([image,  # (N,B,C+2,H,W)
@@ -402,15 +377,12 @@ class WorldModel(nn.Module):
             observation = image
 
         embed = self.encoder.forward(observation)  # (N,B,E)
-        embed_vecobs = self.encoder_vecobs(vecobs)
+        embed_vecobs = self.encoder_vecobs(obs['vecobs'])
         embed = torch.cat((embed, embed_vecobs), dim=-1)  # (N,B,E+256)
-        if self.input_rnn:
-            embed_rnn, _ = self.input_rnn.forward(embed, action)  # (N,B,2E)
-            embed = torch.cat((embed, embed_rnn), dim=-1)  # (N,B,3E+256)
 
         # RSSM
 
-        prior, post, post_samples, features, states, out_state = self.core.forward(embed, action, reset, in_state, None, noises, I=I, imagine_dropout=imagine_dropout)
+        prior, post, post_samples, features, states, out_state = self.core.forward(embed, obs['action'], obs['reset'], in_state, None, noises, I=I, imagine_dropout=imagine_dropout)
 
         # Decoder
 
@@ -455,15 +427,14 @@ class WorldModel(nn.Module):
         return (image_pred, image_rec)
 
     def loss(self,
+             obs: Dict[str, Tensor],
              features, prior, post, post_samples, image_rec, vecobs_rec, reward_rec, terminal_rec, image_pred, reward_pred, terminal_pred, states, out_state,     # forward() output
-             image, vecobs, reward, terminal,
-             reset,
              ):
         N, B, I = image_rec.shape[:3]
-        image = image.unsqueeze(2).expand(N, B, I, *image.shape[2:])
-        vecobs = vecobs.unsqueeze(2).expand(N, B, I, *vecobs.shape[2:])
-        reward = reward.unsqueeze(2).expand(N, B, I, *reward.shape[2:])
-        terminal = terminal.unsqueeze(2).expand(N, B, I, *terminal.shape[2:])
+        image = insert_dim(obs['image'], 2, I)
+        vecobs = insert_dim(obs['vecobs'], 2, I)
+        reward = insert_dim(obs['reward'], 2, I)
+        terminal = insert_dim(obs['terminal'], 2, I)
 
         # Reconstruction
 
