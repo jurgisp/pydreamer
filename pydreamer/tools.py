@@ -93,6 +93,7 @@ def mlflow_save_checkpoint(model, optimizers, steps):
         for i, opt in enumerate(optimizers):
             checkpoint[f'optimizer_{i}_state_dict'] = opt.state_dict()
         torch.save(checkpoint, path)
+        debug(f'Uploading artifact checkpoints/{path.name} size {path.stat().st_size/1024/1024:.2f} MB')
         mlflow.log_artifact(str(path), artifact_path='checkpoints')
 
 

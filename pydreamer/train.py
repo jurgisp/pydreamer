@@ -267,9 +267,9 @@ def run(conf):
                     # Log sample
 
                     if out_tensors:
-                        log_batch_npz(batch, loss_tensors, out_tensors, f'{steps:07}.npz', subdir='d2_wm_closed', verbose=conf.verbose)
+                        log_batch_npz(batch, loss_tensors, out_tensors, f'{steps:07}.npz', subdir='d2_wm_closed')
                     if dream_tensors:
-                        log_batch_npz(batch, loss_tensors, dream_tensors, f'{steps:07}.npz', subdir='d2_wm_dream', verbose=conf.verbose)
+                        log_batch_npz(batch, loss_tensors, dream_tensors, f'{steps:07}.npz', subdir='d2_wm_dream')
 
                     # Log data buffer size
 
@@ -426,7 +426,7 @@ def evaluate(prefix: str,
 
                     if np.random.rand() < 0.10:  # Save a small sample of batches
                         r = batch['reward'].sum().item()
-                        log_batch_npz(batch, loss_tensors_im, out_tensors_im, f'{steps:07}_{i_batch}_r{r:.0f}.npz', subdir=f'd2_wm_open_{prefix}', verbose=True)
+                        log_batch_npz(batch, loss_tensors_im, out_tensors_im, f'{steps:07}_{i_batch}_r{r:.0f}.npz', subdir=f'd2_wm_open_{prefix}')
 
                     mask = (~reset_episodes).float()
                     for key, logprobs in loss_tensors_im.items():
@@ -479,14 +479,13 @@ def log_batch_npz(batch: Dict[str, Tensor],
                   loss_tensors: Dict[str, Tensor],
                   out_tensors: Dict[str, Tensor],
                   filename: str,
-                  subdir: str,
-                  verbose=False):
+                  subdir: str):
 
     data = dict(**batch, **loss_tensors, **out_tensors)
     print_once(f'Saving batch {subdir} (input): ', {k: tuple(v.shape) for k, v in data.items()})
     data = prepare_batch_npz(data)
     print_once(f'Saving batch {subdir} (proc.): ', {k: tuple(v.shape) for k, v in data.items()})
-    tools.mlflow_log_npz(data, filename, subdir, verbose=verbose)
+    tools.mlflow_log_npz(data, filename, subdir, verbose=True)
 
 
 def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
