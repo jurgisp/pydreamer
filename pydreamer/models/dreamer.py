@@ -139,7 +139,6 @@ class Dreamer(nn.Module):
                       H: int = 1,        # Imagination horizon
                       imagine_dropout=0,      # If True, will imagine sequence, not using observations to form posterior
                       do_image_pred=False,
-                      do_output_tensors=False,
                       do_dream_tensors=False,
                       ):
         action = obs['action']
@@ -147,7 +146,7 @@ class Dreamer(nn.Module):
 
         # World model
 
-        loss_model, features, states, out_state, metrics, loss_tensors, out_tensors = \
+        loss_model, features, states, out_state, metrics, tensors = \
             self.wm.training_step(obs, in_state, I=I, imagine_dropout=imagine_dropout, do_image_pred=do_image_pred)
         metrics.update(loss=metrics['loss_wm'])
 
@@ -170,22 +169,19 @@ class Dreamer(nn.Module):
 
         # Loss
 
-        loss_map, metrics_map, loss_tensors_map = self.map_model.loss(*map_out, obs['map'], obs['map_coord'], obs['map_seen_mask'])
+        loss_map, metrics_map, tensors_map = self.map_model.loss(*map_out, obs['map'], obs['map_coord'], obs['map_seen_mask'])
         metrics.update(**metrics_map)
-        loss_tensors.update(**loss_tensors_map)
+        tensors.update(**tensors_map)
 
-        losses_ac, metrics_ac, loss_tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream)
+        losses_ac, metrics_ac, tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream)
         metrics.update(**metrics_ac)
-        loss_tensors.update(policy_value=unflatten_batch(loss_tensors_ac['value'][0], (N, B, I)).mean(-1))
+        tensors.update(policy_value=unflatten_batch(tensors_ac['value'][0], (N, B, I)).mean(-1))
 
         # Predict
 
-        if do_output_tensors:
-            with torch.no_grad():
-                map_rec = self.map_model.predict(*map_out)
-                out_tensors['map_rec'] = map_rec
-        else:
-            out_tensors = {}  # TODO: train loop checks this whether to log sample. Return always instead
+        with torch.no_grad():
+            map_rec = self.map_model.predict(*map_out)
+            tensors['map_rec'] = map_rec
 
         # Dream for a log sample.
 
@@ -200,18 +196,18 @@ class Dreamer(nn.Module):
                 rewards_dream = self.wm.decoder_reward.forward(features_dream)      # (H+1,B) = (N,B)
                 terminals_dream = self.wm.decoder_terminal.forward(features_dream)  # (H+1,B) = (N,B)
                 image_dream = self.wm.decoder_image.forward(features_dream)
-                _, _, loss_tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream, log_only=True)
-                # The tensors are intentionally named same as in out_tensors, so the logged npz looks the same for dreamed or not
+                _, _, tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream, log_only=True)
+                # The tensors are intentionally named same as in tensors, so the logged npz looks the same for dreamed or not
                 dream_tensors = dict(action_pred=torch.cat([action[:1], actions_dream]),  # first action is real from previous step
-                                     reward_pred=rewards_dream.mean,  # reward_pred is also set in loss_tensors, if do_image_pred==True
+                                     reward_pred=rewards_dream.mean,
                                      terminal_pred=terminals_dream.mean,
                                      image_pred=image_dream,
-                                     **loss_tensors_ac)
+                                     **tensors_ac)
                 assert dream_tensors['action_pred'].shape == obs['action'].shape
                 assert dream_tensors['image_pred'].shape == obs['image'].shape
 
         losses = (loss_model, loss_map, *losses_ac)
-        return losses, metrics, loss_tensors, out_state, out_tensors, dream_tensors
+        return losses, out_state, metrics, tensors, dream_tensors
 
     def dream(self, in_state: StateB, H: int):
         NBI = len(in_state[0])  # Imagine batch size = N*B*I
@@ -346,7 +342,7 @@ class WorldModel(nn.Module):
                 obs: Dict[str, Tensor],
                 in_state: Any
                 ):
-        loss, features, states, out_state, metrics, loss_tensors, out_tensors = \
+        loss, features, states, out_state, metrics, tensors = \
             self.training_step(obs, in_state, forward_only=True)
         return features, out_state
 
@@ -387,7 +383,7 @@ class WorldModel(nn.Module):
             self.core.forward(embed, obs['action'], obs['reset'], in_state, None, noises, I=I, imagine_dropout=imagine_dropout)
 
         if forward_only:
-            return torch.tensor(0.0), features, states, out_state, {}, {}, {}
+            return torch.tensor(0.0), features, states, out_state, {}, {}
 
         # Decoder
 
@@ -468,7 +464,7 @@ class WorldModel(nn.Module):
             entropy_prior = dprior.entropy().mean(dim=-1)
             entropy_post = dpost.entropy().mean(dim=-1)
 
-            log_tensors = dict(loss_kl=loss_kl.detach(),
+            tensors = dict(loss_kl=loss_kl.detach(),
                                loss_image=loss_image.detach(),
                                entropy_prior=entropy_prior,
                                entropy_post=entropy_post,
@@ -486,45 +482,44 @@ class WorldModel(nn.Module):
                            entropy_post=entropy_post.mean(),
                            )
 
-            out_tensors = {}
-            out_tensors['image_rec'] = image_rec.mean(dim=2)  # (N,B,I,C,H,W) => (N,B,C,H,W)
+            tensors['image_rec'] = image_rec.mean(dim=2)  # (N,B,I,C,H,W) => (N,B,C,H,W)
 
             # Predictions from prior
 
             if image_pred is not None:
                 logprob_img = self.decoder_image.loss(image_pred, image)
                 logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
-                log_tensors.update(logprob_img=logprob_img)
+                tensors.update(logprob_img=logprob_img)
                 metrics.update(logprob_img=logprob_img.mean())
-                out_tensors['image_pred'] = image_pred.mean(dim=2)
+                tensors['image_pred'] = image_pred.mean(dim=2)
 
             if reward_pred is not None:
                 logprob_reward = self.decoder_reward.loss(reward_pred, reward)
                 logprob_reward = -logavgexp(-logprob_reward, dim=-1)
                 metrics.update(logprob_reward=logprob_reward.mean())
-                log_tensors.update(reward_pred=reward_pred.mean.mean(dim=-1),  # not quite loss tensor, but fine
+                tensors.update(reward_pred=reward_pred.mean.mean(dim=-1),  # not quite loss tensor, but fine
                                    logprob_reward=logprob_reward)
 
                 mask_pos = (reward.select(-1, 0) > 0)  # mask where reward is *positive*
                 logprob_reward_pos = (logprob_reward * mask_pos) / mask_pos  # set to nan where ~mask
                 metrics.update(logprob_rewardp=nanmean(logprob_reward_pos))
-                log_tensors.update(logprob_rewardp=logprob_reward_pos)
+                tensors.update(logprob_rewardp=logprob_reward_pos)
 
                 mask_neg = (reward.select(-1, 0) < 0)  # mask where reward is *negative*
                 logprob_reward_neg = (logprob_reward * mask_neg) / mask_neg  # set to nan where ~mask
                 metrics.update(logprob_rewardn=nanmean(logprob_reward_neg))
-                log_tensors.update(logprob_rewardn=logprob_reward_neg)
+                tensors.update(logprob_rewardn=logprob_reward_neg)
 
             if terminal_pred is not None:
                 logprob_terminal = self.decoder_terminal.loss(terminal_pred, terminal)
                 logprob_terminal = -logavgexp(-logprob_terminal, dim=-1)
                 metrics.update(logprob_terminal=logprob_terminal.mean())
-                log_tensors.update(terminal_pred=terminal_pred.mean.mean(dim=-1),    # not quite loss tensor, but fine
+                tensors.update(terminal_pred=terminal_pred.mean.mean(dim=-1),    # not quite loss tensor, but fine
                                    logprob_terminal=logprob_terminal)
 
                 mask_terminal1 = (terminal.select(-1, 0) == 1)  # mask where terminal is 1
                 logprob_terminal1 = (logprob_terminal * mask_terminal1) / mask_terminal1  # set to nan where ~mask
                 metrics.update(logprob_terminal1=nanmean(logprob_terminal1))
-                log_tensors.update(logprob_terminal1=logprob_terminal1)
+                tensors.update(logprob_terminal1=logprob_terminal1)
 
-        return loss_model.mean(), features, states, out_state, metrics, log_tensors, out_tensors
+        return loss_model.mean(), features, states, out_state, metrics, tensors

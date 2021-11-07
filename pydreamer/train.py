@@ -217,13 +217,12 @@ def run(conf):
                     with autocast(enabled=conf.amp):
 
                         state = states.get(wid) or model.init_state(conf.batch_size * conf.iwae_samples)
-                        losses, loss_metrics, loss_tensors, new_state, out_tensors, dream_tensors = \
+                        losses, new_state, loss_metrics, tensors, dream_tensors = \
                             model.training_step(obs, state,
                                                 I=conf.iwae_samples,
                                                 H=conf.imag_horizon,
                                                 imagine_dropout=conf.imagine_dropout,
                                                 do_image_pred=steps % conf.log_interval >= int(conf.log_interval * 0.9),  # 10% of batches
-                                                do_output_tensors=steps % conf.logbatch_interval == 1,
                                                 do_dream_tensors=steps % conf.logbatch_interval == 1)
                         if conf.keep_state:
                             states[wid] = new_state
@@ -266,10 +265,10 @@ def run(conf):
 
                     # Log sample
 
-                    if out_tensors:
-                        log_batch_npz(batch, loss_tensors, out_tensors, f'{steps:07}.npz', subdir='d2_wm_closed')
+                    if steps % conf.logbatch_interval == 1:
+                        log_batch_npz(batch, tensors, f'{steps:07}.npz', subdir='d2_wm_closed')
                     if dream_tensors:
-                        log_batch_npz(batch, loss_tensors, dream_tensors, f'{steps:07}.npz', subdir='d2_wm_dream')
+                        log_batch_npz(batch, dream_tensors, f'{steps:07}.npz', subdir='d2_wm_dream')
 
                     # Log data buffer size
 
@@ -382,7 +381,7 @@ def evaluate(prefix: str,
     start_time = time.time()
     metrics_eval = defaultdict(list)
     state = None
-    loss_tensors = None
+    tensors = None
     npz_datas = []
     n_finished_episodes = np.zeros(1)
     do_output_tensors = True
@@ -407,29 +406,28 @@ def evaluate(prefix: str,
 
             # Log _last predictions from the last batch of previous episode
 
-            if n_reset_episodes > 0 and loss_tensors is not None and 'loss_map' in loss_tensors:
-                logprob_map_last = (loss_tensors['loss_map'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
+            if n_reset_episodes > 0 and tensors is not None and 'loss_map' in tensors:
+                logprob_map_last = (tensors['loss_map'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()
                 metrics_eval['logprob_map_last'].append(logprob_map_last.item())
 
             # Open loop & unseen logprob
 
             if n_continued_episodes > 0:
                 with autocast(enabled=conf.amp):
-                    _, _, loss_tensors_im, _, out_tensors_im, _ = \
+                    _, _, _, tensors_im, _ = \
                         model.training_step(obs,  # observation will be ignored in forward pass because of imagine=True
                                             state,
                                             I=eval_samples,
                                             H=conf.imag_horizon,
                                             imagine_dropout=1,
-                                            do_image_pred=True,
-                                            do_output_tensors=True)
+                                            do_image_pred=True)
 
                     if np.random.rand() < 0.10:  # Save a small sample of batches
                         r = batch['reward'].sum().item()
-                        log_batch_npz(batch, loss_tensors_im, out_tensors_im, f'{steps:07}_{i_batch}_r{r:.0f}.npz', subdir=f'd2_wm_open_{prefix}')
+                        log_batch_npz(batch, tensors_im, f'{steps:07}_{i_batch}_r{r:.0f}.npz', subdir=f'd2_wm_open_{prefix}')
 
                     mask = (~reset_episodes).float()
-                    for key, logprobs in loss_tensors_im.items():
+                    for key, logprobs in tensors_im.items():
                         if key.startswith('logprob_'):  # logprob_img, logprob_reward, logprob_rewardp, logprob_rewardn, logprob_reward{i}
                             # Many logprobs will be nans - that's fine. Just take mean of those tahat exist
                             lps = (logprobs[:5] * mask) / mask  # set to nan where ~mask
@@ -443,14 +441,13 @@ def evaluate(prefix: str,
                 if state is None or not keep_state:
                     state = model.init_state(B * eval_samples)
 
-                _, loss_metrics, loss_tensors, state, out_tensors, _ = \
+                _, state, loss_metrics, tensors, _ = \
                     model.training_step(obs,
                                         state,
                                         I=eval_samples,
                                         H=conf.imag_horizon,
                                         imagine_dropout=0,
-                                        do_image_pred=True,
-                                        do_output_tensors=do_output_tensors)
+                                        do_image_pred=True)
 
                 for k, v in loss_metrics.items():
                     if not np.isnan(v.item()):
@@ -458,8 +455,8 @@ def evaluate(prefix: str,
 
             # Log one episode batch
 
-            if out_tensors:
-                npz_datas.append(prepare_batch_npz(dict(**batch, **loss_tensors, **out_tensors), take_b=1))
+            if do_output_tensors:
+                npz_datas.append(prepare_batch_npz(dict(**batch, **tensors), take_b=1))
             if n_finished_episodes[0] > 0:
                 # log predictions until first episode is finished
                 do_output_tensors = False
@@ -476,12 +473,11 @@ def evaluate(prefix: str,
 
 
 def log_batch_npz(batch: Dict[str, Tensor],
-                  loss_tensors: Dict[str, Tensor],
-                  out_tensors: Dict[str, Tensor],
+                  tensors: Dict[str, Tensor],
                   filename: str,
                   subdir: str):
 
-    data = dict(**batch, **loss_tensors, **out_tensors)
+    data = dict(**batch, **tensors)
     print_once(f'Saving batch {subdir} (input): ', {k: tuple(v.shape) for k, v in data.items()})
     data = prepare_batch_npz(data)
     print_once(f'Saving batch {subdir} (proc.): ', {k: tuple(v.shape) for k, v in data.items()})
