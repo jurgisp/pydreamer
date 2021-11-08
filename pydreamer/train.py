@@ -396,7 +396,7 @@ def evaluate(prefix: str,
             if i_batch == 0:
                 info(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): ({N},{B},{eval_samples})')
 
-            reset_episodes = batch['reset'].any(dim=0)  # (B,)
+            reset_episodes = obs['reset'].any(dim=0)  # (B,)
             n_reset_episodes = reset_episodes.sum().item()
             n_continued_episodes = (~reset_episodes).sum().item()
             if i_batch == 0:
@@ -423,7 +423,7 @@ def evaluate(prefix: str,
                                             do_image_pred=True)
 
                     if np.random.rand() < 0.10:  # Save a small sample of batches
-                        r = batch['reward'].sum().item()
+                        r = obs['reward'].sum().item()
                         log_batch_npz(batch, tensors_im, f'{steps:07}_{i_batch}_r{r:.0f}.npz', subdir=f'd2_wm_open_{prefix}')
 
                     mask = (~reset_episodes).float()

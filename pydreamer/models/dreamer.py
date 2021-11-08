@@ -141,8 +141,11 @@ class Dreamer(nn.Module):
                       do_image_pred=False,
                       do_dream_tensors=False,
                       ):
-        action = obs['action']
-        N, B = action.shape[:2]
+        assert 'action' in obs, '`action` required in observation'
+        assert 'reward' in obs, '`reward` required in observation'
+        assert 'reset' in obs, '`reset` required in observation'
+        assert 'terminal' in obs, '`terminal` required in observation'
+        N, B = obs['action'].shape[:2]
 
         # World model
 
@@ -198,7 +201,7 @@ class Dreamer(nn.Module):
                 image_dream = self.wm.decoder_image.forward(features_dream)
                 _, _, tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream, log_only=True)
                 # The tensors are intentionally named same as in tensors, so the logged npz looks the same for dreamed or not
-                dream_tensors = dict(action_pred=torch.cat([action[:1], actions_dream]),  # first action is real from previous step
+                dream_tensors = dict(action_pred=torch.cat([obs['action'][:1], actions_dream]),  # first action is real from previous step
                                      reward_pred=rewards_dream.mean,
                                      terminal_pred=terminals_dream.mean,
                                      image_pred=image_dream,
