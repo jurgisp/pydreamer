@@ -62,7 +62,6 @@ class Dreamer(nn.Module):
             raise NotImplementedError(f'Unknown map_model={conf.map_model}')
         self.map_model = map_model
 
-
     def init_optimizers(self, conf):
         optimizer_wm = torch.optim.AdamW(self.wm.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
         optimizer_map = torch.optim.AdamW(self.map_model.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
@@ -106,9 +105,9 @@ class Dreamer(nn.Module):
     def training_step(self,
                       obs: Dict[str, Tensor],
                       in_state: Any,
-                      I: int = 1,         # IWAE samples
-                      H: int = 1,        # Imagination horizon
-                      imagine_dropout=0,      # If True, will imagine sequence, not using observations to form posterior
+                      iwae_samples: int = 1,
+                      imag_horizon: int = 1,
+                      do_open_loop=False,
                       do_image_pred=False,
                       do_dream_tensors=False,
                       ):
@@ -117,11 +116,16 @@ class Dreamer(nn.Module):
         assert 'reset' in obs, '`reset` required in observation'
         assert 'terminal' in obs, '`terminal` required in observation'
         N, B = obs['action'].shape[:2]
+        I, H = iwae_samples, imag_horizon
 
         # World model
 
         loss_model, features, states, out_state, metrics, tensors = \
-            self.wm.training_step(obs, in_state, I=I, imagine_dropout=imagine_dropout, do_image_pred=do_image_pred)
+            self.wm.training_step(obs,
+                                  in_state,
+                                  iwae_samples=iwae_samples,
+                                  do_open_loop=do_open_loop,
+                                  do_image_pred=do_image_pred)
         metrics.update(loss=metrics['loss_wm'])
 
         # Map probe
@@ -168,14 +172,15 @@ class Dreamer(nn.Module):
 
         return (loss_model, loss_map, *losses_ac), out_state, metrics, tensors, dream_tensors
 
-    def dream(self, in_state: StateB, H: int):
+    def dream(self, in_state: StateB, imag_horizon: int):
         NBI = len(in_state[0])  # Imagine batch size = N*B*I
+        H = imag_horizon
         noises = self.wm.core.generate_noises(H, (NBI, ), in_state[0].device)
         features = []
         actions = []
         state = in_state
 
-        for i in range(H):
+        for i in range(imag_horizon):
             feature = self.wm.core.to_feature(*state)
             action = D.OneHotCategorical(logits=self.ac.forward_actor(feature)).sample()
             features.append(feature)
@@ -308,13 +313,14 @@ class WorldModel(nn.Module):
     def training_step(self,
                       obs: Dict[str, Tensor],
                       in_state: Any,
-                      I: int = 1,
-                      imagine_dropout=0,     # If 1, will imagine sequence, not using observations to form posterior
+                      iwae_samples: int = 1,
+                      do_open_loop=False,
                       do_image_pred=False,
                       forward_only=False
                       ):
 
         N, B = obs['action'].shape[:2]
+        I = iwae_samples
         noises = self.core.generate_noises(N, (B * I, ), obs['action'].device)  # Belongs to RSSM but need to do here for perf
 
         # Encoder
@@ -339,7 +345,13 @@ class WorldModel(nn.Module):
         # RSSM
 
         prior, post, post_samples, features, states, out_state = \
-            self.core.forward(embed, obs['action'], obs['reset'], in_state, None, noises, I=I, imagine_dropout=imagine_dropout)
+            self.core.forward(embed,
+                              obs['action'],
+                              obs['reset'],
+                              in_state,
+                              noises,
+                              iwae_samples=iwae_samples,
+                              do_open_loop=do_open_loop)
 
         if forward_only:
             return torch.tensor(0.0), features, states, out_state, {}, {}

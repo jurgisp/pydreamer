@@ -32,7 +32,6 @@ defaults:
   buffer_size: 10_000_000
   reset_interval: 200
   iwae_samples: 1
-  imagine_dropout: 0
   kl_balance: 0.8
   kl_weight: 1.0
   image_weight: 1.0

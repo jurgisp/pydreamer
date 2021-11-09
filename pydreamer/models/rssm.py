@@ -26,13 +26,13 @@ class RSSMCore(nn.Module):
                 action: Tensor,      # tensor(N, B, A)
                 reset: Tensor,       # tensor(N, B)
                 in_state: Tuple[Tensor, Tensor],    # [(BI,D) (BI,S)]
-                glob_state: Any,
-                noises: List[Tensor],      # (N,B,I)
-                I: int = 1,
-                imagine_dropout=0,       # If 1, will imagine sequence, not using observations to form posterior
+                noises: List[Tensor],
+                iwae_samples: int = 1,
+                do_open_loop=False,
                 ):
 
         n, b = embed.shape[:2]
+        I = iwae_samples
 
         # Multiply batch dimension by I samples
 
@@ -51,16 +51,10 @@ class RSSMCore(nn.Module):
         (h, z) = in_state
 
         for i in range(n):
-            if imagine_dropout == 0:
-                imagine = False
-            elif imagine_dropout == 1:
-                imagine = True
-            else:
-                imagine = np.random.rand() < imagine_dropout
-            if not imagine:
+            if not do_open_loop:
                 post, (h, z) = self.cell.forward(embeds[i], actions[i], reset_masks[i], (h, z), noises[i])
             else:
-                post, (h, z) = self.cell.forward_prior(actions[i], reset_masks[i], (h, z), noises[i])  # post=prior in this case
+                post, (h, z) = self.cell.forward_prior(actions[i], reset_masks[i], (h, z), noises[i])  # open loop: post=prior
             posts.append(post)
             states_h.append(h)
             samples.append(z)

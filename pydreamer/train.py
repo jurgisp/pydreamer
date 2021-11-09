@@ -218,10 +218,10 @@ def run(conf):
 
                         state = states.get(wid) or model.init_state(conf.batch_size * conf.iwae_samples)
                         losses, new_state, loss_metrics, tensors, dream_tensors = \
-                            model.training_step(obs, state,
-                                                I=conf.iwae_samples,
-                                                H=conf.imag_horizon,
-                                                imagine_dropout=conf.imagine_dropout,
+                            model.training_step(obs,
+                                                state,
+                                                iwae_samples=conf.iwae_samples,
+                                                imag_horizon=conf.imag_horizon,
                                                 do_image_pred=steps % conf.log_interval >= int(conf.log_interval * 0.9),  # 10% of batches
                                                 do_dream_tensors=steps % conf.logbatch_interval == 1)
                         if conf.keep_state:
@@ -417,9 +417,9 @@ def evaluate(prefix: str,
                     _, _, _, tensors_im, _ = \
                         model.training_step(obs,  # observation will be ignored in forward pass because of imagine=True
                                             state,
-                                            I=eval_samples,
-                                            H=conf.imag_horizon,
-                                            imagine_dropout=1,
+                                            iwae_samples=eval_samples,
+                                            imag_horizon=conf.imag_horizon,
+                                            do_open_loop=True,
                                             do_image_pred=True)
 
                     if np.random.rand() < 0.10:  # Save a small sample of batches
@@ -444,9 +444,8 @@ def evaluate(prefix: str,
                 _, state, loss_metrics, tensors, _ = \
                     model.training_step(obs,
                                         state,
-                                        I=eval_samples,
-                                        H=conf.imag_horizon,
-                                        imagine_dropout=0,
+                                        iwae_samples=eval_samples,
+                                        imag_horizon=conf.imag_horizon,
                                         do_image_pred=True)
 
                 for k, v in loss_metrics.items():
