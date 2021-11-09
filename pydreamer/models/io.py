@@ -85,18 +85,6 @@ class ConvDecoder(nn.Module):
         loss = 0.5 * torch.square(output - target).sum(dim=[-1, -2, -3])  # MSE
         return unflatten_batch(loss, bd)
 
-    def accuracy(self, output: TensorNBICHW, target: Union[TensorNBICHW, IntTensorNBIHW], map_coord: TensorNBI4, map_seen_mask=None):
-        output, bd = flatten_batch(output, 4)  # (*,I,C,H,W)
-        target, _ = flatten_batch(target, 4)   # (*,I,C,H,W)
-        map_coord, _ = flatten_batch(map_coord, 2)  # (*,I,4)
-        output = torch.mean(output, dim=-4)  # (*,I,C,H,W) => (*,C,H,W)
-        target = target.select(-4, 0)  # int(*,I,H,W) => int(*,H,W)
-        map_coord = map_coord.select(-2, 0)
-        # acc = envs.worldgrid_map_accuracy(output, target, map_coord[:, 0:2], map_coord[:, 2:4])  # TODO: env-specific
-        # acc = unflatten_batch(acc, bd)  # (N,B)
-        # return acc
-        raise NotImplementedError
-
     def to_distr(self, output: Tensor) -> Tensor:  # Return mean
         assert len(output.shape) == 6  # (N,B,I,C,H,W)
         return output.mean(dim=2)  # (N,B,I,C,H,W) => (N,B,C,H,W)
@@ -244,7 +232,7 @@ class DenseDecoder(nn.Module):
         assert len(loss.shape) == 1
         return unflatten_batch(loss, bd)
 
-    def accuracy(self, output: TensorNBICHW, target: Union[TensorNBICHW, IntTensorNBIHW], map_coord: TensorNBI4, map_seen_mask: Optional[Tensor] = None):
+    def accuracy(self, output: TensorNBICHW, target: Union[TensorNBICHW, IntTensorNBIHW], map_seen_mask: Optional[Tensor] = None):
         if len(output.shape) == len(target.shape):
             target = target.argmax(dim=-3)  # float(*,I,C,H,W) => int(*,I,H,W)
         output, bd = flatten_batch(output, 4)

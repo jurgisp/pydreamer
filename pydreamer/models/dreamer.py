@@ -12,7 +12,7 @@ from models.functions import *
 from models.io import *
 from models.rnn import *
 from models.rssm import *
-from models.heads import *
+from models.probes import *
 
 
 class Dreamer(nn.Module):
@@ -21,47 +21,6 @@ class Dreamer(nn.Module):
         super().__init__()
 
         state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1) + conf.global_dim
-        n_map_coords = 4
-        map_state_dim = state_dim + n_map_coords
-
-        # Map decoder
-
-        if conf.map_model == 'vae':
-            if conf.map_decoder == 'cnn':
-                map_model = VAEHead(
-                    encoder=ConvEncoder(in_channels=conf.map_channels),
-                    decoder=ConvDecoder(in_dim=map_state_dim + conf.map_stoch_dim,
-                                        mlp_layers=2,
-                                        layer_norm=conf.layer_norm,
-                                        out_channels=conf.map_channels),
-                    state_dim=map_state_dim,
-                    latent_dim=conf.map_stoch_dim,
-                    hidden_dim=conf.hidden_dim
-                )
-            else:
-                raise NotImplementedError
-
-        elif conf.map_model == 'direct':
-            if conf.map_decoder == 'cnn':
-                map_model = DirectHead(
-                    decoder=ConvDecoder(in_dim=map_state_dim,
-                                        mlp_layers=2,
-                                        layer_norm=conf.layer_norm,
-                                        out_channels=conf.map_channels))
-
-            else:
-                map_model = DirectHead(
-                    decoder=DenseDecoder(in_dim=map_state_dim,
-                                         out_shape=(conf.map_channels, conf.map_size, conf.map_size),
-                                         hidden_dim=conf.map_hidden_dim,
-                                         hidden_layers=conf.map_hidden_layers,
-                                         layer_norm=conf.layer_norm))    # type: ignore
-        elif conf.map_model == 'none':
-            map_model = NoHead(out_shape=(conf.map_channels, conf.map_size, conf.map_size))
-        else:
-            assert False, f'Unknown map_model={conf.map_model}'
-
-        self.map_model: DirectHead = map_model  # type: ignore
 
         # World model
 
@@ -92,6 +51,17 @@ class Dreamer(nn.Module):
                               entropy_weight=conf.entropy,
                               target_interval=conf.target_interval,
                               )
+
+        # Map probe
+
+        if conf.map_model == 'direct':
+            map_model = MapProbeHead(state_dim + 4, conf)
+        elif conf.map_model == 'none':
+            map_model = NoProbeHead()
+        else:
+            raise NotImplementedError(f'Unknown map_model={conf.map_model}')
+        self.map_model = map_model
+
 
     def init_optimizers(self, conf):
         optimizer_wm = torch.optim.AdamW(self.wm.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
@@ -154,15 +124,13 @@ class Dreamer(nn.Module):
             self.wm.training_step(obs, in_state, I=I, imagine_dropout=imagine_dropout, do_image_pred=do_image_pred)
         metrics.update(loss=metrics['loss_wm'])
 
-        # Forward (map)
+        # Map probe
 
-        map_coord = insert_dim(obs['map_coord'], 2, I)  # TODO: move inside map_model.forward()
-        map = insert_dim(obs['map'], 2, I)
-        map_features = torch.cat((features, map_coord), dim=-1)
-        map_features = map_features.detach()
-        map_out = self.map_model.forward(map_features, map, do_image_pred=do_image_pred)
+        loss_map, metrics_map, tensors_map = self.map_model.training_step(features.detach(), obs)
+        metrics.update(**metrics_map)
+        tensors.update(**tensors_map)
 
-        # Forward (dream)
+        # Policy
 
         in_state_dream: StateB = map_structure(states, lambda x: flatten_batch(x.detach())[0])  # type: ignore  # (N,B,I) => (NBI)
         features_dream, actions_dream = self.dream(in_state_dream, H)   # (H+1,NBI,D) - features_dream includes the starting "real" features at features_dream[0]
@@ -171,21 +139,9 @@ class Dreamer(nn.Module):
             rewards_dream = self.wm.decoder_reward.forward(features_dream)      # (H+1,NBI)
             terminals_dream = self.wm.decoder_terminal.forward(features_dream)  # (H+1,NBI)
 
-        # Loss
-
-        loss_map, metrics_map, tensors_map = self.map_model.loss(*map_out, obs['map'], obs['map_coord'], obs['map_seen_mask'])
-        metrics.update(**metrics_map)
-        tensors.update(**tensors_map)
-
         losses_ac, metrics_ac, tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream)
         metrics.update(**metrics_ac)
         tensors.update(policy_value=unflatten_batch(tensors_ac['value'][0], (N, B, I)).mean(-1))
-
-        # Predict
-
-        with torch.no_grad():
-            map_rec = self.map_model.predict(*map_out)
-            tensors['map_rec'] = map_rec
 
         # Dream for a log sample.
 
@@ -210,8 +166,7 @@ class Dreamer(nn.Module):
                 assert dream_tensors['action_pred'].shape == obs['action'].shape
                 assert dream_tensors['image_pred'].shape == obs['image'].shape
 
-        losses = (loss_model, loss_map, *losses_ac)
-        return losses, out_state, metrics, tensors, dream_tensors
+        return (loss_model, loss_map, *losses_ac), out_state, metrics, tensors, dream_tensors
 
     def dream(self, in_state: StateB, H: int):
         NBI = len(in_state[0])  # Imagine batch size = N*B*I

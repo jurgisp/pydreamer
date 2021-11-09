@@ -19,6 +19,7 @@ from models.functions import *
 TensorNBCHW = Tensor
 TensorNB = Tensor
 TensorNBICHW = Tensor
+TensorNBIF = Tensor
 TensorNBI4 = Tensor
 TensorJMF = Tensor
 TensorJM2 = Tensor
