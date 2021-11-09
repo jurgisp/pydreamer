@@ -7,10 +7,11 @@ from torch import Tensor
 
 from models.functions import *
 
-# TODO: this is work-in-progress attempt to use type aliases to indicate the shapes of tensors.
+# This is a work-in-progress attempt to use type aliases to indicate the shapes of tensors.
 # N = 50         (TBTT length)
 # B = 50         (batch size)
 # A = 3          (action dim)
+# E              (embedding dim)
 # I = 1/3/10     (IWAE)
 # F = 2048+32    (feature_dim)
 # H = 10         (dream horizon)
@@ -18,6 +19,7 @@ from models.functions import *
 # M = N*B*I = 2500
 TensorNBCHW = Tensor
 TensorNB = Tensor
+TensorNBE = Tensor
 TensorNBICHW = Tensor
 TensorNBIF = Tensor
 TensorNBI4 = Tensor
@@ -35,8 +37,9 @@ StateNB = Tuple[Tensor, Tensor]
 class MLP(nn.Module):
 
     def __init__(self, in_dim, out_dim, hidden_dim, hidden_layers, layer_norm, activation=nn.ELU):
-        norm = nn.LayerNorm if layer_norm else NoNorm
         super().__init__()
+        self.out_dim = out_dim
+        norm = nn.LayerNorm if layer_norm else NoNorm
         layers = []
         for i in range(hidden_layers):
             layers += [
