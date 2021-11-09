@@ -20,7 +20,7 @@ class Dreamer(nn.Module):
     def __init__(self, conf):
         super().__init__()
 
-        state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1) + conf.global_dim
+        state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1)
 
         # World model
 
@@ -175,7 +175,6 @@ class Dreamer(nn.Module):
     def dream(self, in_state: StateB, imag_horizon: int):
         NBI = len(in_state[0])  # Imagine batch size = N*B*I
         H = imag_horizon
-        noises = self.wm.core.generate_noises(H, (NBI, ), in_state[0].device)
         features = []
         actions = []
         state = in_state
@@ -185,7 +184,7 @@ class Dreamer(nn.Module):
             action = D.OneHotCategorical(logits=self.ac.forward_actor(feature)).sample()
             features.append(feature)
             actions.append(action)
-            _, state = self.wm.core.cell.forward_prior(action, None, state, noises[i])
+            _, state = self.wm.core.cell.forward_prior(action, None, state)
 
         feature = self.wm.core.to_feature(*state)
         features.append(feature)
@@ -230,7 +229,6 @@ class WorldModel(nn.Module):
         self.deter_dim = deter_dim
         self.stoch_dim = stoch_dim
         self.stoch_discrete = stoch_discrete
-        self.global_dim = 0
         self.kl_weight = kl_weight
         self.image_weight = image_weight
         self.vecobs_weight = vecobs_weight
@@ -244,7 +242,7 @@ class WorldModel(nn.Module):
 
         # Decoders
 
-        state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1) + conf.global_dim
+        state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1)
         if conf.image_decoder == 'cnn':
             self.decoder_image = ConvDecoder(in_dim=state_dim,
                                              out_channels=conf.image_channels,
@@ -274,7 +272,6 @@ class WorldModel(nn.Module):
                              stoch_dim=stoch_dim,
                              stoch_discrete=stoch_discrete,
                              hidden_dim=hidden_dim,
-                             global_dim=self.global_dim,
                              gru_layers=gru_layers,
                              gru_type=gru_type,
                              layer_norm=conf.layer_norm)
@@ -304,10 +301,6 @@ class WorldModel(nn.Module):
                       forward_only=False
                       ):
 
-        N, B = obs['action'].shape[:2]
-        I = iwae_samples
-        noises = self.core.generate_noises(N, (B * I, ), obs['action'].device)  # Belongs to RSSM but need to do here for perf
-
         # Encoder
 
         embed = self.encoder(obs)
@@ -319,7 +312,6 @@ class WorldModel(nn.Module):
                               obs['action'],
                               obs['reset'],
                               in_state,
-                              noises,
                               iwae_samples=iwae_samples,
                               do_open_loop=do_open_loop)
 
@@ -345,7 +337,8 @@ class WorldModel(nn.Module):
 
         # ------ LOSS -------
 
-        image = insert_dim(obs['image'], 2, I)
+        I = iwae_samples
+        image = insert_dim(obs['image'], 2, I)  # TODO: do this expansion inside decoder.loss?
         vecobs = insert_dim(obs['vecobs'], 2, I)
         reward = insert_dim(obs['reward'], 2, I)
         terminal = insert_dim(obs['terminal'], 2, I)

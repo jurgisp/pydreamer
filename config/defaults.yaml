@@ -83,7 +83,6 @@ defaults:
   map_hidden_dim: 1024
   mem_model: none
   mem_loss_type:
-  global_dim: 0
 
   # Actor Critic
   gamma: 0.99

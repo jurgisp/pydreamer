@@ -36,11 +36,13 @@ def unflatten_batch(x: Tensor, batch_dim: Union[Size, Tuple]) -> Tensor:
     x = torch.reshape(x, batch_dim + x.shape[1:])
     return x
 
+
 def insert_dim(x: Tensor, dim: int, size: int) -> Tensor:
     """Inserts dimension and expands it to size."""
     x = x.unsqueeze(dim)
-    x = x.expand(*x.shape[:dim], size, *x.shape[dim+1:])
+    x = x.expand(*x.shape[:dim], size, *x.shape[dim + 1:])
     return x
+
 
 def diag_normal(x: Tensor, min_std=0.1, max_std=2.0):
     # DreamerV2:
@@ -54,12 +56,6 @@ def diag_normal(x: Tensor, min_std=0.1, max_std=2.0):
     # std = F.softplus(std) + min_std
     std = max_std * torch.sigmoid(std) + min_std
     return D.independent.Independent(D.normal.Normal(mean, std), 1)
-
-
-def rsample(x: Tensor, noise: Tensor, min_std=0.1, max_std=2.0):
-    mean, std = x.chunk(2, -1)
-    std = max_std * torch.sigmoid(std) + min_std
-    return mean + noise * std
 
 
 def init_weights_tf2(m):
@@ -85,7 +81,9 @@ def logavgexp(x: Tensor, dim: int) -> Tensor:
     else:
         return x.squeeze(dim)
 
+
 T = TypeVar('T', Tensor, np.ndarray)
+
 
 def map_structure(data: Union[Tuple[T, ...], Dict[str, T]], f: Callable[[T], T]) -> Union[Tuple[T, ...], Dict[str, T]]:
     # Like tf.nest.map_structure
@@ -126,6 +124,7 @@ def stack_structure_np(datas: Tuple[Dict[str, np.ndarray]]) -> Dict[str, np.ndar
         key: np.stack([d[key] for d in datas])
         for key in keys
     }
+
 
 def nanmean(x: Tensor) -> Tensor:
     return torch.nansum(x) / (~torch.isnan(x)).sum()
