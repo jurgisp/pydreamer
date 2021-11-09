@@ -268,17 +268,16 @@ class NetworkPolicy:
         obs_model: Dict[str, Tensor] = map_structure(batch, torch.from_numpy)  # type: ignore
 
         with torch.no_grad():
-            action_logits, value, new_state = self.model.forward(obs_model, self.state)
+            action_logits, new_state, metrics = self.model.forward(obs_model, self.state)
             action_logits = action_logits[0, 0]  # (N=1,B=1,A) => (A)
-            value = value[0, 0]
             action_distr = D.OneHotCategorical(logits=action_logits)
             self.state = new_state
 
         action = action_distr.sample()
         action = action.argmax(-1)  # one-hot => int
 
-        metrics = dict(policy_value=value.item(),
-                       action_prob=action_distr.probs[action].item(),
+        metrics = {k: v.item() for k, v in metrics.items()}
+        metrics.update(action_prob=action_distr.probs[action].item(),
                        policy_entropy=action_distr.entropy().item())
 
         return action.item(), metrics

@@ -130,7 +130,8 @@ class Dreamer(nn.Module):
         action_logits = self.ac.forward_actor(feature)  # (1,B,A)
         value = self.ac.forward_value(feature)  # (1,B)
 
-        return action_logits, value, out_state
+        metrics = dict(policy_value=value.detach().mean())
+        return action_logits, out_state, metrics
 
     def training_step(self,
                       obs: Dict[str, Tensor],
@@ -468,10 +469,10 @@ class WorldModel(nn.Module):
             entropy_post = dpost.entropy().mean(dim=-1)
 
             tensors = dict(loss_kl=loss_kl.detach(),
-                               loss_image=loss_image.detach(),
-                               entropy_prior=entropy_prior,
-                               entropy_post=entropy_post,
-                               )
+                           loss_image=loss_image.detach(),
+                           entropy_prior=entropy_prior,
+                           entropy_post=entropy_post,
+                           )
 
             metrics = dict(loss_wm=loss_model.mean(),
                            loss_wm_image=loss_image.mean(),
@@ -501,7 +502,7 @@ class WorldModel(nn.Module):
                 logprob_reward = -logavgexp(-logprob_reward, dim=-1)
                 metrics.update(logprob_reward=logprob_reward.mean())
                 tensors.update(reward_pred=reward_pred.mean.mean(dim=-1),  # not quite loss tensor, but fine
-                                   logprob_reward=logprob_reward)
+                               logprob_reward=logprob_reward)
 
                 mask_pos = (reward.select(-1, 0) > 0)  # mask where reward is *positive*
                 logprob_reward_pos = (logprob_reward * mask_pos) / mask_pos  # set to nan where ~mask
@@ -518,7 +519,7 @@ class WorldModel(nn.Module):
                 logprob_terminal = -logavgexp(-logprob_terminal, dim=-1)
                 metrics.update(logprob_terminal=logprob_terminal.mean())
                 tensors.update(terminal_pred=terminal_pred.mean.mean(dim=-1),    # not quite loss tensor, but fine
-                                   logprob_terminal=logprob_terminal)
+                               logprob_terminal=logprob_terminal)
 
                 mask_terminal1 = (terminal.select(-1, 0) == 1)  # mask where terminal is 1
                 logprob_terminal1 = (logprob_terminal * mask_terminal1) / mask_terminal1  # set to nan where ~mask
