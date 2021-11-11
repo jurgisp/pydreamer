@@ -10,9 +10,9 @@ from models.functions import *
 # This is a work-in-progress attempt to use type aliases to indicate the shapes of tensors.
 # N = 50         (TBTT length)
 # B = 50         (batch size)
+# I = 1/3/10     (IWAE samples)
 # A = 3          (action dim)
 # E              (embedding dim)
-# I = 1/3/10     (IWAE)
 # F = 2048+32    (feature_dim)
 # H = 10         (dream horizon)
 # J = H+1 = 11
@@ -22,14 +22,14 @@ TensorNB = Tensor
 TensorNBE = Tensor
 TensorNBICHW = Tensor
 TensorNBIF = Tensor
-TensorNBI4 = Tensor
+TensorNBI = Tensor
 TensorJMF = Tensor
 TensorJM2 = Tensor
 TensorHMA = Tensor
 TensorHM = Tensor
 TensorJM = Tensor
 
-IntTensorNBIHW = Tensor
+IntTensorNBHW = Tensor
 StateB = Tuple[Tensor, Tensor]
 StateNB = Tuple[Tensor, Tensor]
 

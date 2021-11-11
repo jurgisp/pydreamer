@@ -9,7 +9,8 @@ from tools import *
 from models.a2c import *
 from models.common import *
 from models.functions import *
-from models.io import *
+from models.encoders import *
+from models.decoders import *
 from models.rnn import *
 from models.rssm import *
 from models.probes import *
@@ -248,21 +249,21 @@ class WorldModel(nn.Module):
                                              out_channels=conf.image_channels,
                                              cnn_depth=conf.cnn_depth)
         else:
-            self.decoder_image = DenseDecoder(in_dim=state_dim,
-                                              out_shape=(conf.image_channels, conf.image_size, conf.image_size),
-                                              hidden_layers=conf.image_decoder_layers,
-                                              layer_norm=conf.layer_norm,
-                                              min_prob=conf.image_decoder_min_prob)
+            self.decoder_image = CatImageDecoder(in_dim=state_dim,
+                                                 out_shape=(conf.image_channels, conf.image_size, conf.image_size),
+                                                 hidden_layers=conf.image_decoder_layers,
+                                                 layer_norm=conf.layer_norm,
+                                                 min_prob=conf.image_decoder_min_prob)
 
         if conf.reward_decoder_categorical:
-            self.decoder_reward = DenseCategoricalSupportHead(in_dim=state_dim,
-                                                              support=conf.reward_decoder_categorical,
-                                                              hidden_layers=conf.reward_decoder_layers,
-                                                              layer_norm=conf.layer_norm)
+            self.decoder_reward = DenseCategoricalSupportDecoder(in_dim=state_dim,
+                                                                 support=conf.reward_decoder_categorical,
+                                                                 hidden_layers=conf.reward_decoder_layers,
+                                                                 layer_norm=conf.layer_norm)
         else:
-            self.decoder_reward = DenseNormalHead(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
-        self.decoder_terminal = DenseBernoulliHead(in_dim=state_dim, hidden_layers=conf.terminal_decoder_layers, layer_norm=conf.layer_norm)
-        self.decoder_vecobs = DenseNormalHead(in_dim=state_dim, out_dim=64, hidden_layers=4, layer_norm=conf.layer_norm)
+            self.decoder_reward = DenseNormalDecoder(in_dim=state_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
+        self.decoder_terminal = DenseBernoulliDecoder(in_dim=state_dim, hidden_layers=conf.terminal_decoder_layers, layer_norm=conf.layer_norm)
+        self.decoder_vecobs = DenseNormalDecoder(in_dim=state_dim, out_dim=64, hidden_layers=4, layer_norm=conf.layer_norm)
 
         # RSSM
 
@@ -320,36 +321,22 @@ class WorldModel(nn.Module):
 
         # Decoder
 
-        image_rec = self.decoder_image.forward(features)
-        vecobs_rec = self.decoder_vecobs.forward(features)
-        reward_rec = self.decoder_reward.forward(features)
-        terminal_rec = self.decoder_terminal.forward(features)
+        tensors = {}
+        metrics = {}
 
-        # Predictions
+        loss_image_nbi, loss_image, image_rec = self.decoder_image.training_step(features, obs['image'])
+        metrics.update(loss_image=loss_image.detach().mean())
+        tensors.update(loss_image=loss_image.detach(),
+                       image_rec=image_rec.detach())
 
-        image_pred, reward_pred, terminal_pred = None, None, None
-        if do_image_pred:
-            prior_samples = self.core.zdistr(prior).sample().reshape(post_samples.shape)
-            features_prior = self.core.feature_replace_z(features, prior_samples)
-            image_pred = self.decoder_image.forward(features_prior)
-            reward_pred = self.decoder_reward.forward(features_prior)
-            terminal_pred = self.decoder_terminal.forward(features_prior)
+        loss_vecobs_nbi, loss_vecobs, vecobs_rec = self.decoder_vecobs.training_step(features, obs['vecobs'])
+        metrics.update(loss_vecobs=loss_vecobs.detach().mean())
 
-        # ------ LOSS -------
+        loss_reward_nbi, loss_reward, reward_rec = self.decoder_reward.training_step(features, obs['reward'])
+        metrics.update(loss_reward=loss_reward.detach().mean())
 
-        I = iwae_samples
-        image = insert_dim(obs['image'], 2, I)  # TODO: do this expansion inside decoder.loss?
-        vecobs = insert_dim(obs['vecobs'], 2, I)
-        reward = insert_dim(obs['reward'], 2, I)
-        terminal = insert_dim(obs['terminal'], 2, I)
-
-        # Decoder loss
-
-        loss_image = self.decoder_image.loss(image_rec, image)  # (N,B,I)
-        loss_vecobs = self.decoder_vecobs.loss(vecobs_rec, vecobs)  # (N,B,I)
-        loss_reward = self.decoder_reward.loss(reward_rec, reward)  # (N,B,I)
-        loss_terminal = self.decoder_terminal.loss(terminal_rec, terminal)  # (N,B,I)
-        assert (loss_image.requires_grad and loss_reward.requires_grad and loss_terminal.requires_grad) or not features.requires_grad
+        loss_terminal_nbi, loss_terminal, terminal_rec = self.decoder_terminal.training_step(features, obs['terminal'])
+        metrics.update(loss_terminal=loss_terminal.detach().mean())
 
         # KL loss
 
@@ -357,7 +344,7 @@ class WorldModel(nn.Module):
         dprior = d(prior)
         dpost = d(post)
         loss_kl_exact = D.kl.kl_divergence(dpost, dprior)  # (N,B,I)
-        if I == 1:
+        if iwae_samples == 1:
             # Analytic KL loss, standard for VAE
             if not self.kl_balance:
                 loss_kl = loss_kl_exact
@@ -372,86 +359,64 @@ class WorldModel(nn.Module):
 
         # Total loss
 
-        assert loss_kl.shape == loss_image.shape == loss_vecobs.shape == loss_reward.shape == loss_terminal.shape
+        assert (loss_image_nbi.requires_grad and loss_reward_nbi.requires_grad and loss_terminal_nbi.requires_grad) or not features.requires_grad
+        assert loss_kl.shape == loss_image_nbi.shape == loss_vecobs_nbi.shape == loss_reward_nbi.shape == loss_terminal_nbi.shape
         loss_model = -logavgexp(-(
             self.kl_weight * loss_kl
-            + self.image_weight * loss_image
-            + self.vecobs_weight * loss_vecobs
-            + self.reward_weight * loss_reward
-            + self.terminal_weight * loss_terminal
-        ), dim=-1)
-
-        # IWAE according to paper
-
-        # with torch.no_grad():
-        #     weights = F.softmax(-(loss_image + loss_kl), dim=-1)
-        # dloss = (weights * (loss_image + loss_kl)).sum(dim=-1).mean()
+            + self.image_weight * loss_image_nbi
+            + self.vecobs_weight * loss_vecobs_nbi
+            + self.reward_weight * loss_reward_nbi
+            + self.terminal_weight * loss_terminal_nbi
+        ), dim=2)
 
         # Metrics
 
         with torch.no_grad():
-            loss_image = -logavgexp(-loss_image, dim=-1)
-            loss_vecobs = -logavgexp(-loss_vecobs, dim=-1)
-            loss_reward = -logavgexp(-loss_reward, dim=-1)
-            loss_terminal = -logavgexp(-loss_terminal, dim=-1)
-            loss_kl = -logavgexp(-loss_kl_exact, dim=-1)  # Log exact KL loss even when using IWAE, it avoids random negative values
-            entropy_prior = dprior.entropy().mean(dim=-1)
-            entropy_post = dpost.entropy().mean(dim=-1)
-
+            loss_kl = -logavgexp(-loss_kl_exact, dim=2)  # Log exact KL loss even when using IWAE, it avoids random negative values
+            entropy_prior = dprior.entropy().mean(dim=2)
+            entropy_post = dpost.entropy().mean(dim=2)
             tensors = dict(loss_kl=loss_kl.detach(),
-                           loss_image=loss_image.detach(),
                            entropy_prior=entropy_prior,
-                           entropy_post=entropy_post,
-                           )
-
+                           entropy_post=entropy_post)
             metrics = dict(loss_wm=loss_model.mean(),
-                           loss_wm_image=loss_image.mean(),
-                           loss_wm_image_max=loss_image.max(),
-                           loss_wm_vecobs=loss_vecobs.mean(),
-                           loss_wm_reward=loss_reward.mean(),
-                           loss_wm_terminal=loss_terminal.mean(),
                            loss_wm_kl=loss_kl.mean(),
                            loss_wm_kl_max=loss_kl.max(),
                            entropy_prior=entropy_prior.mean(),
-                           entropy_post=entropy_post.mean(),
-                           )
+                           entropy_post=entropy_post.mean())
 
-            tensors['image_rec'] = image_rec.mean(dim=2)  # (N,B,I,C,H,W) => (N,B,C,H,W)
+        # Predictions
 
-            # Predictions from prior
+        if do_image_pred:
+            with torch.no_grad():
+                prior_samples = self.core.zdistr(prior).sample().reshape(post_samples.shape)
+                features_prior = self.core.feature_replace_z(features, prior_samples)
 
-            if image_pred is not None:
-                logprob_img = self.decoder_image.loss(image_pred, image)
-                logprob_img = -logavgexp(-logprob_img, dim=-1)  # This is *negative*-log-prob, so actually positive, same as loss
-                tensors.update(logprob_img=logprob_img)
-                metrics.update(logprob_img=logprob_img.mean())
-                tensors['image_pred'] = image_pred.mean(dim=2)
+                _, logprob_img, image_pred = self.decoder_image.training_step(features_prior, obs['image'])
+                metrics.update(logprob_img=logprob_img.detach().mean())
+                tensors.update(logprob_img=logprob_img.detach(),
+                               image_pred=image_pred.detach())
 
-            if reward_pred is not None:
-                logprob_reward = self.decoder_reward.loss(reward_pred, reward)
-                logprob_reward = -logavgexp(-logprob_reward, dim=-1)
-                metrics.update(logprob_reward=logprob_reward.mean())
-                tensors.update(reward_pred=reward_pred.mean.mean(dim=-1),  # not quite loss tensor, but fine
-                               logprob_reward=logprob_reward)
+                _, logprob_vecobs, vecobs_pred = self.decoder_vecobs.training_step(features_prior, obs['vecobs'])
+                metrics.update(logprob_vecobs=logprob_vecobs.detach().mean())
 
-                mask_pos = (reward.select(-1, 0) > 0)  # mask where reward is *positive*
+                _, logprob_reward, reward_pred = self.decoder_reward.training_step(features_prior, obs['reward'])
+                metrics.update(logprob_reward=logprob_reward.detach().mean())
+                tensors.update(logprob_reward=logprob_reward.detach(),
+                               reward_pred=reward_pred.detach())
+                mask_pos = obs['reward'] > 0  # mask where reward is *positive*
                 logprob_reward_pos = (logprob_reward * mask_pos) / mask_pos  # set to nan where ~mask
                 metrics.update(logprob_rewardp=nanmean(logprob_reward_pos))
                 tensors.update(logprob_rewardp=logprob_reward_pos)
-
-                mask_neg = (reward.select(-1, 0) < 0)  # mask where reward is *negative*
+                mask_neg = obs['reward'] > 0  # mask where reward is *negative*
                 logprob_reward_neg = (logprob_reward * mask_neg) / mask_neg  # set to nan where ~mask
                 metrics.update(logprob_rewardn=nanmean(logprob_reward_neg))
                 tensors.update(logprob_rewardn=logprob_reward_neg)
 
-            if terminal_pred is not None:
-                logprob_terminal = self.decoder_terminal.loss(terminal_pred, terminal)
-                logprob_terminal = -logavgexp(-logprob_terminal, dim=-1)
-                metrics.update(logprob_terminal=logprob_terminal.mean())
-                tensors.update(terminal_pred=terminal_pred.mean.mean(dim=-1),    # not quite loss tensor, but fine
-                               logprob_terminal=logprob_terminal)
-
-                mask_terminal1 = (terminal.select(-1, 0) == 1)  # mask where terminal is 1
+                _, logprob_terminal, terminal_pred = self.decoder_terminal.training_step(features_prior, obs['terminal'])
+                metrics.update(logprob_terminal=logprob_terminal.detach().mean())
+                tensors.update(logprob_terminal=logprob_terminal.detach(),
+                               terminal_pred=terminal_pred.detach())
+                mask_terminal1 = obs['terminal'] > 0  # mask where terminal is 1
                 logprob_terminal1 = (logprob_terminal * mask_terminal1) / mask_terminal1  # set to nan where ~mask
                 metrics.update(logprob_terminal1=nanmean(logprob_terminal1))
                 tensors.update(logprob_terminal1=logprob_terminal1)
