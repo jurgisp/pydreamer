@@ -285,7 +285,7 @@ def run(conf):
                         metrics.update({f'train/{k}_max': np.max(v) for k, v in metrics_max.items()})
                         metrics['train/steps'] = steps  # type: ignore
                         metrics['_step'] = steps  # type: ignore
-                        metrics['_loss'] = metrics['train/loss']
+                        metrics['_loss'] = metrics['train/loss_model']
                         metrics['_timestamp'] = datetime.now().timestamp()  # type: ignore
 
                         t = time.time()
@@ -294,8 +294,7 @@ def run(conf):
                         last_time, last_steps = t, steps
 
                         info(f"[{steps:06}]"
-                             f"  loss: {metrics.get('train/loss', 0):.3f}"
-                             f"  loss_wm: {metrics.get('train/loss_wm', 0):.3f}"
+                             f"  loss_model: {metrics.get('train/loss_model', 0):.3f}"
                              f"  loss_critic: {metrics.get('train/loss_critic', 0):.3f}"
                              f"  loss_map: {metrics.get('train/loss_map', 0):.3f}"
                              f"  policy_value: {metrics.get('train/policy_value',0):.3f}"

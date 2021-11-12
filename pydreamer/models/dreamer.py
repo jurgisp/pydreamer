@@ -127,7 +127,6 @@ class Dreamer(nn.Module):
                                   iwae_samples=iwae_samples,
                                   do_open_loop=do_open_loop,
                                   do_image_pred=do_image_pred)
-        metrics.update(loss=metrics['loss_wm'])
 
         # Map probe
 
@@ -375,12 +374,11 @@ class WorldModel(nn.Module):
             loss_kl = -logavgexp(-loss_kl_exact, dim=2)  # Log exact KL loss even when using IWAE, it avoids random negative values
             entropy_prior = dprior.entropy().mean(dim=2)
             entropy_post = dpost.entropy().mean(dim=2)
-            tensors = dict(loss_kl=loss_kl.detach(),
+            tensors.update(loss_kl=loss_kl.detach(),
                            entropy_prior=entropy_prior,
                            entropy_post=entropy_post)
-            metrics = dict(loss_wm=loss_model.mean(),
-                           loss_wm_kl=loss_kl.mean(),
-                           loss_wm_kl_max=loss_kl.max(),
+            metrics.update(loss_model=loss_model.mean(),
+                           loss_kl=loss_kl.mean(),
                            entropy_prior=entropy_prior.mean(),
                            entropy_post=entropy_post.mean())
 
