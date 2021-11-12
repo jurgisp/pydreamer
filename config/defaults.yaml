@@ -140,6 +140,8 @@ miniworld:
   imag_horizon: 1
 
 atari:
+  n_steps: 99_000_000
+  n_env_steps: 200_000_000
   # Env
   env_id: Atari-Pong
   action_dim: 18

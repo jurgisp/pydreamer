@@ -98,7 +98,7 @@ def run(conf):
                                   conf,
                                   save_uri=f'{artifact_uri}/episodes/{i}',
                                   save_uri2=f'{artifact_uri}/episodes_eval/{i}',
-                                  num_steps=(conf.n_env_steps - conf.generator_prefill_steps) // conf.generator_workers,
+                                  num_steps=(conf.n_env_steps - conf.generator_prefill_steps) // (conf.generator_workers * conf.env_action_repeat),
                                   worker_id=i,
                                   policy='network',
                                   split_fraction=0.1)
@@ -109,7 +109,7 @@ def run(conf):
                 p = run_generator(conf.env_id,
                                   conf,
                                   f'{artifact_uri}/episodes/{i}',
-                                  num_steps=(conf.n_env_steps - conf.generator_prefill_steps) // conf.generator_workers,
+                                  num_steps=(conf.n_env_steps - conf.generator_prefill_steps) // (conf.generator_workers * conf.env_action_repeat),
                                   worker_id=i,
                                   policy='network')
                 input_dirs.append(f'{artifact_uri}/episodes/{i}')
