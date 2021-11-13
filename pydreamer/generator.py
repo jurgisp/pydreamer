@@ -238,7 +238,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             repo = repository if (np.random.rand() > split_fraction) else repository2
             for i, data in enumerate(chunks):
                 if len(data['image'].shape) == 4:
-                    # NHWC => HWCN for better compression
+                    # THWC => HWCT for better compression
                     data['image_t'] = data['image'].transpose(1, 2, 3, 0)
                     del data['image']
                 else:
@@ -269,7 +269,7 @@ class NetworkPolicy:
 
         with torch.no_grad():
             action_logits, new_state, metrics = self.model.forward(obs_model, self.state)
-            action_logits = action_logits[0, 0]  # (N=1,B=1,A) => (A)
+            action_logits = action_logits[0, 0]  # (T=1,B=1,A) => (A)
             action_distr = D.OneHotCategorical(logits=action_logits)
             self.state = new_state
 

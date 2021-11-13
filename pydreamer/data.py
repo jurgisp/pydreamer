@@ -205,7 +205,7 @@ class DataSequential(IterableDataset):
 
         # Undo the transformation for better compression
         if 'image' not in data and 'image_t' in data:
-            data['image'] = data['image_t'].transpose(3, 0, 1, 2)  # HWCN => NHWC
+            data['image'] = data['image_t'].transpose(3, 0, 1, 2)  # HWCT => THWC
             del data['image_t']
 
         if 'map_centered' in data and data['map_centered'].dtype == np.float64:

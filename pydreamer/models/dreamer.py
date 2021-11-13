@@ -81,7 +81,7 @@ class Dreamer(nn.Module):
 
         # Forward (actor critic)
 
-        feature = features[:, :, 0]  # (N=1,B,I=1,F) => (1,B,F)
+        feature = features[:, :, 0]  # (T=1,B,I=1,F) => (1,B,F)
         action_logits = self.ac.forward_actor(feature)  # (1,B,A)
         value = self.ac.forward_value(feature)  # (1,B)
 
@@ -101,7 +101,7 @@ class Dreamer(nn.Module):
         assert 'reward' in obs, '`reward` required in observation'
         assert 'reset' in obs, '`reset` required in observation'
         assert 'terminal' in obs, '`terminal` required in observation'
-        N, B = obs['action'].shape[:2]
+        T, B = obs['action'].shape[:2]
         I, H = iwae_samples, imag_horizon
 
         # World model
@@ -121,29 +121,29 @@ class Dreamer(nn.Module):
 
         # Policy
 
-        in_state_dream: StateB = map_structure(states, lambda x: flatten_batch(x.detach())[0])  # type: ignore  # (N,B,I) => (NBI)
-        features_dream, actions_dream = self.dream(in_state_dream, H)   # (H+1,NBI,D) - features_dream includes the starting "real" features at features_dream[0]
+        in_state_dream: StateB = map_structure(states, lambda x: flatten_batch(x.detach())[0])  # type: ignore  # (T,B,I) => (TBI)
+        features_dream, actions_dream = self.dream(in_state_dream, H)   # (H+1,TBI,D) - features_dream includes the starting "real" features at features_dream[0]
         features_dream = features_dream.detach()  # Not using dynamics gradients for now, just Reinforce
         with torch.no_grad():  # careful not to invoke modules first time under no_grad (https://github.com/pytorch/pytorch/issues/60164)
-            rewards_dream = self.wm.decoder.reward.forward(features_dream)      # (H+1,NBI)
-            terminals_dream = self.wm.decoder.terminal.forward(features_dream)  # (H+1,NBI)
+            rewards_dream = self.wm.decoder.reward.forward(features_dream)      # (H+1,TBI)
+            terminals_dream = self.wm.decoder.terminal.forward(features_dream)  # (H+1,TBI)
 
         losses_ac, metrics_ac, tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream)
         metrics.update(**metrics_ac)
-        tensors.update(policy_value=unflatten_batch(tensors_ac['value'][0], (N, B, I)).mean(-1))
+        tensors.update(policy_value=unflatten_batch(tensors_ac['value'][0], (T, B, I)).mean(-1))
 
         # Dream for a log sample.
 
         dream_tensors = {}
         if do_dream_tensors:
             with torch.no_grad():  # careful not to invoke modules first time under no_grad (https://github.com/pytorch/pytorch/issues/60164)
-                # The reason we don't just take real features_dream is because it's really big (H*N*B*I),
+                # The reason we don't just take real features_dream is because it's really big (H*T*B*I),
                 # and here for inspection purposes we only dream from first step, so it's (H*B).
-                # Oh, and we set here H=N-1, so we get (N,B), and the dreamed experience aligns with actual.
-                in_state_dream: StateB = map_structure(states, lambda x: x.detach()[0, :, 0])  # type: ignore  # (N,B,I) => (B)
-                features_dream, actions_dream = self.dream(in_state_dream, N - 1)      # H = N-1
-                rewards_dream = self.wm.decoder.reward.forward(features_dream)      # (H+1,B) = (N,B)
-                terminals_dream = self.wm.decoder.terminal.forward(features_dream)  # (H+1,B) = (N,B)
+                # Oh, and we set here H=T-1, so we get (T,B), and the dreamed experience aligns with actual.
+                in_state_dream: StateB = map_structure(states, lambda x: x.detach()[0, :, 0])  # type: ignore  # (T,B,I) => (B)
+                features_dream, actions_dream = self.dream(in_state_dream, T - 1)      # H = T-1
+                rewards_dream = self.wm.decoder.reward.forward(features_dream)      # (H+1,B) = (T,B)
+                terminals_dream = self.wm.decoder.terminal.forward(features_dream)  # (H+1,B) = (T,B)
                 image_dream = self.wm.decoder.image.forward(features_dream)
                 _, _, tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream, log_only=True)
                 # The tensors are intentionally named same as in tensors, so the logged npz looks the same for dreamed or not
@@ -158,8 +158,6 @@ class Dreamer(nn.Module):
         return (loss_model, loss_map, *losses_ac), out_state, metrics, tensors, dream_tensors
 
     def dream(self, in_state: StateB, imag_horizon: int):
-        NBI = len(in_state[0])  # Imagine batch size = N*B*I
-        H = imag_horizon
         features = []
         actions = []
         state = in_state
@@ -174,8 +172,8 @@ class Dreamer(nn.Module):
         feature = self.wm.core.to_feature(*state)
         features.append(feature)
 
-        features = torch.stack(features)  # (H+1,NBI,D)
-        actions = torch.stack(actions)  # (H,NBI,A)
+        features = torch.stack(features)  # (H+1,TBI,D)
+        actions = torch.stack(actions)  # (H,TBI,A)
         return features, actions
 
     def __str__(self):
@@ -275,7 +273,7 @@ class WorldModel(nn.Module):
         d = self.core.zdistr
         dprior = d(prior)
         dpost = d(post)
-        loss_kl_exact = D.kl.kl_divergence(dpost, dprior)  # (N,B,I)
+        loss_kl_exact = D.kl.kl_divergence(dpost, dprior)  # (T,B,I)
         if iwae_samples == 1:
             # Analytic KL loss, standard for VAE
             if not self.kl_balance:
@@ -292,8 +290,8 @@ class WorldModel(nn.Module):
         # Total loss
 
         assert loss_kl.shape == loss_reconstr.shape
-        loss_model_nbi = self.kl_weight * loss_kl + loss_reconstr
-        loss_model = -logavgexp(-loss_model_nbi, dim=2)
+        loss_model_tbi = self.kl_weight * loss_kl + loss_reconstr
+        loss_model = -logavgexp(-loss_model_tbi, dim=2)
 
         # Metrics
 

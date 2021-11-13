@@ -390,10 +390,10 @@ def evaluate(prefix: str,
 
             batch = next(data_iterator)
             obs: Dict[str, Tensor] = map_structure(batch, lambda x: x.to(device))  # type: ignore
-            N, B = obs['action'].shape[:2]
+            T, B = obs['action'].shape[:2]
 
             if i_batch == 0:
-                info(f'Evaluation ({prefix}): batches: {eval_batches},  size(N,B,I): ({N},{B},{eval_samples})')
+                info(f'Evaluation ({prefix}): batches: {eval_batches},  size(T,B,I): ({T},{B},{eval_samples})')
 
             reset_episodes = obs['reset'].any(dim=0)  # (B,)
             n_reset_episodes = reset_episodes.sum().item()
@@ -488,7 +488,7 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
         if take_b < val.shape[1]:
             val = val[:, :take_b]
 
-        x = val.cpu().numpy()  # (N,B,*)
+        x = val.cpu().numpy()  # (T,B,*)
         if x.dtype in [np.float16, np.float64]:
             x = x.astype(np.float32)
 
@@ -506,8 +506,8 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
             assert x.dtype == np.float32 and (key.startswith('image') or key.startswith('map')), \
                 f'Unexpected 3D tensor: {key}: {x.shape}, {x.dtype}'
 
-            if x.shape[-1] == x.shape[-2]:  # (N,B,C,W,W)
-                x = x.transpose(0, 1, 3, 4, 2)  # => (N,B,W,W,C)
+            if x.shape[-1] == x.shape[-2]:  # (T,B,C,W,W)
+                x = x.transpose(0, 1, 3, 4, 2)  # => (T,B,W,W,C)
             assert x.shape[-2] == x.shape[-3], 'Assuming rectangular images, otherwise need to improve logic'
 
             if x.shape[-1] in [1, 3]:
@@ -522,7 +522,7 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
                     f'Unexpected 3D categorical logits: {key}: {x.shape}'
                 x = scipy.special.softmax(x, axis=-1)
 
-        x = x.swapaxes(0, 1)  # type: ignore  # (N,B,*) => (B,N,*)
+        x = x.swapaxes(0, 1)  # type: ignore  # (T,B,*) => (B,T,*)
         return x
 
     return {k: unpreprocess(k, v) for k, v in data.items()}

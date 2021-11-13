@@ -38,38 +38,38 @@ class MultiDecoder(nn.Module):
         self.vecobs = DenseNormalDecoder(in_dim=features_dim, out_dim=64, hidden_layers=4, layer_norm=conf.layer_norm)
 
     def training_step(self,
-                      features: TensorNBIF,
+                      features: TensorTBIF,
                       obs: Dict[str, Tensor],
                       extra_metrics: bool = False
-                      ) -> Tuple[TensorNBI, Dict[str, Tensor], Dict[str, Tensor]]:
+                      ) -> Tuple[TensorTBI, Dict[str, Tensor], Dict[str, Tensor]]:
         tensors = {}
         metrics = {}
 
-        loss_image_nbi, loss_image, image_rec = self.image.training_step(features, obs['image'])
+        loss_image_tbi, loss_image, image_rec = self.image.training_step(features, obs['image'])
         metrics.update(loss_image=loss_image.detach().mean())
         tensors.update(loss_image=loss_image.detach(),
                        image_rec=image_rec.detach())
 
-        loss_vecobs_nbi, loss_vecobs, vecobs_rec = self.vecobs.training_step(features, obs['vecobs'])
+        loss_vecobs_tbi, loss_vecobs, vecobs_rec = self.vecobs.training_step(features, obs['vecobs'])
         metrics.update(loss_vecobs=loss_vecobs.detach().mean())
         tensors.update(loss_vecobs=loss_vecobs.detach(),
                        vecobs_rec=vecobs_rec.detach())
 
-        loss_reward_nbi, loss_reward, reward_rec = self.reward.training_step(features, obs['reward'])
+        loss_reward_tbi, loss_reward, reward_rec = self.reward.training_step(features, obs['reward'])
         metrics.update(loss_reward=loss_reward.detach().mean())
         tensors.update(loss_reward=loss_reward.detach(),
                        reward_rec=reward_rec.detach())
 
-        loss_terminal_nbi, loss_terminal, terminal_rec = self.terminal.training_step(features, obs['terminal'])
+        loss_terminal_tbi, loss_terminal, terminal_rec = self.terminal.training_step(features, obs['terminal'])
         metrics.update(loss_terminal=loss_terminal.detach().mean())
         tensors.update(loss_terminal=loss_terminal.detach(),
                        terminal_rec=terminal_rec.detach())
 
-        assert loss_image_nbi.shape == loss_vecobs_nbi.shape == loss_reward_nbi.shape == loss_terminal_nbi.shape
-        loss_reconstr = (self.image_weight * loss_image_nbi
-                         + self.vecobs_weight * loss_vecobs_nbi
-                         + self.reward_weight * loss_reward_nbi
-                         + self.terminal_weight * loss_terminal_nbi)
+        assert loss_image_tbi.shape == loss_vecobs_tbi.shape == loss_reward_tbi.shape == loss_terminal_tbi.shape
+        loss_reconstr = (self.image_weight * loss_image_tbi
+                         + self.vecobs_weight * loss_vecobs_tbi
+                         + self.reward_weight * loss_reward_tbi
+                         + self.terminal_weight * loss_terminal_tbi)
 
         if extra_metrics:
             mask_rewardp = obs['reward'] > 0  # mask where reward is positive
@@ -148,18 +148,18 @@ class ConvDecoder(nn.Module):
         loss = 0.5 * torch.square(output - target).sum(dim=[-1, -2, -3])  # MSE
         return unflatten_batch(loss, bd)
 
-    def training_step(self, features: TensorNBIF, target: TensorNBCHW) -> Tuple[TensorNBI, TensorNB, TensorNBCHW]:
+    def training_step(self, features: TensorTBIF, target: TensorTBCHW) -> Tuple[TensorTBI, TensorTB, TensorTBCHW]:
         assert len(features.shape) == 4 and len(target.shape) == 5
         I = features.shape[2]
         target = insert_dim(target, 2, I)  # Expand target with iwae_samples dim, because features have it
 
         decoded = self.forward(features)
-        loss_nbi = self.loss(decoded, target)
-        loss_nb = -logavgexp(-loss_nbi, dim=2)  # NBI => NB
-        decoded = decoded.mean(dim=2)  # NBICHW => NBCHW
+        loss_tbi = self.loss(decoded, target)
+        loss_tb = -logavgexp(-loss_tbi, dim=2)  # TBI => TB
+        decoded = decoded.mean(dim=2)  # TBICHW => TBCHW
 
-        assert len(loss_nbi.shape) == 3 and len(decoded.shape) == 5
-        return loss_nbi, loss_nb, decoded
+        assert len(loss_tbi.shape) == 3 and len(decoded.shape) == 5
+        return loss_tbi, loss_tb, decoded
 
 
 class CatImageDecoder(nn.Module):
@@ -211,23 +211,23 @@ class CatImageDecoder(nn.Module):
         assert len(loss.shape) == 1
         return unflatten_batch(loss, bd)
 
-    def training_step(self, features: TensorNBIF, target: TensorNBCHW) -> Tuple[TensorNBI, TensorNB, TensorNBCHW]:
+    def training_step(self, features: TensorTBIF, target: TensorTBCHW) -> Tuple[TensorTBI, TensorTB, TensorTBCHW]:
         assert len(features.shape) == 4 and len(target.shape) == 5
         I = features.shape[2]
         target = insert_dim(target, 2, I)  # Expand target with iwae_samples dim, because features have it
 
         logits = self.forward(features)
-        loss_nbi = self.loss(logits, target)
-        loss_nb = -logavgexp(-loss_nbi, dim=2)  # NBI => NB
+        loss_tbi = self.loss(logits, target)
+        loss_tb = -logavgexp(-loss_tbi, dim=2)  # TBI => TB
 
-        assert len(logits.shape) == 6   # NBICHW
+        assert len(logits.shape) == 6   # TBICHW
         logits = logits - logits.logsumexp(dim=-3, keepdim=True)  # normalize C
-        logits = torch.logsumexp(logits, dim=2)  # aggregate I => NBCHW
+        logits = torch.logsumexp(logits, dim=2)  # aggregate I => TBCHW
         logits = logits - logits.logsumexp(dim=-3, keepdim=True)  # normalize C again
         decoded = logits
 
-        assert len(loss_nbi.shape) == 3 and len(decoded.shape) == 5
-        return loss_nbi, loss_nb, decoded
+        assert len(loss_tbi.shape) == 3 and len(decoded.shape) == 5
+        return loss_tbi, loss_tb, decoded
 
 
 class DenseBernoulliDecoder(nn.Module):
@@ -244,20 +244,20 @@ class DenseBernoulliDecoder(nn.Module):
     def loss(self, output: D.Distribution, target: Tensor) -> Tensor:
         return -output.log_prob(target)
 
-    def training_step(self, features: TensorNBIF, target: Tensor) -> Tuple[TensorNBI, TensorNB, TensorNB]:
+    def training_step(self, features: TensorTBIF, target: Tensor) -> Tuple[TensorTBI, TensorTB, TensorTB]:
         assert len(features.shape) == 4
         I = features.shape[2]
         target = insert_dim(target, 2, I)  # Expand target with iwae_samples dim, because features have it
 
         decoded = self.forward(features)
-        loss_nbi = self.loss(decoded, target)
-        loss_nb = -logavgexp(-loss_nbi, dim=2)  # NBI => NB
+        loss_tbi = self.loss(decoded, target)
+        loss_tb = -logavgexp(-loss_tbi, dim=2)  # TBI => TB
         decoded = decoded.mean.mean(dim=2)
 
-        assert len(loss_nbi.shape) == 3
-        assert len(loss_nb.shape) == 2
+        assert len(loss_tbi.shape) == 3
+        assert len(loss_tb.shape) == 2
         assert len(decoded.shape) == 2
-        return loss_nbi, loss_nb, decoded
+        return loss_tbi, loss_tb, decoded
 
 
 class DenseNormalDecoder(nn.Module):
@@ -279,20 +279,20 @@ class DenseNormalDecoder(nn.Module):
         var = self.std ** 2  # var cancels denominator, which makes loss = 0.5 (target-output)^2
         return -output.log_prob(target) * var
 
-    def training_step(self, features: TensorNBIF, target: Tensor) -> Tuple[TensorNBI, TensorNB, Tensor]:
+    def training_step(self, features: TensorTBIF, target: Tensor) -> Tuple[TensorTBI, TensorTB, Tensor]:
         assert len(features.shape) == 4
         I = features.shape[2]
         target = insert_dim(target, 2, I)  # Expand target with iwae_samples dim, because features have it
 
         decoded = self.forward(features)
-        loss_nbi = self.loss(decoded, target)
-        loss_nb = -logavgexp(-loss_nbi, dim=2)  # NBI => NB
+        loss_tbi = self.loss(decoded, target)
+        loss_tb = -logavgexp(-loss_tbi, dim=2)  # TBI => TB
         decoded = decoded.mean.mean(dim=2)
 
-        assert len(loss_nbi.shape) == 3
-        assert len(loss_nb.shape) == 2
+        assert len(loss_tbi.shape) == 3
+        assert len(loss_tb.shape) == 2
         assert len(decoded.shape) == (2 if self.out_dim == 1 else 3)
-        return loss_nbi, loss_nb, decoded
+        return loss_tbi, loss_tb, decoded
 
 
 class DenseCategoricalSupportDecoder(nn.Module):
@@ -321,17 +321,17 @@ class DenseCategoricalSupportDecoder(nn.Module):
         distances = torch.square(target.unsqueeze(-1) - self.support)
         return distances.argmin(-1)
 
-    def training_step(self, features: TensorNBIF, target: Tensor) -> Tuple[TensorNBI, TensorNB, TensorNB]:
+    def training_step(self, features: TensorTBIF, target: Tensor) -> Tuple[TensorTBI, TensorTB, TensorTB]:
         assert len(features.shape) == 4
         I = features.shape[2]
         target = insert_dim(target, 2, I)  # Expand target with iwae_samples dim, because features have it
 
         decoded = self.forward(features)
-        loss_nbi = self.loss(decoded, target)
-        loss_nb = -logavgexp(-loss_nbi, dim=2)  # NBI => NB
+        loss_tbi = self.loss(decoded, target)
+        loss_tb = -logavgexp(-loss_tbi, dim=2)  # TBI => TB
         decoded = decoded.mean.mean(dim=2)
 
-        assert len(loss_nbi.shape) == 3
-        assert len(loss_nb.shape) == 2
+        assert len(loss_tbi.shape) == 3
+        assert len(loss_tb.shape) == 2
         assert len(decoded.shape) == 2
-        return loss_nbi, loss_nb, decoded
+        return loss_tbi, loss_tb, decoded

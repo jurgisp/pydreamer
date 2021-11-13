@@ -19,24 +19,24 @@ class RSSMCore(nn.Module):
         self.cell = RSSMCell(embed_dim, action_dim, deter_dim, stoch_dim, stoch_discrete, hidden_dim, gru_layers, gru_type, layer_norm)
 
     def forward(self,
-                embed: Tensor,       # tensor(N, B, E)
-                action: Tensor,      # tensor(N, B, A)
-                reset: Tensor,       # tensor(N, B)
+                embed: Tensor,       # tensor(T, B, E)
+                action: Tensor,      # tensor(T, B, A)
+                reset: Tensor,       # tensor(T, B)
                 in_state: Tuple[Tensor, Tensor],    # [(BI,D) (BI,S)]
                 iwae_samples: int = 1,
                 do_open_loop=False,
                 ):
 
-        N, B = embed.shape[:2]
+        T, B = embed.shape[:2]
         I = iwae_samples
 
         # Multiply batch dimension by I samples
 
         def expand(x):
-            # (N,B,X) -> (N,BI,X)
-            return x.unsqueeze(2).expand(N, B, I, -1).reshape(N, B * I, -1)
+            # (T,B,X) -> (T,BI,X)
+            return x.unsqueeze(2).expand(T, B, I, -1).reshape(T, B * I, -1)
 
-        embeds = expand(embed).unbind(0)     # (N,B,...) => List[(BI,...)]
+        embeds = expand(embed).unbind(0)     # (T,B,...) => List[(BI,...)]
         actions = expand(action).unbind(0)
         reset_masks = expand(~reset.unsqueeze(2)).unbind(0)
 
@@ -46,7 +46,7 @@ class RSSMCore(nn.Module):
         samples = []
         (h, z) = in_state
 
-        for i in range(N):
+        for i in range(T):
             if not do_open_loop:
                 post, (h, z) = self.cell.forward(embeds[i], actions[i], reset_masks[i], (h, z))
             else:
@@ -55,24 +55,24 @@ class RSSMCore(nn.Module):
             states_h.append(h)
             samples.append(z)
 
-        posts = torch.stack(posts)          # (N,BI,2S)
-        states_h = torch.stack(states_h)    # (N,BI,D)
-        samples = torch.stack(samples)      # (N,BI,S)
-        priors = self.cell.batch_prior(states_h)  # (N,BI,2S)
-        features = self.to_feature(states_h, samples)   # (N,BI,D+S)
+        posts = torch.stack(posts)          # (T,BI,2S)
+        states_h = torch.stack(states_h)    # (T,BI,D)
+        samples = torch.stack(samples)      # (T,BI,S)
+        priors = self.cell.batch_prior(states_h)  # (T,BI,2S)
+        features = self.to_feature(states_h, samples)   # (T,BI,D+S)
 
-        posts = posts.reshape(N, B, I, -1)  # (N,BI,X) => (N,B,I,X)
-        states_h = states_h.reshape(N, B, I, -1)
-        samples = samples.reshape(N, B, I, -1)
-        priors = priors.reshape(N, B, I, -1)
+        posts = posts.reshape(T, B, I, -1)  # (T,BI,X) => (T,B,I,X)
+        states_h = states_h.reshape(T, B, I, -1)
+        samples = samples.reshape(T, B, I, -1)
+        priors = priors.reshape(T, B, I, -1)
         states = (states_h, samples)
-        features = features.reshape(N, B, I, -1)
+        features = features.reshape(T, B, I, -1)
 
         return (
-            priors,                      # tensor(N,B,I,2S)
-            posts,                       # tensor(N,B,I,2S)
-            samples,                     # tensor(N,B,I,S)
-            features,                    # tensor(N,B,I,D+S)
+            priors,                      # tensor(T,B,I,2S)
+            posts,                       # tensor(T,B,I,2S)
+            samples,                     # tensor(T,B,I,S)
+            features,                    # tensor(T,B,I,D+S)
             states,
             (h.detach(), z.detach()),
         )
@@ -184,7 +184,7 @@ class RSSMCell(nn.Module):
         )
 
     def batch_prior(self,
-                    h: Tensor,     # tensor(N, B, D)
+                    h: Tensor,     # tensor(T, B, D)
                     ) -> Tensor:
         x = self.prior_mlp_h(h)
         x = self.prior_norm(x)

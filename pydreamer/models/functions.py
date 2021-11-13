@@ -10,12 +10,12 @@ import models.rnn as my
 
 
 def flatten(x: Tensor) -> Tensor:
-    # (N, B, ...) => (N*B, ...)
+    # (T, B, ...) => (T*B, ...)
     return torch.reshape(x, (-1,) + x.shape[2:])
 
 
 def unflatten(x: Tensor, n: int) -> Tensor:
-    # (N*B, ...) => (N, B, ...)
+    # (T*B, ...) => (T, B, ...)
     return torch.reshape(x, (n, -1) + x.shape[1:])
 
 

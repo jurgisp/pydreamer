@@ -31,7 +31,7 @@ class MapProbeHead(nn.Module):
             #                            out_channels=conf.map_channels)
 
     def training_step(self,
-                      features: TensorNBIF,
+                      features: TensorTBIF,
                       obs: Dict[str, Tensor],
                       ):
         I = features.shape[2]
@@ -53,7 +53,7 @@ class MapProbeHead(nn.Module):
 
         return loss.mean(), metrics, tensors
 
-    def accuracy(self, output: TensorNBCHW, target: Union[TensorNBCHW, IntTensorNBHW], map_seen_mask: Optional[Tensor] = None):
+    def accuracy(self, output: TensorTBCHW, target: Union[TensorTBCHW, IntTensorTBHW], map_seen_mask: Optional[Tensor] = None):
         if len(output.shape) == len(target.shape):
             target = target.argmax(dim=-3)  # float(*,C,H,W) => int(*,H,W)
         output, bd = flatten_batch(output, 3)
@@ -65,7 +65,7 @@ class MapProbeHead(nn.Module):
         else:
             map_seen_mask, _ = flatten_batch(map_seen_mask, 2)  # (*,H,W)
             acc = (acc * map_seen_mask).sum([-1, -2]) / map_seen_mask.sum([-1, -2])
-        acc = unflatten_batch(acc, bd)  # (N,B)
+        acc = unflatten_batch(acc, bd)  # (T,B)
         return acc
 
 
@@ -76,7 +76,7 @@ class NoProbeHead(nn.Module):
         self.dummy = nn.Parameter(torch.zeros(1), requires_grad=True)
 
     def training_step(self,
-                      features: TensorNBIF,
+                      features: TensorTBIF,
                       obs: Dict[str, Tensor],
                       ):
         return torch.square(self.dummy), {}, {}

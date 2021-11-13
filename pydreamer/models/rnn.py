@@ -25,8 +25,8 @@ class GRU2Inputs(nn.Module):
             self.gru.hidden_size), device=device)
 
     def forward(self,
-                input1_seq: Tensor,  # (N,B,X1)
-                input2_seq: Tensor,  # (N,B,X2)
+                input1_seq: Tensor,  # (T,B,X1)
+                input2_seq: Tensor,  # (T,B,X2)
                 in_state: Optional[Tensor] = None
                 ) -> Tuple[Tensor, Tensor]:
         if in_state is None:
