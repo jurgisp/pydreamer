@@ -427,12 +427,12 @@ def evaluate(prefix: str,
 
                     mask = (~reset_episodes).float()
                     for key, logprobs in tensors_im.items():
-                        if key.startswith('logprob_'):  # logprob_img, logprob_reward, logprob_rewardp, logprob_rewardn, logprob_reward{i}
+                        if key.startswith('logprob_'):  # logprob_image, logprob_reward, ...
                             # Many logprobs will be nans - that's fine. Just take mean of those tahat exist
-                            lps = (logprobs[:5] * mask) / mask  # set to nan where ~mask
+                            lps = logprobs[:5] * mask / mask  # set to nan where ~mask
                             lp = nanmean(lps).item()
                             if not np.isnan(lp):
-                                metrics_eval[f'{key}_open'].append(lp)  # logprob_img_open, ...
+                                metrics_eval[f'{key}_open'].append(lp)  # logprob_image_open, ...
 
             # Closed loop & loss
 

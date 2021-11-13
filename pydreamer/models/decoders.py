@@ -7,6 +7,89 @@ from models.functions import *
 from models.common import *
 
 
+class MultiDecoder(nn.Module):
+
+    def __init__(self, features_dim, conf):
+        super().__init__()
+        self.image_weight = conf.image_weight
+        self.vecobs_weight = conf.vecobs_weight
+        self.reward_weight = conf.reward_weight
+        self.terminal_weight = conf.terminal_weight
+
+        if conf.image_decoder == 'cnn':
+            self.image = ConvDecoder(in_dim=features_dim,
+                                     out_channels=conf.image_channels,
+                                     cnn_depth=conf.cnn_depth)
+        else:
+            self.image = CatImageDecoder(in_dim=features_dim,
+                                         out_shape=(conf.image_channels, conf.image_size, conf.image_size),
+                                         hidden_layers=conf.image_decoder_layers,
+                                         layer_norm=conf.layer_norm,
+                                         min_prob=conf.image_decoder_min_prob)
+
+        if conf.reward_decoder_categorical:
+            self.reward = DenseCategoricalSupportDecoder(in_dim=features_dim,
+                                                         support=conf.reward_decoder_categorical,
+                                                         hidden_layers=conf.reward_decoder_layers,
+                                                         layer_norm=conf.layer_norm)
+        else:
+            self.reward = DenseNormalDecoder(in_dim=features_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
+        self.terminal = DenseBernoulliDecoder(in_dim=features_dim, hidden_layers=conf.terminal_decoder_layers, layer_norm=conf.layer_norm)
+        self.vecobs = DenseNormalDecoder(in_dim=features_dim, out_dim=64, hidden_layers=4, layer_norm=conf.layer_norm)
+
+    def training_step(self,
+                      features: TensorNBIF,
+                      obs: Dict[str, Tensor],
+                      extra_metrics: bool = False
+                      ) -> Tuple[TensorNBI, Dict[str, Tensor], Dict[str, Tensor]]:
+        tensors = {}
+        metrics = {}
+
+        loss_image_nbi, loss_image, image_rec = self.image.training_step(features, obs['image'])
+        metrics.update(loss_image=loss_image.detach().mean())
+        tensors.update(loss_image=loss_image.detach(),
+                       image_rec=image_rec.detach())
+
+        loss_vecobs_nbi, loss_vecobs, vecobs_rec = self.vecobs.training_step(features, obs['vecobs'])
+        metrics.update(loss_vecobs=loss_vecobs.detach().mean())
+        tensors.update(loss_vecobs=loss_vecobs.detach(),
+                       vecobs_rec=vecobs_rec.detach())
+
+        loss_reward_nbi, loss_reward, reward_rec = self.reward.training_step(features, obs['reward'])
+        metrics.update(loss_reward=loss_reward.detach().mean())
+        tensors.update(loss_reward=loss_reward.detach(),
+                       reward_rec=reward_rec.detach())
+
+        loss_terminal_nbi, loss_terminal, terminal_rec = self.terminal.training_step(features, obs['terminal'])
+        metrics.update(loss_terminal=loss_terminal.detach().mean())
+        tensors.update(loss_terminal=loss_terminal.detach(),
+                       terminal_rec=terminal_rec.detach())
+
+        assert loss_image_nbi.shape == loss_vecobs_nbi.shape == loss_reward_nbi.shape == loss_terminal_nbi.shape
+        loss_reconstr = (self.image_weight * loss_image_nbi
+                         + self.vecobs_weight * loss_vecobs_nbi
+                         + self.reward_weight * loss_reward_nbi
+                         + self.terminal_weight * loss_terminal_nbi)
+
+        if extra_metrics:
+            mask_rewardp = obs['reward'] > 0  # mask where reward is positive
+            loss_rewardp = loss_reward * mask_rewardp / mask_rewardp  # set to nan where ~mask
+            metrics.update(loss_rewardp=nanmean(loss_rewardp))
+            tensors.update(loss_rewardp=loss_rewardp)
+
+            mask_rewardn = obs['reward'] < 0  # mask where reward is negative
+            loss_rewardn = loss_reward * mask_rewardn / mask_rewardn  # set to nan where ~mask
+            metrics.update(loss_rewardn=nanmean(loss_rewardn))
+            tensors.update(loss_rewardn=loss_rewardn)
+
+            mask_terminal1 = obs['terminal'] > 0  # mask where terminal is 1
+            loss_terminal1 = loss_terminal * mask_terminal1 / mask_terminal1  # set to nan where ~mask
+            metrics.update(loss_terminal1=nanmean(loss_terminal1))
+            tensors.update(loss_terminal1=loss_terminal1)
+
+        return loss_reconstr, metrics, tensors
+
+
 class ConvDecoder(nn.Module):
 
     def __init__(self,
