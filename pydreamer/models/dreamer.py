@@ -70,7 +70,7 @@ class Dreamer(nn.Module):
     def forward(self,
                 obs: Dict[str, Tensor],
                 in_state: Any,
-                ):
+                ) -> Tuple[D.Distribution, Any, Dict]:
         assert 'action' in obs, 'Observation should contain previous action'
         act_shape = obs['action'].shape
         assert len(act_shape) == 3 and act_shape[0] == 1, f'Expected shape (1,B,A), got {act_shape}'
@@ -82,11 +82,11 @@ class Dreamer(nn.Module):
         # Forward (actor critic)
 
         feature = features[:, :, 0]  # (T=1,B,I=1,F) => (1,B,F)
-        action_logits = self.ac.forward_actor(feature)  # (1,B,A)
+        action_distr = self.ac.forward_actor(feature)  # (1,B,A)
         value = self.ac.forward_value(feature)  # (1,B)
 
         metrics = dict(policy_value=value.detach().mean())
-        return action_logits, out_state, metrics
+        return action_distr, out_state, metrics
 
     def training_step(self,
                       obs: Dict[str, Tensor],
@@ -164,7 +164,7 @@ class Dreamer(nn.Module):
 
         for i in range(imag_horizon):
             feature = self.wm.core.to_feature(*state)
-            action = D.OneHotCategorical(logits=self.ac.forward_actor(feature)).sample()
+            action = self.ac.forward_actor(feature).sample()
             features.append(feature)
             actions.append(action)
             _, state = self.wm.core.cell.forward_prior(action, None, state)

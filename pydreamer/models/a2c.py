@@ -33,14 +33,10 @@ class ActorCritic(nn.Module):
         self.critic_target = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
         self.train_steps = 0
 
-    def forward_actor(self, features: Tensor) -> Tensor:
-        # Would be nice to return D.OneHotCategorical here, but there's a potential problem with AMP:
-        # D.Categorical(logits=y).logits remains float16, because logsumexp() doesn't autocast to float32,
-        # whereas y.log_softmax(-1) does autocast
-        # TODO: D.OneHotCategorical(logits=y.float()) seems to work fine to force float32
+    def forward_actor(self, features: Tensor) -> D.Distribution:
         y = self.actor.forward(features)
-        logits = y.log_softmax(-1)
-        return logits
+        distr = D.OneHotCategorical(logits=y.float())  # .float() to force float32 on AMP
+        return distr
 
     def forward_value(self, features: Tensor) -> Tensor:
         y = self.critic.forward(features)
@@ -61,7 +57,7 @@ class ActorCritic(nn.Module):
         reward1: TensorHM = rewards.mean[1:]
         terminal0: TensorHM = terminals.mean[:-1]
         terminal1: TensorHM = terminals.mean[1:]
-        policy_logits = self.forward_actor(features[:-1])
+        policy_distr = self.forward_actor(features[:-1])
         value: TensorJM = self.critic.forward(features)
         value0: TensorHM = value[:-1]
         with torch.no_grad():
@@ -113,9 +109,9 @@ class ActorCritic(nn.Module):
         reality_weight = (1 - terminal0).log().cumsum(dim=0).exp()
 
         loss_value = 0.5 * torch.square(value_target - value0)
-        action_logprob = (policy_logits * actions).sum(-1)
+        action_logprob = policy_distr.log_prob(actions)
         loss_policy = - action_logprob * advantage_gae
-        policy_entropy = - (policy_logits * policy_logits.exp()).sum(-1)
+        policy_entropy = policy_distr.entropy()
         assert (loss_policy.requires_grad and policy_entropy.requires_grad) or not loss_value.requires_grad
 
         loss_value = (loss_value * reality_weight).mean()
