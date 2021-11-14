@@ -35,6 +35,10 @@ def create_env(env_id: str, no_terminal: bool, env_time_limit: int, env_action_r
         from envs.minerl import MineRL
         env = MineRL(env_id, np.load('data/minerl_action_centroids.npy'), action_repeat=env_action_repeat)
 
+    elif env_id.startswith('DMC-'):
+        from envs.dmc import DMC
+        env = DMC(env_id.split('-')[1].lower(), action_repeat=env_action_repeat)
+
     else:
         env = gym.make(env_id)
         env = DictWrapper(env)

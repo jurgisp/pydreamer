@@ -287,12 +287,12 @@ def configure_logging(worker_id):
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.DEBUG)
     handler.setFormatter(LogColorFormatter(
-        f'[GEN {worker_id}]  %(message)s',
+        f'[GEN {worker_id}]  %(message)s',  # [%(name)s]
         info_color=LogColorFormatter.GREEN
     ))
     logging.root.setLevel(logging.DEBUG)
     logging.root.handlers = [handler]
-    for logname in ['urllib3', 'requests', 'mlflow', 'git', 'azure']:
+    for logname in ['urllib3', 'requests', 'mlflow', 'git', 'azure', 'PIL', 'absl']:
         logging.getLogger(logname).setLevel(logging.WARNING)  # disable other loggers
 
 
