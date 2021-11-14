@@ -94,7 +94,7 @@ defaults:
   # Generator
   generator_workers: 4
   generator_workers_eval: 1
-  generator_prefill_steps: 500_000
+  generator_prefill_steps: 200_000
   env_id:
   env_id_eval:
   env_action_repeat: 1
@@ -168,7 +168,6 @@ dmlab:
   reward_input: False
   kl_weight: 3.0
   gamma: 0.995
-  generator_prefill_steps: 200_000
 
 dmlab_offline:
   env_id: DmLab-rooms_watermaze
