@@ -36,6 +36,8 @@ class Dreamer(nn.Module):
                               lambda_gae=conf.lambda_gae,
                               entropy_weight=conf.entropy,
                               target_interval=conf.target_interval,
+                              actor_grad=conf.actor_grad,
+                              actor_dist=conf.actor_dist,
                               )
 
         # Map probe
@@ -122,13 +124,11 @@ class Dreamer(nn.Module):
         # Policy
 
         in_state_dream: StateB = map_structure(states, lambda x: flatten_batch(x.detach())[0])  # type: ignore  # (T,B,I) => (TBI)
-        features_dream, actions_dream = self.dream(in_state_dream, H)   # (H+1,TBI,D) - features_dream includes the starting "real" features at features_dream[0]
-        features_dream = features_dream.detach()  # Not using dynamics gradients for now, just Reinforce
-        with torch.no_grad():  # careful not to invoke modules first time under no_grad (https://github.com/pytorch/pytorch/issues/60164)
-            rewards_dream = self.wm.decoder.reward.forward(features_dream)      # (H+1,TBI)
-            terminals_dream = self.wm.decoder.terminal.forward(features_dream)  # (H+1,TBI)
-
-        losses_ac, metrics_ac, tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream)
+        # Note features_dream includes the starting "real" features at features_dream[0]
+        features_dream, actions_dream, rewards_dream, terminals_dream = \
+            self.dream(in_state_dream, H, self.ac.actor_grad == 'dynamics')  # (H+1,TBI,D)
+        (loss_actor, loss_critic), metrics_ac, tensors_ac = \
+            self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream)
         metrics.update(**metrics_ac)
         tensors.update(policy_value=unflatten_batch(tensors_ac['value'][0], (T, B, I)).mean(-1))
 
@@ -141,11 +141,9 @@ class Dreamer(nn.Module):
                 # and here for inspection purposes we only dream from first step, so it's (H*B).
                 # Oh, and we set here H=T-1, so we get (T,B), and the dreamed experience aligns with actual.
                 in_state_dream: StateB = map_structure(states, lambda x: x.detach()[0, :, 0])  # type: ignore  # (T,B,I) => (B)
-                features_dream, actions_dream = self.dream(in_state_dream, T - 1)      # H = T-1
-                rewards_dream = self.wm.decoder.reward.forward(features_dream)      # (H+1,B) = (T,B)
-                terminals_dream = self.wm.decoder.terminal.forward(features_dream)  # (H+1,B) = (T,B)
+                features_dream, actions_dream, rewards_dream, terminals_dream = self.dream(in_state_dream, T - 1)  # H = T-1
                 image_dream = self.wm.decoder.image.forward(features_dream)
-                _, _, tensors_ac = self.ac.training_step(features_dream, rewards_dream, terminals_dream, actions_dream, log_only=True)
+                _, _, tensors_ac = self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, log_only=True)
                 # The tensors are intentionally named same as in tensors, so the logged npz looks the same for dreamed or not
                 dream_tensors = dict(action_pred=torch.cat([obs['action'][:1], actions_dream]),  # first action is real from previous step
                                      reward_pred=rewards_dream.mean,
@@ -155,26 +153,35 @@ class Dreamer(nn.Module):
                 assert dream_tensors['action_pred'].shape == obs['action'].shape
                 assert dream_tensors['image_pred'].shape == obs['image'].shape
 
-        return (loss_model, loss_map, *losses_ac), out_state, metrics, tensors, dream_tensors
+        return (loss_model, loss_map, loss_actor, loss_critic), out_state, metrics, tensors, dream_tensors
 
-    def dream(self, in_state: StateB, imag_horizon: int):
+    def dream(self, in_state: StateB, imag_horizon: int, dynamics_gradients=False):
         features = []
         actions = []
         state = in_state
 
         for i in range(imag_horizon):
             feature = self.wm.core.to_feature(*state)
-            action = self.ac.forward_actor(feature).sample()
+            action_dist = self.ac.forward_actor(feature)
+            if dynamics_gradients:
+                action = action_dist.rsample()
+            else:
+                action = action_dist.sample()
             features.append(feature)
             actions.append(action)
+            # When using dynamics gradients, this causes gradients in RSSM, which we don't want.
+            # This is handled in backprop - the optimizer_model will ignore gradients from loss_actor.
             _, state = self.wm.core.cell.forward_prior(action, None, state)
 
         feature = self.wm.core.to_feature(*state)
         features.append(feature)
-
         features = torch.stack(features)  # (H+1,TBI,D)
         actions = torch.stack(actions)  # (H,TBI,A)
-        return features, actions
+
+        rewards = self.wm.decoder.reward.forward(features)      # (H+1,TBI)
+        terminals = self.wm.decoder.terminal.forward(features)  # (H+1,TBI)
+
+        return features, actions, rewards, terminals
 
     def __str__(self):
         # Short representation

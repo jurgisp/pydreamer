@@ -263,7 +263,7 @@ class NetworkPolicy:
         self.preprocess = preprocess
         self.state = model.init_state(1)
 
-    def __call__(self, obs) -> Tuple[int, dict]:
+    def __call__(self, obs) -> Tuple[np.ndarray, dict]:
         batch = self.preprocess.apply(obs, expandTB=True)
         obs_model: Dict[str, Tensor] = map_structure(batch, torch.from_numpy)  # type: ignore
 
@@ -276,8 +276,8 @@ class NetworkPolicy:
         metrics.update(action_prob=action_distr.log_prob(action).exp().mean().item(),
                        policy_entropy=action_distr.entropy().mean().item())
 
-        action = action.squeeze().argmax(-1)  # one-hot => int
-        return action.item(), metrics
+        action = action.squeeze()  # (1,1,A) => A
+        return action.numpy(), metrics
 
 
 def configure_logging(worker_id):

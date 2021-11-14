@@ -51,12 +51,21 @@ def diag_normal(x: Tensor, min_std=0.1, max_std=2.0):
     #     'sigmoid2': lambda: 2 * tf.nn.sigmoid(std / 2),
     # }[self.std_act]()
     # std = std + self.min_std
-
     mean, std = x.chunk(2, -1)
     # std = F.softplus(std) + min_std
     std = max_std * torch.sigmoid(std) + min_std
     return D.independent.Independent(D.normal.Normal(mean, std), 1)
 
+
+def tanh_normal(x: Tensor):
+    mean_, std_ = x.chunk(2, -1)
+    mean = 5 * torch.tanh(mean_ / 5)  # clip tanh arg to (-5, 5)
+    std = F.softplus(std_) + 0.1  # min_std = 0.1
+    normal = D.normal.Normal(mean, std)
+    normal = D.independent.Independent(normal, 1)
+    tanh = D.TransformedDistribution(normal, [D.TanhTransform()])
+    tanh.entropy = normal.entropy  # HACK: need to implement correct tanh.entorpy (need Jacobian of TanhTransform?)
+    return tanh
 
 def init_weights_tf2(m):
     # Match TF2 initializations
