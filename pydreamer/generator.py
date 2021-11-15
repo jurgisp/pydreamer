@@ -44,7 +44,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          log_every=10,
          ):
 
-    configure_logging(worker_id)
+    configure_logging(prefix=f'[GEN {worker_id}]', info_color=LogColorFormatter.GREEN)
 
     # Mlflow
 
@@ -278,19 +278,6 @@ class NetworkPolicy:
 
         action = action.squeeze()  # (1,1,A) => A
         return action.numpy(), metrics
-
-
-def configure_logging(worker_id):
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.DEBUG)
-    handler.setFormatter(LogColorFormatter(
-        f'[GEN {worker_id}]  %(message)s',  # [%(name)s]
-        info_color=LogColorFormatter.GREEN
-    ))
-    logging.root.setLevel(logging.DEBUG)
-    logging.root.handlers = [handler]
-    for logname in ['urllib3', 'requests', 'mlflow', 'git', 'azure', 'PIL', 'absl']:
-        logging.getLogger(logname).setLevel(logging.WARNING)  # disable other loggers
 
 
 if __name__ == '__main__':

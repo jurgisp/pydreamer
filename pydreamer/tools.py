@@ -2,6 +2,7 @@ import io
 import logging
 import os
 import posixpath
+import sys
 import tempfile
 import time
 import warnings
@@ -249,3 +250,18 @@ class LogColorFormatter(logging.Formatter):
         else:
             fmt = self.fmt
         return logging.Formatter(fmt).format(record)
+
+
+def configure_logging(prefix='[%(name)s]', level=logging.DEBUG, info_color=None):
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(level)
+    handler.setFormatter(LogColorFormatter(
+        f'{prefix}  %(message)s',
+        info_color=info_color
+    ))
+    logging.root.setLevel(level)
+    logging.root.handlers = [handler]
+    for logname in ['urllib3', 'requests', 'mlflow', 'git', 'azure', 'PIL']:
+        logging.getLogger(logname).setLevel(logging.WARNING)  # disable other loggers
+    for logname in ['absl']:
+        logging.getLogger(logname).setLevel(logging.INFO)

@@ -567,21 +567,8 @@ def get_profiler(conf):
         return NoProfiler()
 
 
-def configure_logging():
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.DEBUG)
-    handler.setFormatter(LogColorFormatter(
-        f'[TRAIN]  %(message)s',  # [%(name)s]
-        info_color=None
-    ))
-    logging.root.setLevel(logging.DEBUG)
-    logging.root.handlers = [handler]
-    for logname in ['urllib3', 'requests', 'mlflow', 'git', 'azure', 'PIL', 'absl']:
-        logging.getLogger(logname).setLevel(logging.WARNING)  # disable other loggers
-
-
 if __name__ == '__main__':
-    configure_logging()
+    configure_logging(prefix='[TRAIN]')
     parser = argparse.ArgumentParser()
     parser.add_argument('--configs', nargs='+', required=True)
     args, remaining = parser.parse_known_args()
