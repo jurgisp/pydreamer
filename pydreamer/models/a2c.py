@@ -37,6 +37,7 @@ class ActorCritic(nn.Module):
         self.actor = MLP(in_dim, actor_out_dim, hidden_dim, hidden_layers, layer_norm)
         self.critic = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
         self.critic_target = MLP(in_dim, 1, hidden_dim, hidden_layers, layer_norm)
+        self.critic_target.requires_grad_(False)
         self.train_steps = 0
 
     def forward_actor(self, features: Tensor) -> D.Distribution:
@@ -73,7 +74,7 @@ class ActorCritic(nn.Module):
         # GAE from https://arxiv.org/abs/1506.02438 eq (16)
         #   advantage_gae[t] = advantage[t] + (gamma lambda) advantage[t+1] + (gamma lambda)^2 advantage[t+2] + ...
 
-        value_t: TensorJM = self.critic_target.forward(features.detach()).detach()
+        value_t: TensorJM = self.critic_target.forward(features)
         value0t: TensorHM = value_t[:-1]
         value1t: TensorHM = value_t[1:]
         advantage = - value0t + reward1 + self.gamma * (1.0 - terminal1) * value1t

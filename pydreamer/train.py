@@ -231,10 +231,9 @@ def run(conf):
 
                 with timer('backward'):
 
-                    # Important HACK: going in reversed order we zero out world model gradients,
-                    # which arise when doing backprop of dynamics gradients from loss_actor
-                    for opt, loss in reversed(list(zip(optimizers, losses))):
+                    for opt in optimizers:
                         opt.zero_grad()
+                    for loss in losses:
                         scaler.scale(loss).backward()
 
                 # Grad step

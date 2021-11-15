@@ -159,6 +159,7 @@ class Dreamer(nn.Module):
         features = []
         actions = []
         state = in_state
+        self.wm.requires_grad_(False)  # Prevent dynamics gradiens from affecting world model
 
         for i in range(imag_horizon):
             feature = self.wm.core.to_feature(*state)
@@ -181,6 +182,7 @@ class Dreamer(nn.Module):
         rewards = self.wm.decoder.reward.forward(features)      # (H+1,TBI)
         terminals = self.wm.decoder.terminal.forward(features)  # (H+1,TBI)
 
+        self.wm.requires_grad_(True)
         return features, actions, rewards, terminals
 
     def __str__(self):
