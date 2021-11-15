@@ -85,7 +85,7 @@ defaults:
   mem_loss_type:
 
   # Actor Critic
-  gamma: 0.99
+  gamma: 0.995
   lambda_gae: 0.95
   entropy: 0.003
   target_interval: 100
@@ -180,14 +180,12 @@ dmlab:
   generator_workers: 10
   generator_workers_eval: 4
   kl_weight: 3.0
-  gamma: 0.995
 
 dmlab_offline:
   env_id: DmLab-rooms_watermaze
   action_dim: 15
   env_action_repeat: 4
   env_no_terminal: True
-  gamma: 0.995
   kl_weight: 1.0
   imag_horizon: 5
   n_steps: 225_000

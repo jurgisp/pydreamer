@@ -1,18 +1,37 @@
+# -------------------------
 # Atari
+# -------------------------
 
 atari_pong:
   env_id: Atari-Pong
+
 atari_breakout:
   env_id: Atari-Breakout
+
 atari_montezuma:
   env_id: Atari-Montezuma_Revenge
 
-# Miniworld
+# -------------------------
+# DMC
+# -------------------------
 
-maze3d_apples:
-  env_id: MiniWorld-MazeS7GridA4C-v0
+dmc_quadruped_run:
+  env_id: DMC-quadruped_run
+  action_dim: 12
 
-# DMLab online
+dmc_walker_run:
+  env_id: DMC-walker_run
+  action_dim: 6
+
+dmc_manipulator_bring_peg:
+  env_id: DMC-manipulator_bring_peg
+  action_dim: 5
+
+# -------------------------
+# DMLab
+# -------------------------
 
 dmlab_rooms_select_nonmatching_object:
   env_id: DmLab-rooms_select_nonmatching_object
+
+
