@@ -5,7 +5,7 @@ FROM pytorch/pytorch:1.8.1-cuda10.2-cudnn7-devel
 RUN apt-get update && apt-get install -y \
     git xvfb python3.7-dev python3-setuptools \
     libglu1-mesa libglu1-mesa-dev libgl1-mesa-dev libosmesa6-dev mesa-utils freeglut3 freeglut3-dev \
-    libglfw3 libglfw3-dev zlib1g zlib1g-dev libsdl2-dev libjpeg-dev lua5.1 liblua5.1-0-dev libffi-dev \
+    libglew2.0 libglfw3 libglfw3-dev zlib1g zlib1g-dev libsdl2-dev libjpeg-dev lua5.1 liblua5.1-0-dev libffi-dev \
     build-essential cmake g++-4.8 pkg-config software-properties-common gettext \
     ffmpeg patchelf swig unrar unzip zip curl wget tmux \
     && rm -rf /var/lib/apt/lists/*
@@ -53,6 +53,15 @@ RUN wget -L -nv http://www.atarimania.com/roms/Roms.rar && \
 #     openjdk-8-jdk libx11-6 x11-xserver-utils \
 #     && rm -rf /var/lib/apt/lists/*
 # RUN pip3 install minerl==0.4.1a2
+
+# DMC MuJoCo
+
+RUN mkdir -p /root/.mujoco && \
+    cd /root/.mujoco && \
+    wget -nv https://mujoco.org/download/mujoco210-linux-x86_64.tar.gz -O mujoco.tar.gz && \
+    tar -xf mujoco.tar.gz && \
+    rm mujoco.tar.gz
+RUN pip3 install dm_control
 
 # APP
 
