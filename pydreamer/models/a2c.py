@@ -45,6 +45,9 @@ class ActorCritic(nn.Module):
 
         if self.actor_dist == 'onehot':
             return D.OneHotCategorical(logits=y)
+        
+        if self.actor_dist == 'normal_tanh':
+            return normal_tanh(y)
 
         if self.actor_dist == 'tanh_normal':
             return tanh_normal(y)
