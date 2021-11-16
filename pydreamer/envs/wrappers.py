@@ -1,4 +1,5 @@
 import gym
+import gym.spaces
 import numpy as np
 
 
@@ -30,26 +31,24 @@ class TimeLimitWrapper(gym.Wrapper):
         return self.env.reset()  # type: ignore
 
 
-class ActionRewardResetWrapper:
+class ActionRewardResetWrapper(gym.Wrapper):
 
     def __init__(self, env, no_terminal):
+        super().__init__(env)
         self.env = env
         self.no_terminal = no_terminal
         # Handle environments with one-hot or discrete action, but collect always as one-hot
-        self.action_size = env.action_space.shape[0] if env.action_space.shape != () else env.action_space.n
-
-    def __getattr__(self, name):
-        return getattr(self.env, name)
+        self.action_size = env.action_space.n if hasattr(env.action_space, 'n') else env.action_space.shape[0]
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
         if isinstance(action, int):
-            action_onehot = np.zeros(self.action_size)
-            action_onehot[action] = 1.0
+            action_vec = np.zeros(self.action_size)
+            action_vec[action] = 1.0
         else:
             assert isinstance(action, np.ndarray) and action.shape == (self.action_size,), "Wrong one-hot action shape"
-            action_onehot = action
-        obs['action'] = action_onehot
+            action_vec = action
+        obs['action'] = action_vec
         obs['reward'] = np.array(reward)
         obs['terminal'] = np.array(False if self.no_terminal or info.get('time_limit') else done)
         obs['reset'] = np.array(False)
@@ -64,14 +63,12 @@ class ActionRewardResetWrapper:
         return obs
 
 
-class CollectWrapper:
+class CollectWrapper(gym.Wrapper):
 
     def __init__(self, env):
+        super().__init__(env)
         self.env = env
         self.episode = []
-
-    def __getattr__(self, name):
-        return getattr(self.env, name)
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
@@ -85,3 +82,21 @@ class CollectWrapper:
         obs = self.env.reset()
         self.episode = [obs.copy()]
         return obs
+
+
+class OneHotActionWrapper(gym.Wrapper):
+    """Allow to use one-hot action on a discrete action environment."""
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.env = env
+        # Note: we don't want to change env.action_space to Box(0., 1., (n,)) here,
+        # because then e.g. RandomPolicy starts generating continuous actions.
+
+    def step(self, action):
+        if not isinstance(action, int):
+            action = action.argmax()
+        return self.env.step(action)
+
+    def reset(self):
+        return self.env.reset()

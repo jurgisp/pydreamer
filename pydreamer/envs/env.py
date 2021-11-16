@@ -43,6 +43,8 @@ def create_env(env_id: str, no_terminal: bool, env_time_limit: int, env_action_r
         env = gym.make(env_id)
         env = DictWrapper(env)
 
+    if hasattr(env.action_space, 'n'):
+        env = OneHotActionWrapper(env)
     if env_time_limit > 0:
         env = TimeLimitWrapper(env, env_time_limit)
     env = ActionRewardResetWrapper(env, no_terminal)
