@@ -11,24 +11,25 @@ This is a research project with no guarantees of stability and support. Breaking
 
 PyDreamer implements most of the features of DreamerV2, but is not an exact copy and there are some subtle differences. Here is a summary of features and differences.
 
-|                                     | DreamerV2   | PyDreamer     |
-|-------------------------------------|-------------|---------------|
-| Env - Discrete actions              | ✅           | ✅             |
-| Env - Continuous actions            | ✅           | ❌             |
-| Env - Multiple workers              | ❌           | ✅             |
-| Model - Categorical latents         | ✅           | ✅             |
-| Model - Policy entropy              | ✅           | ✅             |
-| Model - Layer normalization         | ✅           | ✅             |
-| Training - KL balancing             | ✅           | ✅             |
-| Training - Policy gradients         | Mixed       | Reinforce     |
-| Training - Multistep value target   | TD-λ        | GAE           |
-| Training - State persistence (TBTT) | ❌           | ✅             |
-| Training - Mixed precision          | ✅           | ✅             |
-| Training - Offline RL               | ❌           | ✅             |
-| Exploration - Plan2Explore          | ✅           | ❌             |
-| Data - Replay buffer                | In-memory   | Disk or cloud |
-| Data - Batch sampling               | Random      | Full episodes |
-| Metrics - Format                    | Tensorboard | Mlflow        |
+|                                       | DreamerV2   | PyDreamer     |
+|---------------------------------------|-------------|---------------|
+| Env - Discrete actions                | ✅           | ✅             |
+| Env - Continuous actions              | ✅           | ✅             |
+| Env - Multiple workers                | ❌           | ✅             |
+| Model - Categorical latents           | ✅           | ✅             |
+| Model - Policy entropy                | ✅           | ✅             |
+| Model - Layer normalization           | ✅           | ✅             |
+| Training - KL balancing               | ✅           | ✅             |
+| Training - Reinforce policy gradients | ✅           | ✅             |
+| Training - Dynamics policy gradients  | ✅           | ✅             |
+| Training - Multistep value target     | TD-λ        | GAE           |
+| Training - State persistence (TBTT)   | ❌           | ✅             |
+| Training - Mixed precision            | ✅           | ✅             |
+| Training - Offline RL                 | ❌           | ✅             |
+| Exploration - Plan2Explore            | ✅           | ❌             |
+| Data - Replay buffer                  | In-memory   | Disk or cloud |
+| Data - Batch sampling                 | Random      | Full episodes |
+| Metrics - Format                      | Tensorboard | Mlflow        |
 
 PyDreamer also has some experimental features
 
@@ -54,18 +55,20 @@ You should use the [Dockerfile](Dockerfile), which has all the dependencies set 
 
 ### Atari benchmarks
 
-Here is a comparison between PyDreamer and the official DreamerV2 [scores](https://github.com/danijar/dreamerv2/tree/main/scores) on a few Atari environments, to make sure we get comparable results.
+Here is a comparison between PyDreamer and the official DreamerV2 [scores](https://github.com/danijar/dreamerv2/tree/main/scores) on a few Atari environments:
 
 <p align="center">
-    <img width="50%" src="https://github.com/jurgisp/pydreamer/blob/main/results/atari/figures/atari_pong.png?raw=true">
+    <img width="40%" src="https://github.com/jurgisp/pydreamer/blob/main/results/atari/figures/atari_pong.png?raw=true">
+    <img width="40%" src="https://github.com/jurgisp/pydreamer/blob/main/results/atari/figures/atari_breakout.png?raw=true">
+    <img width="40%" src="https://github.com/jurgisp/pydreamer/blob/main/results/atari/figures/atari_space_invaders.png?raw=true">
+    <img width="40%" src="https://github.com/jurgisp/pydreamer/blob/main/results/atari/figures/atari_montezuma_revenge.png?raw=true">
 </p>
 
-#### Hyperparameters
+The results seem comparable, though there are some important differences. These are most likely due to different default hyperparameters, 
+and the different buffer sampling (random vs whole episodes)
 
-These experiments were run with slightly different hyperparameters:
-
-|                         | DreamerV2          | PyDreamer          |
-|-------------------------|--------------------|--------------------|
+|                           | DreamerV2          | PyDreamer          |
+|---------------------------|--------------------|--------------------|
 | `gamma`                   | 0.999              | 0.99               |
 | `train_every`             | 16                 | ~42 (1 worker)     |
 | `lr` (model,actor,critic) | (2e-4, 4e-5, 1e-4) | (3e-4, 1e-4, 1e-4) |
