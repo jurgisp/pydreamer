@@ -30,7 +30,7 @@ cat <<EOF | kubectl apply -f -
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: pydreamer-${EXPERIMENT//_/}-$RND
+  name: pydreamer-${EXPERIMENT//_/}-$RESUMEID-$RND
   namespace: default
 spec:
   backoffLimit: 3
