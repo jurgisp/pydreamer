@@ -99,6 +99,7 @@ def run(conf):
                                   save_uri=f'{artifact_uri}/episodes/{i}',
                                   save_uri2=f'{artifact_uri}/episodes_eval/{i}',
                                   num_steps=(conf.n_env_steps - conf.generator_prefill_steps) // (conf.generator_workers * conf.env_action_repeat),
+                                  limit_step_ratio=conf.limit_step_ratio // conf.generator_workers,
                                   worker_id=i,
                                   policy='network',
                                   split_fraction=0.1)
@@ -110,6 +111,7 @@ def run(conf):
                                   conf,
                                   f'{artifact_uri}/episodes/{i}',
                                   num_steps=(conf.n_env_steps - conf.generator_prefill_steps) // (conf.generator_workers * conf.env_action_repeat),
+                                  limit_step_ratio=conf.limit_step_ratio // conf.generator_workers,
                                   worker_id=i,
                                   policy='network')
                 input_dirs.append(f'{artifact_uri}/episodes/{i}')
@@ -528,7 +530,19 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
     return {k: unpreprocess(k, v) for k, v in data.items()}
 
 
-def run_generator(env_id, conf, save_uri, save_uri2=None, policy='network', worker_id=0, num_steps=int(1e9), block=False, split_fraction=0.0, metrics_prefix='agent', log_mlflow_metrics=True):
+def run_generator(env_id,
+                  conf,
+                  save_uri,
+                  save_uri2=None,
+                  policy='network',
+                  worker_id=0,
+                  num_steps=int(1e9),
+                  limit_step_ratio=0,
+                  block=False,
+                  split_fraction=0.0,
+                  metrics_prefix='agent',
+                  log_mlflow_metrics=True
+                  ):
     # Make sure generator subprcess logs to the same mlflow run
     os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
     p = Process(target=generator.main,
@@ -540,6 +554,7 @@ def run_generator(env_id, conf, save_uri, save_uri2=None, policy='network', work
                     env_time_limit=conf.env_time_limit,
                     env_action_repeat=conf.env_action_repeat,
                     env_no_terminal=conf.env_no_terminal,
+                    limit_step_ratio=limit_step_ratio,
                     policy=policy,
                     num_steps=num_steps,
                     worker_id=worker_id,

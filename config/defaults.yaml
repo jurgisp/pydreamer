@@ -97,6 +97,7 @@ defaults:
   generator_workers: 4
   generator_workers_eval: 1
   generator_prefill_steps: 200_000
+  limit_step_ratio: 0
   env_id:
   env_id_eval:
   env_action_repeat: 1
@@ -170,6 +171,7 @@ dmc:
   entropy: 1.0e-4
   actor_grad: dynamics
   actor_dist: tanh_normal
+  clip_rewards: tanh
 
 dmlab:
   env_id: DmLab-rooms_watermaze
