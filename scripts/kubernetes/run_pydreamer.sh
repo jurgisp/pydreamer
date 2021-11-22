@@ -19,7 +19,7 @@ if [[ -z "$MLFLOW_TRACKING_URI" ]]; then
 fi
 echo "Loaded variables from .env: DOCKER_REPO=$DOCKER_REPO, MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI"
 
-TAG=$(git describe --tags | sed 's/-g[a-z0-9]\{7\}//')
+TAG=$(git rev-parse --short HEAD)
 docker build . -f Dockerfile -t $DOCKER_REPO:$TAG
 docker push $DOCKER_REPO:$TAG
 
