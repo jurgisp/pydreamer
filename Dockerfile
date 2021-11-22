@@ -1,4 +1,6 @@
+# --build-arg ENV={standard|dmlab|minerl}
 ARG ENV=standard
+
 FROM pytorch/pytorch:1.8.1-cuda10.2-cudnn7-devel AS base
 
 # System packages for Atari, DMLab, MiniWorld... Throw in everything
