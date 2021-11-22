@@ -178,9 +178,6 @@ dmlab:
   action_dim: 15
   env_action_repeat: 4
   env_no_terminal: True
-  data_workers: 6
-  generator_workers: 10
-  generator_workers_eval: 4
   kl_weight: 3.0
 
 dmlab_offline:
