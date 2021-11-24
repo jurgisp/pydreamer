@@ -1,4 +1,4 @@
-docker build . -f Dockerfile -t pydreamer
+docker build . -f Dockerfile -t pydreamer --build-arg ENV=standard
 
 docker run -it \
     pydreamer \

@@ -1,4 +1,5 @@
 torch
+gym[atari]==0.18.3  # newer gym version breaks atari_py
 
 # Logging
 mlflow
@@ -12,8 +13,3 @@ torch-tb-profiler
 # Agents
 numba
 scikit-image
-
-# Environments
-gym[atari]==0.18.3  # newer gym version breaks atari_py
-git+https://github.com/jurgisp/gym-minigrid.git@e979bc77a9377346a6a0311a257e8bbb218e611c#egg=gym-minigrid
-git+https://github.com/jurgisp/gym-miniworld.git@1ff6ed40c9b27a1b6285566ee8af80dda85bfcce#egg=gym-miniworld

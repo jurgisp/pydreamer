@@ -88,6 +88,8 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt
+RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@e979bc77a9377346a6a0311a257e8bbb218e611c#egg=gym-minigrid
+RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@1ff6ed40c9b27a1b6285566ee8af80dda85bfcce#egg=gym-miniworld
 
 ENV MLFLOW_TRACKING_URI ""
 ENV MLFLOW_EXPERIMENT_NAME "Default"
