@@ -5,6 +5,7 @@ import os
 import sys
 import time
 from collections import defaultdict
+from datetime import datetime
 from itertools import chain
 from logging import critical, debug, error, info, warning
 from pathlib import Path
@@ -212,6 +213,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 metrics_agg_max = {k: np.max(v) for k, v in metrics_agg.items()}
                 metrics_agg = {k: np.mean(v) for k, v in metrics_agg.items()}
                 metrics_agg[f'{metrics_prefix}/return_max'] = metrics_agg_max[f'{metrics_prefix}/return']
+                metrics_agg['_timestamp'] = datetime.now().timestamp()
                 mlflow.log_metrics(metrics_agg, step=model_step if model else 0)
                 metrics_agg = defaultdict(list)
 
