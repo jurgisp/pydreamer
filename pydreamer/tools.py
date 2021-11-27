@@ -261,7 +261,7 @@ def configure_logging(prefix='[%(name)s]', level=logging.DEBUG, info_color=None)
     ))
     logging.root.setLevel(level)
     logging.root.handlers = [handler]
-    for logname in ['urllib3', 'requests', 'mlflow', 'git', 'azure', 'PIL']:
+    for logname in ['urllib3', 'requests', 'mlflow', 'git', 'azure', 'PIL', 'numba']:
         logging.getLogger(logname).setLevel(logging.WARNING)  # disable other loggers
     for logname in ['absl']:
         logging.getLogger(logname).setLevel(logging.INFO)

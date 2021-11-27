@@ -59,7 +59,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     info(f'Generator {worker_id} started: env={env_id}, n_steps={num_steps}, split_fraction={split_fraction}, metrics={metrics_prefix if log_mlflow_metrics else None}, save_uri={save_uri}')
 
     if not save_uri:
-        save_uri = f'{mlflow.active_run().info.artifact_uri}/episodes'  # type: ignore
+        save_uri = f'{mlflow.active_run().info.artifact_uri}/episodes/{worker_id}'  # type: ignore
     if not save_uri2:
         assert split_fraction == 0.0, 'Specify two save destinations, if splitting'
 

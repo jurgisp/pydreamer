@@ -97,6 +97,7 @@ defaults:
   generator_workers: 4
   generator_workers_eval: 1
   generator_prefill_steps: 200_000
+  generator_prefill_policy: random
   limit_step_ratio: 0
   env_id:
   env_id_eval:

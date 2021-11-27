@@ -78,13 +78,18 @@ def run(conf):
                                   conf,
                                   f'{artifact_uri}/episodes/{i}',
                                   worker_id=i,
-                                  policy='random',
+                                  policy=conf.generator_prefill_policy,
                                   num_steps=conf.generator_prefill_steps // conf.generator_workers)
                 subprocesses.append(p)
             # wait
             while any(p.is_alive() for p in subprocesses):
                 time.sleep(1)
             subprocesses.clear()
+
+        if conf.n_env_steps // conf.env_action_repeat <= conf.generator_prefill_steps:
+            # This is a legit case when generating offline data - it's a prefill-only job
+            info(f'Requested {conf.n_env_steps} steps, prefilled {conf.generator_prefill_steps} x{conf.env_action_repeat} - DONE')
+            return
 
         # Agents
 
@@ -98,7 +103,7 @@ def run(conf):
                                   conf,
                                   save_uri=f'{artifact_uri}/episodes/{i}',
                                   save_uri2=f'{artifact_uri}/episodes_eval/{i}',
-                                  num_steps=(conf.n_env_steps - conf.generator_prefill_steps) // (conf.generator_workers * conf.env_action_repeat),
+                                  num_steps=(conf.n_env_steps // conf.env_action_repeat - conf.generator_prefill_steps) // conf.generator_workers,
                                   limit_step_ratio=conf.limit_step_ratio // conf.generator_workers,
                                   worker_id=i,
                                   policy='network',
@@ -110,7 +115,7 @@ def run(conf):
                 p = run_generator(conf.env_id,
                                   conf,
                                   f'{artifact_uri}/episodes/{i}',
-                                  num_steps=(conf.n_env_steps - conf.generator_prefill_steps) // (conf.generator_workers * conf.env_action_repeat),
+                                  num_steps=(conf.n_env_steps // conf.env_action_repeat - conf.generator_prefill_steps) // conf.generator_workers,
                                   limit_step_ratio=conf.limit_step_ratio // conf.generator_workers,
                                   worker_id=i,
                                   policy='network')
