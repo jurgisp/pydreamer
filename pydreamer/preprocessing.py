@@ -70,7 +70,7 @@ class Preprocessor:
 
     def __init__(self,
                  image_key='image', 
-                 map_key='map', 
+                 map_key=None, 
                  image_categorical=None, 
                  map_categorical=None, 
                  action_dim=0,
