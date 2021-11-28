@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from models.functions import *
+from .functions import *
 
 # This is a work-in-progress attempt to use type aliases to indicate the shapes of tensors.
 # T = 50         (TBTT length)

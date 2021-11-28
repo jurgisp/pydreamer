@@ -13,8 +13,8 @@ from mlflow.store.artifact.artifact_repository_registry import \
     get_artifact_repository
 from torch.utils.data import IterableDataset, get_worker_info
 
-from models.functions import *
-from tools import *
+from .models.functions import *
+from .tools import *
 
 
 def get_worker_id():

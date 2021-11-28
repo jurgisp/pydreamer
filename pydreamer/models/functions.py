@@ -6,8 +6,7 @@ import torch.nn.functional as F
 import torch.distributions as D
 from torch import Tensor, Size
 
-import models.rnn as my
-
+from . import rnn
 
 def flatten(x: Tensor) -> Tensor:
     # (T, B, ...) => (T*B, ...)
@@ -85,12 +84,12 @@ def init_weights_tf2(m):
         nn.init.xavier_uniform_(m.weight.data)
         if m.bias is not None:
             nn.init.zeros_(m.bias.data)
-    if type(m) == nn.GRUCell or type(m) == my.GRUCell:
+    if type(m) == nn.GRUCell or type(m) == rnn.GRUCell:
         nn.init.xavier_uniform_(m.weight_ih.data)
         nn.init.orthogonal_(m.weight_hh.data)
         nn.init.zeros_(m.bias_ih.data)
         nn.init.zeros_(m.bias_hh.data)
-    if type(m) == my.NormGRUCell or type(m) == my.NormGRUCellLateReset:
+    if type(m) == rnn.NormGRUCell or type(m) == rnn.NormGRUCellLateReset:
         nn.init.xavier_uniform_(m.weight_ih.weight.data)
         nn.init.orthogonal_(m.weight_hh.weight.data)
 

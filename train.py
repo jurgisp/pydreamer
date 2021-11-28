@@ -23,15 +23,13 @@ from torch.cuda.amp import GradScaler, autocast
 from torch.profiler import ProfilerActivity
 from torch.utils.data import DataLoader
 
-sys.path.append(str(Path(__file__).parent))
-
 import generator
-import tools
-from data import DataSequential, MlflowEpisodeRepository
-from models import *
-from models.functions import map_structure, nanmean
-from preprocessing import Preprocessor, WorkerInfoPreprocess
-from tools import *
+from pydreamer import tools
+from pydreamer.data import DataSequential, MlflowEpisodeRepository
+from pydreamer.models import *
+from pydreamer.models.functions import map_structure, nanmean
+from pydreamer.preprocessing import Preprocessor, WorkerInfoPreprocess
+from pydreamer.tools import *
 
 torch.distributions.Distribution.set_default_validate_args(False)
 torch.backends.cudnn.benchmark = True  # type: ignore

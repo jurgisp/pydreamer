@@ -7,9 +7,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-import models.rnn as my
-from models.functions import *
-from models.common import *
+from . import rnn
+from .functions import *
+from .common import *
 
 
 class RSSMCore(nn.Module):
@@ -104,7 +104,7 @@ class RSSMCell(nn.Module):
         self.a_mlp = nn.Linear(action_dim, hidden_dim, bias=False)  # No bias, because outputs are added
         self.in_norm = norm(hidden_dim, eps=1e-3)
 
-        self.gru = my.GRUCellStack(hidden_dim, deter_dim, gru_layers, gru_type)
+        self.gru = rnn.GRUCellStack(hidden_dim, deter_dim, gru_layers, gru_type)
 
         self.prior_mlp_h = nn.Linear(deter_dim, hidden_dim)
         self.prior_norm = norm(hidden_dim, eps=1e-3)

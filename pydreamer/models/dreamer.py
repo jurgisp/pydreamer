@@ -5,15 +5,15 @@ import torch.distributions as D
 import torch.nn as nn
 import torch.nn.functional as F
 
-from tools import *
-from models.a2c import *
-from models.common import *
-from models.functions import *
-from models.encoders import *
-from models.decoders import *
-from models.rnn import *
-from models.rssm import *
-from models.probes import *
+from ..tools import *
+from .a2c import *
+from .common import *
+from .functions import *
+from .encoders import *
+from .decoders import *
+from .rnn import *
+from .rssm import *
+from .probes import *
 
 
 class Dreamer(nn.Module):

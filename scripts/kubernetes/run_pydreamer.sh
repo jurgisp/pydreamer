@@ -64,7 +64,7 @@ spec:
           args:
             - scripts/xvfb_run.sh 
             - python3
-            - pydreamer/train.py
+            - train.py
             - --configs
             - defaults
             - $CONFIG

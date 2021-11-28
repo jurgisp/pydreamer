@@ -16,14 +16,12 @@ import numpy as np
 import torch
 import torch.distributions as D
 
-sys.path.append(str(Path(__file__).parent))
-
-from data import MlflowEpisodeRepository
-from envs import create_env
-from models import *
-from models.functions import map_structure
-from preprocessing import Preprocessor
-from tools import *
+from pydreamer.data import MlflowEpisodeRepository
+from pydreamer.envs import create_env
+from pydreamer.models import *
+from pydreamer.models.functions import map_structure
+from pydreamer.preprocessing import Preprocessor
+from pydreamer.tools import *
 
 
 def main(env_id='MiniGrid-MazeS11N-v0',
@@ -93,13 +91,13 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     elif policy == 'random':
         policy = RandomPolicy(env.action_space)
     elif policy == 'minigrid_wander':
-        from envs.minigrid import MinigridWanderPolicy
+        from pydreamer.envs.minigrid import MinigridWanderPolicy
         policy = MinigridWanderPolicy()
     elif policy == 'maze_bouncing_ball':
-        from envs.miniworld import MazeBouncingBallPolicy
+        from pydreamer.envs.miniworld import MazeBouncingBallPolicy
         policy = MazeBouncingBallPolicy()
     elif policy == 'maze_dijkstra':
-        from envs.miniworld import MazeDijkstraPolicy
+        from pydreamer.envs.miniworld import MazeDijkstraPolicy
         step_size = env.params.params['forward_step'].default / env.room_size  # type: ignore
         turn_size = env.params.params['turn_step'].default  # type: ignore
         policy = MazeDijkstraPolicy(step_size, turn_size)

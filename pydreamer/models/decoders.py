@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 import torch.distributions as D
 
-from models.functions import *
-from models.common import *
+from .functions import *
+from .common import *
 
 
 class MultiDecoder(nn.Module):

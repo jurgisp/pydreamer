@@ -5,12 +5,12 @@ import torch.distributions as D
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.a2c import *
-from models.common import *
-from models.functions import *
-from models.decoders import *
-from models.rnn import *
-from models.rssm import *
+from .a2c import *
+from .common import *
+from .functions import *
+from .decoders import *
+from .rnn import *
+from .rssm import *
 
 
 class MapProbeHead(nn.Module):

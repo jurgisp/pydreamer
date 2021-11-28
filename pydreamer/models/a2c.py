@@ -4,8 +4,8 @@ import torch.nn.functional as F
 import torch.distributions as D
 from torch import Tensor
 
-from models.functions import *
-from models.common import *
+from .functions import *
+from .common import *
 
 
 class ActorCritic(nn.Module):
