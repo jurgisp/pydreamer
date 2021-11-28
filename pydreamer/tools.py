@@ -8,16 +8,17 @@ import time
 import warnings
 from logging import debug, info
 from pathlib import Path
-from typing import Dict, Tuple, Union
+from typing import Any, Dict, Tuple, Union
 
-import mlflow
 import numpy as np
 import yaml
-from mlflow.store.artifact.artifact_repo import ArtifactRepository
-from mlflow.store.artifact.azure_blob_artifact_repo import \
-    AzureBlobArtifactRepository
-from mlflow.tracking.client import MlflowClient
 
+try:
+    from mlflow.store.artifact.artifact_repo import ArtifactRepository
+except:
+    ArtifactRepository = Any  # just for type annotation
+
+# Ignore Google Cloud Storage warnings
 warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
 
 print_once_keys = set()
@@ -46,6 +47,7 @@ def read_yamls(dir):
 
 
 def mlflow_start_or_resume(run_name, resume_id=None):
+    import mlflow
     run_id = None
     info(f'Starting or resuming mlflow run ({os.environ.get("MLFLOW_TRACKING_URI", "local")}) ...')
     if resume_id:
@@ -59,6 +61,7 @@ def mlflow_start_or_resume(run_name, resume_id=None):
 
 
 def mlflow_log_npz(data: dict, name, subdir=None, verbose=False, repository: ArtifactRepository = None):
+    import mlflow
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / name
         save_npz(data, path)
@@ -71,6 +74,7 @@ def mlflow_log_npz(data: dict, name, subdir=None, verbose=False, repository: Art
 
 
 def mlflow_load_npz(name, repository: ArtifactRepository):
+    import mlflow
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpfile = Path(tmpdir) / name
         repository._download_file(name, tmpfile)  # TODO: avoid writing to disk - make sure tmp is RAM disk?
@@ -78,6 +82,7 @@ def mlflow_load_npz(name, repository: ArtifactRepository):
 
 
 def mlflow_log_text(text, name: str, subdir=None):
+    import mlflow
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / name
         path.write_text(text)
@@ -85,6 +90,7 @@ def mlflow_log_text(text, name: str, subdir=None):
 
 
 def mlflow_save_checkpoint(model, optimizers, steps):
+    import mlflow
     import torch
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / 'latest.pt'
@@ -99,6 +105,8 @@ def mlflow_save_checkpoint(model, optimizers, steps):
 
 
 def mlflow_load_checkpoint(model, optimizers=tuple(), artifact_path='checkpoints/latest.pt', map_location=None):
+    import mlflow
+    from mlflow.tracking.client import MlflowClient
     import torch
     with tempfile.TemporaryDirectory() as tmpdir:
         client = MlflowClient()
@@ -195,9 +203,14 @@ def azure_blob_artifact_repo_log_artifact(self, local_file, artifact_path=None):
         container_client.upload_blob(dest_path, file, overwrite=True)  # patched
 
 
-# Patching to enable artifact overwrite when using Azure, which is default in GCS
-#   https://github.com/mlflow/mlflow/blob/master/mlflow/store/artifact/azure_blob_artifact_repo.py#L75
-AzureBlobArtifactRepository.log_artifact = azure_blob_artifact_repo_log_artifact
+try:
+    from mlflow.store.artifact.azure_blob_artifact_repo import \
+        AzureBlobArtifactRepository
+    # Patching to enable artifact overwrite when using Azure, which is default in GCS
+    #   https://github.com/mlflow/mlflow/blob/master/mlflow/store/artifact/azure_blob_artifact_repo.py#L75
+    AzureBlobArtifactRepository.log_artifact = azure_blob_artifact_repo_log_artifact
+except:
+    pass
 
 
 def chunk_episode_data(data: Dict[str, np.ndarray], min_length: int):
