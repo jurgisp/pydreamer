@@ -175,7 +175,7 @@ def run(conf):
 
     # Training
 
-    optimizers = model.init_optimizers(conf)
+    optimizers = model.init_optimizers(conf.adam_lr, conf.adam_lr_actor, conf.adam_lr_critic, conf.adam_eps)
     resume_step = tools.mlflow_load_checkpoint(model, optimizers)
     if resume_step:
         info(f'Loaded model from checkpoint epoch {resume_step}')
@@ -247,7 +247,7 @@ def run(conf):
 
                     for opt in optimizers:
                         scaler.unscale_(opt)
-                    grad_metrics = model.grad_clip(conf)
+                    grad_metrics = model.grad_clip(conf.grad_clip, conf.grad_clip_ac)
                     for opt in optimizers:
                         scaler.step(opt)
                     scaler.update()

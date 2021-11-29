@@ -50,19 +50,19 @@ class Dreamer(nn.Module):
             raise NotImplementedError(f'Unknown map_model={conf.map_model}')
         self.map_model = map_model
 
-    def init_optimizers(self, conf):
-        optimizer_wm = torch.optim.AdamW(self.wm.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
-        optimizer_map = torch.optim.AdamW(self.map_model.parameters(), lr=conf.adam_lr, eps=conf.adam_eps)  # type: ignore
-        optimizer_actor = torch.optim.AdamW(self.ac.actor.parameters(), lr=conf.adam_lr_actor, eps=conf.adam_eps)  # type: ignore
-        optimizer_critic = torch.optim.AdamW(self.ac.critic.parameters(), lr=conf.adam_lr_critic, eps=conf.adam_eps)  # type: ignore
+    def init_optimizers(self, lr, lr_actor=None, lr_critic=None, eps=1e-5):
+        optimizer_wm = torch.optim.AdamW(self.wm.parameters(), lr=lr, eps=eps)
+        optimizer_map = torch.optim.AdamW(self.map_model.parameters(), lr=lr, eps=eps)
+        optimizer_actor = torch.optim.AdamW(self.ac.actor.parameters(), lr=lr_actor or lr, eps=eps)
+        optimizer_critic = torch.optim.AdamW(self.ac.critic.parameters(), lr=lr_critic or lr, eps=eps)
         return optimizer_wm, optimizer_map, optimizer_actor, optimizer_critic
 
-    def grad_clip(self, conf):
+    def grad_clip(self, grad_clip, grad_clip_ac=None):
         grad_metrics = {
-            'grad_norm': nn.utils.clip_grad_norm_(self.wm.parameters(), conf.grad_clip),
-            'grad_norm_map': nn.utils.clip_grad_norm_(self.map_model.parameters(), conf.grad_clip),
-            'grad_norm_actor': nn.utils.clip_grad_norm_(self.ac.actor.parameters(), conf.grad_clip_ac),
-            'grad_norm_critic': nn.utils.clip_grad_norm_(self.ac.critic.parameters(), conf.grad_clip_ac),
+            'grad_norm': nn.utils.clip_grad_norm_(self.wm.parameters(), grad_clip),
+            'grad_norm_map': nn.utils.clip_grad_norm_(self.map_model.parameters(), grad_clip),
+            'grad_norm_actor': nn.utils.clip_grad_norm_(self.ac.actor.parameters(), grad_clip_ac or grad_clip),
+            'grad_norm_critic': nn.utils.clip_grad_norm_(self.ac.critic.parameters(), grad_clip_ac or grad_clip),
         }
         return grad_metrics
 
