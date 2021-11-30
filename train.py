@@ -301,7 +301,6 @@ def run(conf):
                         info(f"[{steps:06}]"
                              f"  loss_model: {metrics.get('train/loss_model', 0):.3f}"
                              f"  loss_critic: {metrics.get('train/loss_critic', 0):.3f}"
-                             f"  loss_map: {metrics.get('train/loss_map', 0):.3f}"
                              f"  policy_value: {metrics.get('train/policy_value',0):.3f}"
                              f"  policy_entropy: {metrics.get('train/policy_entropy',0):.3f}"
                              f"  fps: {metrics['train/fps']:.3f}"
@@ -408,7 +407,7 @@ def evaluate(prefix: str,
             else:
                 n_finished_episodes += reset_episodes.cpu().numpy()
 
-            # Log _last predictions from the last batch of previous episode
+            # Log _last predictions from the last batch of previous episode # TODO: make generic for goal probes
 
             if n_reset_episodes > 0 and tensors is not None and 'loss_map' in tensors:
                 logprob_map_last = (tensors['loss_map'].mean(dim=0) * reset_episodes).sum() / reset_episodes.sum()

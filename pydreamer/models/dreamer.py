@@ -42,25 +42,27 @@ class Dreamer(nn.Module):
 
         # Map probe
 
-        if conf.map_model == 'direct':
-            map_model = MapProbeHead(state_dim + 4, conf)
-        elif conf.map_model == 'none':
-            map_model = NoProbeHead()
+        if conf.probe_model == 'map':
+            probe_model = MapProbeHead(state_dim + 4, conf)
+        elif conf.probe_model == 'goals':
+            probe_model = GoalsProbe(state_dim, conf)
+        elif conf.probe_model == 'none':
+            probe_model = NoProbeHead()
         else:
-            raise NotImplementedError(f'Unknown map_model={conf.map_model}')
-        self.map_model = map_model
+            raise NotImplementedError(f'Unknown probe_model={conf.probe_model}')
+        self.probe_model = probe_model
 
     def init_optimizers(self, lr, lr_actor=None, lr_critic=None, eps=1e-5):
         optimizer_wm = torch.optim.AdamW(self.wm.parameters(), lr=lr, eps=eps)
-        optimizer_map = torch.optim.AdamW(self.map_model.parameters(), lr=lr, eps=eps)
+        optimizer_probe = torch.optim.AdamW(self.probe_model.parameters(), lr=lr, eps=eps)
         optimizer_actor = torch.optim.AdamW(self.ac.actor.parameters(), lr=lr_actor or lr, eps=eps)
         optimizer_critic = torch.optim.AdamW(self.ac.critic.parameters(), lr=lr_critic or lr, eps=eps)
-        return optimizer_wm, optimizer_map, optimizer_actor, optimizer_critic
+        return optimizer_wm, optimizer_probe, optimizer_actor, optimizer_critic
 
     def grad_clip(self, grad_clip, grad_clip_ac=None):
         grad_metrics = {
             'grad_norm': nn.utils.clip_grad_norm_(self.wm.parameters(), grad_clip),
-            'grad_norm_map': nn.utils.clip_grad_norm_(self.map_model.parameters(), grad_clip),
+            'grad_norm_probe': nn.utils.clip_grad_norm_(self.probe_model.parameters(), grad_clip),
             'grad_norm_actor': nn.utils.clip_grad_norm_(self.ac.actor.parameters(), grad_clip_ac or grad_clip),
             'grad_norm_critic': nn.utils.clip_grad_norm_(self.ac.critic.parameters(), grad_clip_ac or grad_clip),
         }
@@ -117,9 +119,9 @@ class Dreamer(nn.Module):
 
         # Map probe
 
-        loss_map, metrics_map, tensors_map = self.map_model.training_step(features.detach(), obs)
-        metrics.update(**metrics_map)
-        tensors.update(**tensors_map)
+        loss_probe, metrics_probe, tensors_probe = self.probe_model.training_step(features.detach(), obs)
+        metrics.update(**metrics_probe)
+        tensors.update(**tensors_probe)
 
         # Policy
 
@@ -153,7 +155,7 @@ class Dreamer(nn.Module):
                 assert dream_tensors['action_pred'].shape == obs['action'].shape
                 assert dream_tensors['image_pred'].shape == obs['image'].shape
 
-        return (loss_model, loss_map, loss_actor, loss_critic), out_state, metrics, tensors, dream_tensors
+        return (loss_model, loss_probe, loss_actor, loss_critic), out_state, metrics, tensors, dream_tensors
 
     def dream(self, in_state: StateB, imag_horizon: int, dynamics_gradients=False):
         features = []
@@ -189,7 +191,7 @@ class Dreamer(nn.Module):
         # Short representation
         s = []
         s.append(f'Model: {param_count(self)} parameters')
-        for submodel in (self.wm.encoder, self.wm.decoder, self.wm.core, self.ac, self.map_model):
+        for submodel in (self.wm.encoder, self.wm.decoder, self.wm.core, self.ac, self.probe_model):
             if submodel is not None:
                 s.append(f'  {type(submodel).__name__:<15}: {param_count(submodel)} parameters')
         return '\n'.join(s)

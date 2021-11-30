@@ -19,10 +19,10 @@ class MapProbeHead(nn.Module):
         super().__init__()
         if conf.map_decoder == 'dense':
             self.decoder = CatImageDecoder(in_dim=map_state_dim,
-                                             out_shape=(conf.map_channels, conf.map_size, conf.map_size),
-                                             hidden_dim=conf.map_hidden_dim,
-                                             hidden_layers=conf.map_hidden_layers,
-                                             layer_norm=conf.layer_norm)
+                                           out_shape=(conf.map_channels, conf.map_size, conf.map_size),
+                                           hidden_dim=conf.map_hidden_dim,
+                                           hidden_layers=conf.map_hidden_layers,
+                                           layer_norm=conf.layer_norm)
         else:
             raise NotImplementedError(conf.map_decoder)
             # self.decoder = ConvDecoder(in_dim=map_state_dim,
@@ -67,6 +67,30 @@ class MapProbeHead(nn.Module):
             acc = (acc * map_seen_mask).sum([-1, -2]) / map_seen_mask.sum([-1, -2])
         acc = unflatten_batch(acc, bd)  # (T,B)
         return acc
+
+
+class GoalsProbe(nn.Module):
+
+    def __init__(self, state_dim, conf):
+        super().__init__()
+        self.decoders = nn.ModuleDict({
+            'goal_direction': DenseNormalDecoder(in_dim=state_dim, out_dim=2, hidden_layers=4, layer_norm=True),
+            'goals_direction': DenseNormalDecoder(in_dim=state_dim, out_dim=12, hidden_layers=4, layer_norm=True),
+        })
+
+    def training_step(self, features: TensorTBIF, obs: Dict[str, Tensor]):
+        loss_total = 0
+        metrics = {}
+        tensors = {}
+        for key, decoder in self.decoders.items():
+            assert isinstance(decoder, DenseNormalDecoder)
+            target = obs[key]
+            _, loss, pred = decoder.training_step(features, target)
+            loss = loss.mean()
+            loss_total += loss
+            metrics[f'loss_{key}'] = loss.detach()
+            tensors[f'{key}_pred'] = pred.detach()
+        return loss_total, metrics, tensors
 
 
 class NoProbeHead(nn.Module):

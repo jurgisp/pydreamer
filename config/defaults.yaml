@@ -77,7 +77,7 @@ defaults:
   reward_decoder_categorical:
   terminal_decoder_layers: 4
   map_stoch_dim: 64
-  map_model: none
+  probe_model: none
   map_decoder: dense
   map_hidden_layers: 4
   map_hidden_dim: 1024
@@ -123,7 +123,7 @@ minigrid:
   image_encoder_layers: 3
   image_decoder: dense
   image_decoder_layers: 2
-  map_model: direct
+  probe_model: map
   imag_horizon: 1
 
 miniworld:
@@ -141,7 +141,7 @@ miniworld:
   action_dim: 3
   reward_input: True
   # Model
-  map_model: direct
+  probe_model: map
   cnn_depth: 32
   imag_horizon: 1
 
