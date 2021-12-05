@@ -117,8 +117,6 @@ class Preprocessor:
                 batch['map'] = to_image(batch['map'])
             # cleanup unused
             remove_keys(batch, ['map_centered'])
-        else:
-            batch['map'] = np.zeros((T, B, 1, 1, 1), np.float32)
 
         if 'map_seen' in batch:
             # map_seen contains 0 where map is unseen, otherwise =map
@@ -128,8 +126,6 @@ class Preprocessor:
             # map_vis shows how long ago cell was seen, if never, then equals to max_steps=500
             batch['map_seen_mask'] = (batch['map_vis'] < 500).astype(int)  # type: ignore
             del batch['map_vis']
-        else:
-            batch['map_seen_mask'] = np.ones((T, B) + batch['map'].shape[-2:]).astype(int)
 
         # action
 
@@ -154,8 +150,6 @@ class Preprocessor:
             agent_pos = batch['agent_pos'] / map_size * 2 - 1.0
             agent_dir = batch['agent_dir']
             batch['map_coord'] = np.concatenate([agent_pos, agent_dir], axis=-1).astype(np.float32)  # type: ignore
-        else:
-            batch['map_coord'] = np.zeros((T, B, 4), np.float32)
 
         # vecobs
 
