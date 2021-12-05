@@ -2,7 +2,7 @@ torch
 gym[atari]==0.18.3  # newer gym version breaks atari_py
 
 # Logging
-mlflow
+mlflow==1.22.0
 google.cloud.storage
 azure-storage-blob
 
