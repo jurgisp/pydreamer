@@ -49,6 +49,8 @@ class GRUCellStack(nn.Module):
             cell = nn.GRUCell
         elif cell_type == 'gru_layernorm':
             cell = NormGRUCell
+        elif cell_type == 'gru_layernorm_dv2':
+            cell = NormGRUCellLateReset
         else:
             assert False, f'Unknown cell type {cell_type}'
         layers = [cell(input_size, layer_size)] 
