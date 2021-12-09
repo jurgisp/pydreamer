@@ -1,5 +1,7 @@
 # --build-arg ENV={standard|dmlab|minerl}
 ARG ENV=standard
+# --build-arg TYPE={full|base}
+ARG TYPE=full
 
 FROM pytorch/pytorch:1.8.1-cuda10.2-cudnn7-devel AS base
 
@@ -76,20 +78,26 @@ FROM base AS minerl-env
 RUN apt-get update && apt-get install -y \
     openjdk-8-jdk libx11-6 x11-xserver-utils \
     && rm -rf /var/lib/apt/lists/*
-RUN pip3 install minerl==0.4.1a2
+RUN pip3 install minerl==0.4.2.1
+
+# ------------------------
+# base
+# ------------------------
+
+FROM ${ENV}-env AS final-base
 
 # ------------------------
 # PyDreamer
 # ------------------------
 
-FROM ${ENV}-env AS final
+FROM ${ENV}-env AS final-full
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt
-# RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@e979bc77a9377346a6a0311a257e8bbb218e611c#egg=gym-minigrid
-# RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@1ff6ed40c9b27a1b6285566ee8af80dda85bfcce#egg=gym-miniworld
+RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@e979bc77a9377346a6a0311a257e8bbb218e611c#egg=gym-minigrid
+RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@e4ff7c47347d92122581b4c2b6c215b9a4b68a89#egg=gym-miniworld dmlab-maze-generator
 
 ENV MLFLOW_TRACKING_URI ""
 ENV MLFLOW_EXPERIMENT_NAME "Default"
@@ -98,3 +106,9 @@ ENV PYTHONUNBUFFERED 1
 ENV LANG "C.UTF-8"
 
 COPY . .
+
+# ------------------------
+# final
+# ------------------------
+
+FROM final-${TYPE} AS final

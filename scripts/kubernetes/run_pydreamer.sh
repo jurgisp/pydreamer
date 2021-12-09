@@ -6,7 +6,8 @@ if [[ $# -eq 0 ]] ; then
 fi
 EXPERIMENT="$1"
 CONFIG="${2:-atari}"
-RESUMEID="$3"
+DOCKERFILE="${3:-Dockerfile}"
+RESUMEID="$4"
 
 if [ ! -f ".env" ]; then
     echo ".env file not found - need it to set DOCKER_REPO, MLFLOW_TRACKING_URI"
@@ -20,7 +21,7 @@ fi
 echo "Loaded variables from .env: DOCKER_REPO=$DOCKER_REPO, MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI"
 
 TAG=$(git rev-parse --short HEAD)
-docker build . -f Dockerfile -t $DOCKER_REPO:$TAG
+docker build . -f $DOCKERFILE -t $DOCKER_REPO:$TAG
 docker push $DOCKER_REPO:$TAG
 
 RND=$(base64 < /dev/urandom | tr -d '[A-Z/+]' | head -c 6)
