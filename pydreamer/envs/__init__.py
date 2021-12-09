@@ -27,8 +27,9 @@ def create_env(env_id: str, no_terminal: bool, env_time_limit: int, env_action_r
         env = gym.make(env_id)
         env = wrap.DictWrapper(env)
         env = wrap.MapWrapper(env)
-        # env = wrap.PixelMapWrapper(env)
         env = wrap.AgentPosWrapper(env)
+        if env_id.startswith('MiniWorld-ScavengerHunt'):
+            env = wrap.GoalPosWrapper(env)
 
     elif env_id.startswith('DmLab-'):
         from .dmlab import DmLab

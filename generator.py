@@ -101,6 +101,11 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         step_size = env.params.params['forward_step'].default / env.room_size  # type: ignore
         turn_size = env.params.params['turn_step'].default  # type: ignore
         policy = MazeDijkstraPolicy(step_size, turn_size)
+    elif policy == 'goal_dijkstra':
+        from pydreamer.envs.miniworld import MazeDijkstraPolicy
+        step_size = env.params.params['forward_step'].default / env.room_size  # type: ignore
+        turn_size = env.params.params['turn_step'].default  # type: ignore
+        policy = MazeDijkstraPolicy(step_size, turn_size, goal_strategy='goal_direction', random_prob=0)
     else:
         assert False, 'Unknown policy'
 
@@ -167,8 +172,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
         info(f"Episode recorded:"
              f"  steps: {epsteps}"
-             f",  reward: {data['reward'].sum()}"
-             f",  terminal: {data['terminal'].sum()}"
+             f",  reward: {data['reward'].sum():.1f}"
+             f",  terminal: {data['terminal'].sum():.0f}"
              f",  visited: {(data.get('map_seen', np.zeros(1))[-1] > 0).mean():.1%}"
              f",  total steps: {steps:.0f}"
              f",  episodes: {episodes}"
@@ -295,5 +300,6 @@ if __name__ == '__main__':
     parser.add_argument('--worker_id', type=int, default=0)
     parser.add_argument('--env_time_limit', type=int, default=0)
     parser.add_argument('--env_action_repeat', type=int, default=1)
+    parser.add_argument('--steps_per_npz', type=int, default=1000)
     args = parser.parse_args()
     main(**vars(args))

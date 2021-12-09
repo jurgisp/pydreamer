@@ -59,12 +59,15 @@ class MazeDijkstraPolicy:
     #   2) Go there using shortest path
     #   3) Occasionally perform a random action
 
-    def __init__(self, step_size, turn_size, epsilon=0.10):
+    def __init__(self, step_size, turn_size, random_prob=0.02, random_steps=5, goal_strategy='random'):
         self.step_size = step_size
         self.turn_size = turn_size
-        self.epsilon = epsilon
+        self.random_prob = random_prob
+        self.random_steps = random_steps
+        self.goal_strategy = goal_strategy
         self.goal = None
         self.expected_pos = None
+        self.random_remaining = 0
 
     def __call__(self, obs) -> Tuple[int, dict]:
         assert 'agent_pos' in obs, 'Need agent position'
@@ -73,19 +76,20 @@ class MazeDijkstraPolicy:
         x, y = obs['agent_pos']
         dx, dy = obs['agent_dir']
         d = np.arctan2(dy, dx) / np.pi * 180  # type: ignore
-        map = obs['map_agent']
-        # assert map[int(x), int(y)] >= 3, 'Agent should be here'
+        map = obs['map']
 
-        if obs['reset']:
-            self.goal = None  # new episode
+        if obs['reset']:  # new episode
+            self.goal = None
             self.expected_pos = None
+            self.random_remaining = 0
+        
         if self.goal is None:
-            self.goal = self.generate_goal(map)
+            self.goal = self.generate_goal(obs)
 
         if self.expected_pos is not None:
             if not np.isclose(self.expected_pos[:2], [x, y], 1e-3).all():
-                print('WARN: unexpected position - stuck? Generating new goal...')
-                self.goal = self.generate_goal(map)
+                print('WARN: unexpected position - stuck? Performing random dance...')
+                self.random_remaining = self.random_steps
 
         while True:
             t = time.time()
@@ -99,22 +103,38 @@ class MazeDijkstraPolicy:
             #       f', Time: {int((time.time()-t)*1000)}'
             #       )
             if len(actions) > 0:
-                if np.random.rand() < self.epsilon:
+                if np.random.rand() < self.random_prob:  # initialize random action sequence
+                    self.random_remaining = self.random_steps
+                if self.random_remaining > 0:  # continue random action
+                    self.random_remaining -= 1
                     self.expected_pos = None
-                    return np.random.randint(3), {}  # random action
+                    return np.random.randint(3), {}
                 else:
                     self.expected_pos = path[0]
-                    return actions[0], {}  # best action
+                    return actions[0], {}  # shortest-path action
             else:
-                self.goal = self.generate_goal(map)
+                self.goal = self.generate_goal(obs)
 
-    @staticmethod
-    def generate_goal(map):
-        while True:
-            x = np.random.randint(map.shape[0])
-            y = np.random.randint(map.shape[1])
-            if map[x, y] != WALL:
-                return x, y
+    def generate_goal(self, obs) -> Tuple[float, float]:
+        map = obs['map']
+        x, y = obs['agent_pos']
+        dx, dy = obs['agent_dir']
+        d = np.arctan2(dy, dx) # type: ignore
+        
+        if self.goal_strategy == 'random':
+            while True:
+                x = np.random.randint(map.shape[0])
+                y = np.random.randint(map.shape[1])
+                if map[x, y] != WALL:
+                    return x, y
+        
+        if self.goal_strategy == 'goal_direction':
+            grx, gry = obs['goal_direction']  # agent-relative
+            gx = x + grx * np.cos(d) - gry * np.sin(d)  # convert to absolute
+            gy = y + gry * np.cos(d) + grx * np.sin(d)
+            return (gx, gy)
+
+        assert False, self.goal_strategy
 
 
 @njit
@@ -142,7 +162,7 @@ def find_shortest(map, start, goal, step_size=1.0, turn_size=45.0):
         p = que[que_ix]
         que_ix += 1
         x, y, d = p
-        if int(x) == int(gx) and int(y) == int(gy):
+        if np.sqrt((x - gx) ** 2 + (y - gy) ** 2) < step_size:
             goal_state = p
             break
         for action in range(3):
