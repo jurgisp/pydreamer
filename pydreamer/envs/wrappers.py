@@ -9,7 +9,10 @@ class DictWrapper(gym.ObservationWrapper):
         # self.observation_space = ...  # TODO
 
     def observation(self, obs_img):
-        return {'image': obs_img}
+        if len(obs_img.shape) == 1:
+            return {'vecobs': obs_img}  # Vector env
+        else:
+            return {'image': obs_img}  # Image env
 
 
 class TimeLimitWrapper(gym.Wrapper):

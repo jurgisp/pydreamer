@@ -20,12 +20,16 @@ class MultiDecoder(nn.Module):
             self.image = ConvDecoder(in_dim=features_dim,
                                      out_channels=conf.image_channels,
                                      cnn_depth=conf.cnn_depth)
-        else:
+        elif conf.image_decoder == 'dense':
             self.image = CatImageDecoder(in_dim=features_dim,
                                          out_shape=(conf.image_channels, conf.image_size, conf.image_size),
                                          hidden_layers=conf.image_decoder_layers,
                                          layer_norm=conf.layer_norm,
                                          min_prob=conf.image_decoder_min_prob)
+        elif not conf.image_decoder:
+            self.image = None
+        else:
+            assert False, conf.image_decoder
 
         if conf.reward_decoder_categorical:
             self.reward = DenseCategoricalSupportDecoder(in_dim=features_dim,
@@ -34,8 +38,13 @@ class MultiDecoder(nn.Module):
                                                          layer_norm=conf.layer_norm)
         else:
             self.reward = DenseNormalDecoder(in_dim=features_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
+
         self.terminal = DenseBernoulliDecoder(in_dim=features_dim, hidden_layers=conf.terminal_decoder_layers, layer_norm=conf.layer_norm)
-        self.vecobs = DenseNormalDecoder(in_dim=features_dim, out_dim=64, hidden_layers=4, layer_norm=conf.layer_norm)
+
+        if conf.vecobs_size:
+            self.vecobs = DenseNormalDecoder(in_dim=features_dim, out_dim=conf.vecobs_size, hidden_layers=4, layer_norm=conf.layer_norm)
+        else:
+            self.vecobs = None
 
     def training_step(self,
                       features: TensorTBIF,
@@ -44,32 +53,33 @@ class MultiDecoder(nn.Module):
                       ) -> Tuple[TensorTBI, Dict[str, Tensor], Dict[str, Tensor]]:
         tensors = {}
         metrics = {}
+        loss_reconstr = 0
 
-        loss_image_tbi, loss_image, image_rec = self.image.training_step(features, obs['image'])
-        metrics.update(loss_image=loss_image.detach().mean())
-        tensors.update(loss_image=loss_image.detach(),
-                       image_rec=image_rec.detach())
+        if self.image:
+            loss_image_tbi, loss_image, image_rec = self.image.training_step(features, obs['image'])
+            loss_reconstr += self.image_weight * loss_image_tbi
+            metrics.update(loss_image=loss_image.detach().mean())
+            tensors.update(loss_image=loss_image.detach(),
+                        image_rec=image_rec.detach())
 
-        loss_vecobs_tbi, loss_vecobs, vecobs_rec = self.vecobs.training_step(features, obs['vecobs'])
-        metrics.update(loss_vecobs=loss_vecobs.detach().mean())
-        tensors.update(loss_vecobs=loss_vecobs.detach(),
-                       vecobs_rec=vecobs_rec.detach())
+        if self.vecobs:
+            loss_vecobs_tbi, loss_vecobs, vecobs_rec = self.vecobs.training_step(features, obs['vecobs'])
+            loss_reconstr += self.vecobs_weight * loss_vecobs_tbi
+            metrics.update(loss_vecobs=loss_vecobs.detach().mean())
+            tensors.update(loss_vecobs=loss_vecobs.detach(),
+                        vecobs_rec=vecobs_rec.detach())
 
         loss_reward_tbi, loss_reward, reward_rec = self.reward.training_step(features, obs['reward'])
+        loss_reconstr += self.reward_weight * loss_reward_tbi
         metrics.update(loss_reward=loss_reward.detach().mean())
         tensors.update(loss_reward=loss_reward.detach(),
                        reward_rec=reward_rec.detach())
 
         loss_terminal_tbi, loss_terminal, terminal_rec = self.terminal.training_step(features, obs['terminal'])
+        loss_reconstr += self.terminal_weight * loss_terminal_tbi
         metrics.update(loss_terminal=loss_terminal.detach().mean())
         tensors.update(loss_terminal=loss_terminal.detach(),
                        terminal_rec=terminal_rec.detach())
-
-        assert loss_image_tbi.shape == loss_vecobs_tbi.shape == loss_reward_tbi.shape == loss_terminal_tbi.shape
-        loss_reconstr = (self.image_weight * loss_image_tbi
-                         + self.vecobs_weight * loss_vecobs_tbi
-                         + self.reward_weight * loss_reward_tbi
-                         + self.terminal_weight * loss_terminal_tbi)
 
         if extra_metrics:
             mask_rewardp = obs['reward'] > 0  # mask where reward is positive

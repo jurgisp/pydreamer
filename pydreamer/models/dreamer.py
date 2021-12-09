@@ -20,7 +20,7 @@ class Dreamer(nn.Module):
 
     def __init__(self, conf):
         super().__init__()
-
+        assert conf.action_dim > 0, "Need to set action_dim to match environment"
         state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1)
 
         # World model
@@ -137,7 +137,7 @@ class Dreamer(nn.Module):
         # Dream for a log sample.
 
         dream_tensors = {}
-        if do_dream_tensors:
+        if do_dream_tensors and self.wm.decoder.image is not None:
             with torch.no_grad():  # careful not to invoke modules first time under no_grad (https://github.com/pytorch/pytorch/issues/60164)
                 # The reason we don't just take real features_dream is because it's really big (H*T*B*I),
                 # and here for inspection purposes we only dream from first step, so it's (H*B).

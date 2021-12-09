@@ -243,7 +243,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
             repo = repository if (np.random.rand() > split_fraction) else repository2
             for i, data in enumerate(chunks):
-                if len(data['image'].shape) == 4:
+                if 'image' in data and len(data['image'].shape) == 4:
                     # THWC => HWCT for better compression
                     data['image_t'] = data['image'].transpose(1, 2, 3, 0)
                     del data['image']

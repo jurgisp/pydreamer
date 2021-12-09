@@ -98,14 +98,16 @@ class Preprocessor:
         # cleanup policy info logged by actor, not to be confused with current values
         remove_keys(batch, ['policy_value', 'policy_entropy', 'action_prob'])
 
+        T, B = batch['reward'].shape[:2]
+
         # image
 
-        batch['image'] = batch[self.image_key]  # Use something else (e.g. map_masked) as image
-        T, B = batch['image'].shape[:2]
-        if self.image_categorical:
-            batch['image'] = img_to_onehot(batch['image'], self.image_categorical)
-        else:
-            batch['image'] = to_image(batch['image'])
+        if self.image_key:
+            batch['image'] = batch[self.image_key]  # Use something else (e.g. map_masked) as image
+            if self.image_categorical:
+                batch['image'] = img_to_onehot(batch['image'], self.image_categorical)
+            else:
+                batch['image'] = to_image(batch['image'])
 
         # map
 

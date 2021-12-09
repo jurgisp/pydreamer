@@ -67,6 +67,7 @@ defaults:
   gru_layers: 1
   gru_type: gru
   layer_norm: True
+  vecobs_size: 0
   image_encoder: cnn
   cnn_depth: 48
   image_encoder_layers: 0
@@ -81,8 +82,6 @@ defaults:
   map_decoder: dense
   map_hidden_layers: 4
   map_hidden_dim: 1024
-  mem_model: none
-  mem_loss_type:
 
   # Actor Critic
   gamma: 0.995
@@ -189,6 +188,14 @@ dmlab_offline:
   kl_weight: 1.0
   imag_horizon: 5
   n_steps: 225_000
+
+vectorenv:
+  env_id: CartPole-v0
+  action_dim: 2
+  vecobs_size: 4
+  image_key:
+  image_encoder:
+  image_decoder:
 
 debug:
   device: cpu
