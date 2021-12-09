@@ -69,10 +69,10 @@ class TransformedDataset(IterableDataset):
 class Preprocessor:
 
     def __init__(self,
-                 image_key='image', 
-                 map_key=None, 
-                 image_categorical=None, 
-                 map_categorical=None, 
+                 image_key='image',
+                 map_key=None,
+                 image_categorical=None,
+                 map_categorical=None,
                  action_dim=0,
                  clip_rewards=None,
                  amp=False):
@@ -159,6 +159,14 @@ class Preprocessor:
             batch['vecobs'] = batch['vecobs'].astype(np.float32)
         else:
             batch['vecobs'] = np.zeros((T, B, 64), np.float32)
+
+        # inventory, equipped (MineRL) # TODO: customized encoder/decoder
+
+        if 'inventory' in batch and 'equipped' in batch:
+            ni = batch['inventory'].shape[-1]
+            ne = batch['equipped'].shape[-1]
+            batch['vecobs'][:, :, :ni] = batch['inventory'].astype(np.float32)
+            batch['vecobs'][:, :, ni:ni + ne] = batch['equipped'].astype(np.float32)
 
         # => float16
 

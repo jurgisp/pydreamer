@@ -38,7 +38,8 @@ def create_env(env_id: str, no_terminal: bool, env_time_limit: int, env_action_r
 
     elif env_id.startswith('MineRL'):
         from .minerl import MineRL
-        env = MineRL(env_id, np.load('data/minerl_action_centroids.npy'), action_repeat=env_action_repeat)
+        constr = lambda: MineRL(env_id, action_repeat=env_action_repeat)
+        env = RestartOnExceptionWrapper(constr)
 
     elif env_id.startswith('DMC-'):
         from .dmc import DMC
