@@ -1,7 +1,7 @@
 defaults:
   # Job
-  n_steps: 1_000_000
-  n_env_steps: 1_000_000_000
+  n_steps: 99_000_000
+  n_env_steps: 999_000_000
   run_name:
   resume_id:
   offline_data_dir:
@@ -43,8 +43,8 @@ defaults:
   adam_lr_critic: 1.0e-4
   adam_eps: 1.0e-5
   keep_state: True
-  batch_length: 50
-  batch_size: 50
+  batch_length: 48
+  batch_size: 32
   device: "cuda:0"
   grad_clip: 200
   grad_clip_ac: 200
@@ -126,26 +126,26 @@ minigrid:
   imag_horizon: 1
 
 miniworld:
-  env_id: MiniWorld-MazeS7GridA4C-v0
-  data_workers: 6
+  # Env
+  env_id: MiniWorld-ScavengerHuntSmall-v0
+  env_no_terminal: True
+  map_size: 9
+  map_channels: 14
+  action_dim: 3
   # Features
   image_key: image
   image_size: 64
   image_channels: 3
   image_categorical: False
   map_key: map
-  map_size: 13
-  map_channels: 4
   map_categorical: True
-  action_dim: 3
   reward_input: True
   # Model
   probe_model: map
   cnn_depth: 32
-  imag_horizon: 1
+  data_workers: 6
 
 atari:
-  n_steps: 99_000_000
   n_env_steps: 200_000_000
   # Env
   env_id: Atari-Pong
