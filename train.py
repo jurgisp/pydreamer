@@ -4,6 +4,7 @@ import logging.config
 import os
 import sys
 import time
+from distutils.util import strtobool
 from collections import defaultdict
 from datetime import datetime
 from itertools import chain
@@ -602,7 +603,10 @@ if __name__ == '__main__':
     # Override config from command-line
     parser = argparse.ArgumentParser()
     for key, value in conf.items():
-        parser.add_argument(f'--{key}', type=type(value) if value is not None else str, default=value)
+        type_ = type(value) if value is not None else str
+        if type_ == bool:
+            type_ = lambda x: bool(strtobool(x))
+        parser.add_argument(f'--{key}', type=type_, default=value)
     conf = parser.parse_args(remaining)
 
     run(conf)
