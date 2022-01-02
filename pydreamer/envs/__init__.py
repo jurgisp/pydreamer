@@ -30,6 +30,8 @@ def create_env(env_id: str, no_terminal: bool, env_time_limit: int, env_action_r
         env = wrap.AgentPosWrapper(env)
         if env_id.startswith('MiniWorld-ScavengerHunt'):
             env = wrap.GoalPosWrapper(env)
+            env = wrap.GoalVisibleWrapper(env)
+            env = wrap.GoalVisAgeWrapper(env)
 
     elif env_id.startswith('DmLab-'):
         from .dmlab import DmLab
