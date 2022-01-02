@@ -289,14 +289,14 @@ def run(conf):
                     if steps % conf.log_interval == 0:
                         metrics = {f'train/{k}': np.array(v).mean() for k, v in metrics.items()}
                         metrics.update({f'train/{k}_max': np.array(v).max() for k, v in metrics_max.items()})
-                        metrics['train/steps'] = steps  # type: ignore
-                        metrics['_step'] = steps  # type: ignore
+                        metrics['train/steps'] = steps
+                        metrics['_step'] = steps
                         metrics['_loss'] = metrics['train/loss_model']
-                        metrics['_timestamp'] = datetime.now().timestamp()  # type: ignore
+                        metrics['_timestamp'] = datetime.now().timestamp()
 
                         t = time.time()
                         fps = (steps - last_steps) / (t - last_time)
-                        metrics['train/fps'] = fps  # type: ignore
+                        metrics['train/fps'] = fps
                         last_time, last_steps = t, steps
 
                         info(f"[{steps:06}]"
@@ -469,7 +469,7 @@ def evaluate(prefix: str,
 
     if len(npz_datas) > 0:
         npz_data = {k: np.concatenate([d[k] for d in npz_datas], 1) for k in npz_datas[0]}
-        print_once(f'Saving batch d2_wm_closed_{prefix}: ', {k: tuple(v.shape) for k, v in npz_data.items()})  # type: ignore
+        print_once(f'Saving batch d2_wm_closed_{prefix}: ', {k: tuple(v.shape) for k, v in npz_data.items()})
         tools.mlflow_log_npz(npz_data, f'{steps:07}.npz', subdir=f'd2_wm_closed_{prefix}', verbose=True)
 
     info(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_finished_episodes.sum()} episodes')

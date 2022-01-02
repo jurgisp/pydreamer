@@ -129,7 +129,7 @@ def cat_structure_np(datas: List[Dict[str, np.ndarray]]) -> Dict[str, np.ndarray
     keys = set(datas[0].keys())
     for d in datas[1:]:
         keys.intersection_update(d.keys())
-    return {  # type: ignore
+    return {
         k: np.concatenate([d[k] for d in datas])
         for k in keys
     }
@@ -140,7 +140,7 @@ def stack_structure_np(datas: Tuple[Dict[str, np.ndarray]]) -> Dict[str, np.ndar
     keys = set(datas[0].keys())
     for d in datas[1:]:
         keys.intersection_update(d.keys())
-    return {  # type: ignore
+    return {
         key: np.stack([d[key] for d in datas])
         for key in keys
     }

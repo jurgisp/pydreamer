@@ -136,7 +136,7 @@ class ConvDecoder(nn.Module):
         self.model = nn.Sequential(
             # FC
             *layers,
-            nn.Unflatten(-1, (d * 32, 1, 1)),  # type: ignore
+            nn.Unflatten(-1, (d * 32, 1, 1)),
             # Deconv
             nn.ConvTranspose2d(d * 32, d * 4, kernels[0], stride),
             activation(),

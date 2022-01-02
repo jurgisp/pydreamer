@@ -180,7 +180,7 @@ class DataSequential(IterableDataset):
             if last_partial_batch is not None:
                 for batch, partial in it:
                     assert not partial, 'First batch must be full. Is episode_length < batch_size?'
-                    batch = cat_structure_np([last_partial_batch, batch])  # type: ignore
+                    batch = cat_structure_np([last_partial_batch, batch])
                     assert lenb(batch) == self.batch_length
                     last_partial_batch = None
                     yield batch
@@ -256,7 +256,7 @@ class DataSequential(IterableDataset):
         assert resets[0]
         ep_boundaries = np.where(resets)[0].tolist() + [len(resets)]
 
-        random_resets: np.ndarray = np.zeros_like(resets)  # type: ignore
+        random_resets = np.zeros_like(resets)
         for i in range(len(ep_boundaries) - 1):
             ep_start = ep_boundaries[i]
             ep_end = ep_boundaries[i + 1]

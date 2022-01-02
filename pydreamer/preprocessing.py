@@ -20,7 +20,7 @@ def img_to_onehot(x: np.ndarray, n_categories) -> np.ndarray:
 def to_image(x: np.ndarray) -> np.ndarray:
     if x.dtype == np.uint8:
         x = x.astype(np.float32)
-        x = x / 255.0 - 0.5  # type: ignore
+        x = x / 255.0 - 0.5
     else:
         assert 0.0 <= x[0, 0, 0, 0, 0] and x[0, 0, 0, 0, 0] <= 1.0
         x = x.astype(np.float32)
@@ -122,11 +122,11 @@ class Preprocessor:
 
         if 'map_seen' in batch:
             # map_seen contains 0 where map is unseen, otherwise =map
-            batch['map_seen_mask'] = (batch['map_seen'] > 0).astype(int)  # type: ignore
+            batch['map_seen_mask'] = (batch['map_seen'] > 0).astype(int)
             del batch['map_seen']
         elif 'map_vis' in batch:
             # map_vis shows how long ago cell was seen, if never, then equals to max_steps=500
-            batch['map_seen_mask'] = (batch['map_vis'] < 500).astype(int)  # type: ignore
+            batch['map_seen_mask'] = (batch['map_vis'] < 500).astype(int)
             del batch['map_vis']
 
         # action
@@ -141,9 +141,9 @@ class Preprocessor:
         batch['terminal'] = batch.get('terminal', np.zeros((T, B))).astype(np.float32)
         batch['reward'] = batch.get('reward', np.zeros((T, B))).astype(np.float32)
         if self.clip_rewards == 'tanh':
-            batch['reward'] = np.tanh(batch['reward'])  # type: ignore
+            batch['reward'] = np.tanh(batch['reward'])
         if self.clip_rewards == 'log1p':
-            batch['reward'] = np.log1p(batch['reward'])  # type: ignore
+            batch['reward'] = np.log1p(batch['reward'])
 
         # map_coord
 
@@ -151,7 +151,7 @@ class Preprocessor:
             map_size = float(batch['map'].shape[-2])
             agent_pos = batch['agent_pos'] / map_size * 2 - 1.0
             agent_dir = batch['agent_dir']
-            batch['map_coord'] = np.concatenate([agent_pos, agent_dir], axis=-1).astype(np.float32)  # type: ignore
+            batch['map_coord'] = np.concatenate([agent_pos, agent_dir], axis=-1).astype(np.float32)
 
         # vecobs
 

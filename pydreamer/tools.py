@@ -137,7 +137,7 @@ def load_npz(path, keys=None) -> Dict[str, np.ndarray]:
     if isinstance(path, str):
         path = Path(path)
     with path.open('rb') as f:
-        fdata: Dict[str, np.ndarray] = np.load(f)  # type: ignore
+        fdata: Dict[str, np.ndarray] = np.load(f)
         if keys is None:
             data = {key: fdata[key] for key in fdata}
         else:
