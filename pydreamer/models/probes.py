@@ -90,6 +90,26 @@ class GoalsProbe(nn.Module):
             loss_total += loss
             metrics[f'loss_{key}'] = loss.detach()
             tensors[f'{key}_pred'] = pred.detach()
+
+        # Extra metrics: goal loss depending on how long ago it has been seen
+
+        log_ranges = [-1, 0, 5, 10, 50, 200, 1000]
+        
+        # "visage" = "visible age" = "steps since last seen"
+        visage = obs.get('goals_visage')
+        if visage is not None:
+            goals = obs['goals_direction']
+            pred = tensors['goals_direction_pred']
+            # Loss per goal. This is repeating the job of decoder.training_step(), but fine
+            losspg = 0.5 * (goals - pred) ** 2
+            losspg = losspg.reshape(losspg.shape[:-1] + (-1, 2)).sum(-1)
+            assert losspg.shape == visage.shape  # (T,B,6)
+            for i in range(1, len(log_ranges)):
+                vmin = log_ranges[i-1] + 1
+                vmax = log_ranges[i]  # inclusive
+                mask = (vmin <= visage) & (visage <= vmax)
+                metrics[f'loss_goals_direction_{vmax}'] = nanmean(losspg * mask / mask)
+
         return loss_total, metrics, tensors
 
 
