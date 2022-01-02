@@ -193,12 +193,14 @@ class NoProfiler:
 
 
 def chunk_episode_data(data: Dict[str, np.ndarray], min_length: int):
-    n = len(data['reward'])
+    # this n=len(..)-1 and i_to=(...)+1 makes first reset step "free" and correctly chunks 2000 episode into (1001)+(1000)
+    n = len(data['reward']) - 1
     chunks = n // min_length
+    i_from = 0
     for i_chunk in range(chunks):
-        i_from = n * i_chunk // chunks
-        i_to = n * (i_chunk + 1) // chunks
+        i_to = n * (i_chunk + 1) // chunks + 1
         data_chunk = {key: data[key][i_from:i_to] for key in data}
+        i_from = i_to
         yield data_chunk
 
 
@@ -253,7 +255,7 @@ def configure_logging(prefix='[%(name)s]', level=logging.DEBUG, info_color=None)
     ))
     logging.root.setLevel(level)
     logging.root.handlers = [handler]
-    for logname in ['urllib3', 'requests', 'mlflow', 'git', 'azure', 'PIL', 'numba']:
+    for logname in ['urllib3', 'requests', 'mlflow', 'git', 'azure', 'PIL', 'numba', 'google.auth']:
         logging.getLogger(logname).setLevel(logging.WARNING)  # disable other loggers
     for logname in ['absl', 'minerl']:
         logging.getLogger(logname).setLevel(logging.INFO)
