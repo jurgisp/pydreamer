@@ -75,7 +75,7 @@ class MazeDijkstraPolicy:
 
         x, y = obs['agent_pos']
         dx, dy = obs['agent_dir']
-        d = np.arctan2(dy, dx) / np.pi * 180  # type: ignore
+        d = np.arctan2(dy, dx) / np.pi * 180
         map = obs['map']
 
         if obs['reset']:  # new episode
@@ -87,7 +87,7 @@ class MazeDijkstraPolicy:
             self.goal = self.generate_goal(obs)
 
         if self.expected_pos is not None:
-            if not np.isclose(self.expected_pos[:2], [x, y], 1e-3).all():
+            if not np.isclose(self.expected_pos[:2], np.array([x, y]), 1e-3).all():
                 print('WARN: unexpected position - stuck? Performing random dance...')
                 self.random_remaining = self.random_steps
 
@@ -119,7 +119,7 @@ class MazeDijkstraPolicy:
         map = obs['map']
         x, y = obs['agent_pos']
         dx, dy = obs['agent_dir']
-        d = np.arctan2(dy, dx) # type: ignore
+        d = np.arctan2(dy, dx)
         
         if self.goal_strategy == 'random':
             while True:
