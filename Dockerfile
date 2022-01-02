@@ -97,7 +97,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@e979bc77a9377346a6a0311a257e8bbb218e611c#egg=gym-minigrid
-RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@540b4ae78914cdf701de702a1a2a2f6c4928247b#egg=gym-miniworld dmlab-maze-generator
+RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@e551b6c7ca245ca8f4e31471819728fb46ca256d#egg=gym-miniworld dmlab-maze-generator
 
 ENV MLFLOW_TRACKING_URI ""
 ENV MLFLOW_EXPERIMENT_NAME "Default"

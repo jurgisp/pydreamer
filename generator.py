@@ -194,6 +194,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             })
 
             # Calculate return_discounted
+            
             rewards_v = data['reward'].copy()
             if not data['terminal'][-1]:
                 avg_value = rewards_v.mean() / (1.0 - metrics_gamma)
@@ -202,9 +203,18 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             metrics[f'{metrics_prefix}/return_discounted'] = returns_discounted.mean()
 
             # Calculate policy_value_terminal
+            
             if data['terminal'][-1]:
                 value_terminal = data['policy_value'][-2] - data['reward'][-1]  # This should be zero, because value[last] = reward[last]
                 metrics[f'{metrics_prefix}/policy_value_terminal'] = value_terminal
+
+            # Goal visibility metrics for Scavenger
+
+            if 'goals_visage' in data:
+                goals_seen = data['goals_visage'] < 1e5
+                metrics[f'{metrics_prefix}/goals_seen_avg'] = goals_seen.sum(axis=-1).mean()
+                metrics[f'{metrics_prefix}/goals_seen_last'] = goals_seen[-1].sum()
+                metrics[f'{metrics_prefix}/goals_seenage'] = (data['goals_visage'] * goals_seen).sum() / goals_seen.sum()
 
             # Aggregate every 10 episodes
 
