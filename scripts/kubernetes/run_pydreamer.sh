@@ -57,6 +57,8 @@ spec:
               value: ${MLFLOW_TRACKING_PASSWORD}
             - name: AZURE_STORAGE_ACCESS_KEY
               value: ${AZURE_STORAGE_ACCESS_KEY}
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: .gcs_credentials
           volumeMounts:
             - name: dshm
               mountPath: /dev/shm
