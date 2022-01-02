@@ -249,7 +249,7 @@ class DataSequential(IterableDataset):
         while True:
             if self.should_reload_files():
                 self.reload_files()
-            f = np.random.choice(self.files)
+            f = np.random.choice(self.files)  # type: ignore
             yield f
 
     def randomize_resets(self, resets, reset_interval, batch_length):

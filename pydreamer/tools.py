@@ -53,7 +53,7 @@ def mlflow_start_or_resume(run_name, resume_id=None):
     if resume_id:
         runs = mlflow.search_runs(filter_string=f'tags.resume_id="{resume_id}"')
         if len(runs) > 0:
-            run_id = runs.run_id.iloc[0]
+            run_id = runs.run_id.iloc[0]  # type: ignore
             info(f'Resumed mlflow run {run_id} ({resume_id})')
     run = mlflow.start_run(run_name=run_name, run_id=run_id, tags={'resume_id': resume_id or ''})
     info(f'Started mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')

@@ -287,8 +287,8 @@ def run(conf):
                     # Log metrics
 
                     if steps % conf.log_interval == 0:
-                        metrics = {f'train/{k}': np.mean(v) for k, v in metrics.items()}
-                        metrics.update({f'train/{k}_max': np.max(v) for k, v in metrics_max.items()})
+                        metrics = {f'train/{k}': np.array(v).mean() for k, v in metrics.items()}
+                        metrics.update({f'train/{k}_max': np.array(v).max() for k, v in metrics_max.items()})
                         metrics['train/steps'] = steps  # type: ignore
                         metrics['_step'] = steps  # type: ignore
                         metrics['_loss'] = metrics['train/loss_model']
@@ -464,7 +464,7 @@ def evaluate(prefix: str,
                 # log predictions until first episode is finished
                 do_output_tensors = False
 
-    metrics_eval = {f'{prefix}/{k}': np.mean(v) for k, v in metrics_eval.items()}
+    metrics_eval = {f'{prefix}/{k}': np.array(v).mean() for k, v in metrics_eval.items()}
     mlflow.log_metrics(metrics_eval, step=steps)
 
     if len(npz_datas) > 0:

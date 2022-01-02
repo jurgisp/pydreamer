@@ -181,7 +181,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
              )
 
         if log_mlflow_metrics:
-            metrics = {f'{metrics_prefix}/{k}': np.mean(v) for k, v in metrics.items()}
+            metrics = {f'{metrics_prefix}/{k}': np.array(v).mean() for k, v in metrics.items()}
             all_returns.append(data['reward'].sum())
             metrics.update({
                 f'{metrics_prefix}/episode_length': epsteps,
@@ -190,8 +190,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 f'{metrics_prefix}/env_steps': steps * env_action_repeat,
                 f'{metrics_prefix}/episodes': episodes,
                 f'{metrics_prefix}/return': data['reward'].sum(),
-                f'{metrics_prefix}/return_cum': np.mean(all_returns[-100:]),
-            })  # type: ignore
+                f'{metrics_prefix}/return_cum': np.array(all_returns[-100:]).mean(),
+            })
 
             # Calculate return_discounted
             rewards_v = data['reward'].copy()
@@ -213,8 +213,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                     metrics_agg[k].append(v)
 
             if len(metrics_agg[f'{metrics_prefix}/return']) >= log_every:
-                metrics_agg_max = {k: np.max(v) for k, v in metrics_agg.items()}
-                metrics_agg = {k: np.mean(v) for k, v in metrics_agg.items()}
+                metrics_agg_max = {k: np.array(v).max() for k, v in metrics_agg.items()}
+                metrics_agg = {k: np.array(v).mean() for k, v in metrics_agg.items()}
                 metrics_agg[f'{metrics_prefix}/return_max'] = metrics_agg_max[f'{metrics_prefix}/return']
                 metrics_agg['_timestamp'] = datetime.now().timestamp()
                 mlflow.log_metrics(metrics_agg, step=model_step if model else 0)
