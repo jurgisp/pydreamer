@@ -1,4 +1,5 @@
 import time
+from logging import warning
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -82,13 +83,13 @@ class MazeDijkstraPolicy:
             self.goal = None
             self.expected_pos = None
             self.random_remaining = 0
-        
+
         if self.goal is None:
             self.goal = self.generate_goal(obs)
 
         if self.expected_pos is not None:
             if not np.isclose(self.expected_pos[:2], np.array([x, y]), 1e-3).all():
-                print('WARN: unexpected position - stuck? Performing random dance...')
+                warning('Unexpected position - stuck? Performing random dance...')
                 self.random_remaining = self.random_steps
 
         while True:
@@ -102,7 +103,16 @@ class MazeDijkstraPolicy:
             #       f', Visited: {nvis}'
             #       f', Time: {int((time.time()-t)*1000)}'
             #       )
-            if len(actions) > 0:
+            if actions is None:
+                warning(f'No path found from=({x:.2f}, {y:.2f}, {d:.2f})  to={self.goal}  nvis={nvis} - trying new goal...')
+                self.goal = self.generate_goal(obs)
+
+            elif len(actions) == 0:
+                # Goal reached
+                self.goal = self.generate_goal(obs)
+
+            else:
+                assert path is not None
                 if np.random.rand() < self.random_prob:  # initialize random action sequence
                     self.random_remaining = self.random_steps
                 if self.random_remaining > 0:  # continue random action
@@ -112,22 +122,20 @@ class MazeDijkstraPolicy:
                 else:
                     self.expected_pos = path[0]
                     return actions[0], {}  # shortest-path action
-            else:
-                self.goal = self.generate_goal(obs)
 
     def generate_goal(self, obs) -> Tuple[float, float]:
         map = obs['map']
         x, y = obs['agent_pos']
         dx, dy = obs['agent_dir']
         d = np.arctan2(dy, dx)
-        
+
         if self.goal_strategy == 'random':
             while True:
                 x = np.random.randint(map.shape[0])
                 y = np.random.randint(map.shape[1])
                 if map[x, y] != WALL:
                     return x, y
-        
+
         if self.goal_strategy == 'goal_direction':
             grx, gry = obs['goal_direction']  # agent-relative
             gx = x + grx * np.cos(d) - gry * np.sin(d)  # convert to absolute
@@ -190,19 +198,18 @@ def find_shortest(map, start, goal, step_size=1.0, turn_size=45.0):
                 parent[p1] = p
                 parent_action[p1] = action
                 visited[key] = True
-                assert len(visited) < 100000, 'Runaway Dijkstra'
+                assert len(visited) < 100000, 'Runaway Dijkstra?'
+
+    if goal_state is None:
+        return None, None, len(visited)
 
     path = []
     actions = []
-    if goal_state is not None:
-        p = goal_state
-        while p in parent_action:
-            path.append(p)
-            actions.append(parent_action[p])
-            p = parent[p]
-        path.reverse()
-        actions.reverse()
-    else:
-        print('WARN: no path found')
-
+    p = goal_state
+    while p in parent_action:
+        path.append(p)
+        actions.append(parent_action[p])
+        p = parent[p]
+    path.reverse()
+    actions.reverse()
     return actions, path, len(visited)
