@@ -24,14 +24,18 @@ TAG=$(git rev-parse --short HEAD)
 docker build . -f $DOCKERFILE -t $DOCKER_REPO:$TAG
 docker push $DOCKER_REPO:$TAG
 
-RND=$(base64 < /dev/urandom | tr -d '[A-Z/+]' | head -c 6)
+RND=$(base64 < /dev/urandom | tr -d 'A-Z/+' | head -c 6)
 RESUMEID="${RESUMEID:-$RND}"
+
+if [[ -n "$K8S_CONTEXT" ]]; then
+    kubectl config use-context $K8S_CONTEXT
+fi
 
 cat <<EOF | kubectl apply -f -
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: pydreamer-${EXPERIMENT//_/}-$RESUMEID-$RND
+  name: pydreamer-${EXPERIMENT//_/}-$RND
   namespace: default
 spec:
   backoffLimit: 3
@@ -81,7 +85,7 @@ spec:
               nvidia.com/gpu: 1
             requests:
               memory: 8000Mi
-              cpu: 4000m
+              cpu: 8000m
               nvidia.com/gpu: 1
           securityContext:
             capabilities:
