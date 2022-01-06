@@ -103,7 +103,7 @@ def run(conf):
                                   save_uri=f'{artifact_uri}/episodes/{i}',
                                   save_uri2=f'{artifact_uri}/episodes_eval/{i}',
                                   num_steps=(conf.n_env_steps // conf.env_action_repeat - conf.generator_prefill_steps) // conf.generator_workers,
-                                  limit_step_ratio=conf.limit_step_ratio // conf.generator_workers,
+                                  limit_step_ratio=conf.limit_step_ratio / conf.generator_workers,
                                   worker_id=i,
                                   policy='network',
                                   split_fraction=0.1)
@@ -115,7 +115,7 @@ def run(conf):
                                   conf,
                                   f'{artifact_uri}/episodes/{i}',
                                   num_steps=(conf.n_env_steps // conf.env_action_repeat - conf.generator_prefill_steps) // conf.generator_workers,
-                                  limit_step_ratio=conf.limit_step_ratio // conf.generator_workers,
+                                  limit_step_ratio=conf.limit_step_ratio / conf.generator_workers,
                                   worker_id=i,
                                   policy='network')
                 input_dirs.append(f'{artifact_uri}/episodes/{i}')
