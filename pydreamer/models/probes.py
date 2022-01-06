@@ -86,15 +86,14 @@ class GoalsProbe(nn.Module):
             assert isinstance(decoder, DenseNormalDecoder)
             target = obs[key]
             _, loss, pred = decoder.training_step(features, target)
-            loss = loss.mean()
-            loss_total += loss
-            metrics[f'loss_{key}'] = loss.detach()
+            loss_total += loss.mean()
+            metrics[f'loss_{key}'] = loss.detach().mean()
+            tensors[f'loss_{key}'] = loss.detach()
             tensors[f'{key}_pred'] = pred.detach()
 
         # Extra metrics: goal loss depending on how long ago it has been seen
 
         log_ranges = [-1, 0, 5, 10, 50, 200, 1000]
-        
         # "visage" = "visible age" = "steps since last seen"
         visage = obs.get('goals_visage')
         if visage is not None:
