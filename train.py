@@ -4,9 +4,9 @@ import logging.config
 import os
 import sys
 import time
-from distutils.util import strtobool
 from collections import defaultdict
 from datetime import datetime
+from distutils.util import strtobool
 from itertools import chain
 from logging import critical, debug, error, info, warning
 from multiprocessing import Process
@@ -15,6 +15,7 @@ from typing import Iterator, Optional
 
 import mlflow
 import numpy as np
+import rich.traceback
 import scipy.special
 import torch
 import torch.distributions as D
@@ -587,6 +588,7 @@ def get_profiler(conf):
 
 
 if __name__ == '__main__':
+    rich.traceback.install()
     configure_logging(prefix='[TRAIN]')
     parser = argparse.ArgumentParser()
     parser.add_argument('--configs', nargs='+', required=True)
