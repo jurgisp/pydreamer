@@ -83,6 +83,8 @@ def run(conf):
             # wait
             while any(p.is_alive() for p in subprocesses):
                 time.sleep(1)
+                if any(not p.is_alive() and p.exitcode != 0 for p in subprocesses):
+                    raise Exception(f'Generator process died')
             subprocesses.clear()
 
         if conf.n_env_steps // conf.env_action_repeat <= conf.generator_prefill_steps:
