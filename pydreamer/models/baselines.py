@@ -93,17 +93,18 @@ class LSTMVAEWorldModel(nn.Module):
 
     def __init__(self, conf):
         super().__init__()
-        self.state_dim = conf.deter_dim // 2  # For LSTM it's fair to divide by 2
+        self.rnn_layers = conf.gru_layers
+        self.state_dim = conf.deter_dim // 2 // self.rnn_layers  # For LSTM it's fair to divide by 2
         self.out_dim = self.state_dim
         self.embedding = VAEWorldModel(conf)
-        self.rnn = nn.LSTM(self.embedding.out_dim, self.state_dim)
+        self.rnn = nn.LSTM(self.embedding.out_dim, self.state_dim, num_layers=self.rnn_layers)
         self.dynamics = DenseNormalDecoder(self.state_dim, self.embedding.out_dim, hidden_layers=0)
 
     def init_state(self, batch_size: int) -> Any:
         device = next(self.rnn.parameters()).device
         return (
-            torch.zeros((1, batch_size, self.state_dim), device=device),
-            torch.zeros((1, batch_size, self.state_dim), device=device),
+            torch.zeros((self.rnn_layers, batch_size, self.state_dim), device=device),
+            torch.zeros((self.rnn_layers, batch_size, self.state_dim), device=device),
         )
 
     def training_step(self,
