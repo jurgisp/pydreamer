@@ -212,6 +212,7 @@ def run(conf):
             with timer('total'):
                 profiler.step()
                 steps += 1
+                will_log_batch = steps % conf.logbatch_interval == 1
 
                 # Make batch
 
@@ -231,8 +232,9 @@ def run(conf):
                                                 state,
                                                 iwae_samples=conf.iwae_samples,
                                                 imag_horizon=conf.imag_horizon,
-                                                do_image_pred=steps % conf.log_interval >= int(conf.log_interval * 0.9),  # 10% of batches
-                                                do_dream_tensors=steps % conf.logbatch_interval == 1)
+                                                do_image_pred=(will_log_batch or
+                                                               steps % conf.log_interval >= int(conf.log_interval * 0.9)),  # 10% of batches
+                                                do_dream_tensors=will_log_batch)
                         if conf.keep_state:
                             states[wid] = new_state
 
@@ -274,7 +276,7 @@ def run(conf):
 
                     # Log sample
 
-                    if steps % conf.logbatch_interval == 1:
+                    if will_log_batch:
                         log_batch_npz(batch, tensors, f'{steps:07}.npz', subdir='d2_wm_closed')
                     if dream_tensors:
                         log_batch_npz(batch, dream_tensors, f'{steps:07}.npz', subdir='d2_wm_dream')
