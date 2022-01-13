@@ -139,6 +139,15 @@ class LSTMVAEWorldModel(nn.Module):
         metrics['loss_dyn'] = loss_dyn.detach().mean()
         tensors['loss_dyn'] = loss_dyn.detach()
 
+        if do_image_pred:
+            with torch.no_grad():
+                # Decode from embed prediction
+                z = embed_pred
+                z = torch.cat([torch.zeros_like(z[0]).unsqueeze(0), z])  # we don't have prediction for first step, so insert zeros
+                _, mets, tens = self.embedding.decoder.training_step(z.unsqueeze(2), obs, extra_metrics=True)
+                tensors_pred = {k.replace('_rec', '_pred'): v for k, v in tens.items() if k.endswith('_rec')}
+                tensors.update(**tensors_pred)  # image_pred, ..
+
         return loss, features, None, out_state, metrics, tensors
 
 
