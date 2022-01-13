@@ -55,7 +55,7 @@ defaults:
   test_batches: 61  # For unbiased test needs to be enough to cover full episodes
   test_batch_size: 10  # Smaller for faster test
   eval_batches: 61  # Big enough to reach episode end (xN). +1 to log last episode
-  eval_samples: 10  # Big enough for good sampling
+  eval_samples: 1  # no multi-sampling to have reproducible paper results
   eval_batch_size: 10  # Limited by GPU mem
 
   # Model
