@@ -41,14 +41,16 @@ class MLP(nn.Module):
         self.out_dim = out_dim
         norm = nn.LayerNorm if layer_norm else NoNorm
         layers = []
+        dim = in_dim
         for i in range(hidden_layers):
             layers += [
-                nn.Linear(in_dim if i == 0 else hidden_dim, hidden_dim),
+                nn.Linear(dim, hidden_dim),
                 norm(hidden_dim, eps=1e-3),
                 activation()
             ]
+            dim = hidden_dim
         layers += [
-            nn.Linear(hidden_dim, out_dim),
+            nn.Linear(dim, out_dim),
         ]
         if out_dim == 1:
             layers += [
