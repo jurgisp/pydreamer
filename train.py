@@ -285,9 +285,9 @@ def run(conf):
 
                     if steps % conf.logbatch_interval == 0:
                         repository = MlflowEpisodeRepository(input_dirs)
-                        data_train = DataSequential(repository, conf.batch_length, conf.batch_size, buffer_size=conf.buffer_size)
-                        metrics['data_steps'].append(data_train.stats_steps)
-                        metrics['data_env_steps'].append(data_train.stats_steps * conf.env_action_repeat)
+                        data_train_stats = DataSequential(repository, conf.batch_length, conf.batch_size)
+                        metrics['data_steps'].append(data_train_stats.stats_steps)
+                        metrics['data_env_steps'].append(data_train_stats.stats_steps * conf.env_action_repeat)
 
                     # Log metrics
 
