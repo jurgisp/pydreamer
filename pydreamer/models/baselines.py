@@ -114,6 +114,16 @@ class LSTMVAEWorldModel(nn.Module):
                       do_open_loop=False,
                       do_image_pred=False,
                       ):
+
+        # Nuke state if there is reset
+        
+        reset_any = torch.max(obs["reset"], dim=0).values
+        reset_first = obs["reset"].select(0, 0)
+        reset_invalid = reset_any & ~reset_first  # TODO: mask out loss by this, if we can not reset in the middle
+
+        state_mask = ~reset_any.unsqueeze(0).unsqueeze(-1)
+        in_state = (in_state[0] * state_mask, in_state[1] * state_mask)
+
         # VAE embedding
 
         loss, embed, _, _, metrics, tensors = \
@@ -126,7 +136,6 @@ class LSTMVAEWorldModel(nn.Module):
 
         # RNN
         
-        # TODO: reset state on episode start
         features, out_state = self.rnn(embed, in_state)
         features = features.reshape((T, B, I, -1))  # (T,BI,*) => (T,B,I,*)
         out_state = (out_state[0].detach(), out_state[1].detach())  # Detach before next batch
