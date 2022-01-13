@@ -169,7 +169,7 @@ def run(conf):
 
     if conf.model == 'dreamer':
         model = Dreamer(conf)
-    elif conf.model == 'vae':
+    elif conf.model in ['vae', 'lstm_vae']:
         model: Dreamer = DreamerProbeVAE(conf)  # type: ignore
     else:
         assert False, conf.model

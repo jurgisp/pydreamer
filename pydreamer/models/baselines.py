@@ -23,19 +23,29 @@ class DreamerProbeVAE(nn.Module):
 
         # World model
 
-        self.wm = VAEWorldModel(conf)
+        if conf.model == 'vae':
+            self.wm = VAEWorldModel(conf)
+        elif conf.model == 'lstm_vae':
+            self.wm = LSTMVAEWorldModel(conf)
+        else:
+            raise ValueError(conf.model)
 
         # Map probe
 
         if conf.probe_model == 'map':
-            probe_model = MapProbeHead(self.wm.features_dim + 4, conf)
+            probe_model = MapProbeHead(self.wm.out_dim + 4, conf)
         elif conf.probe_model == 'goals':
-            probe_model = GoalsProbe(self.wm.features_dim, conf)
+            probe_model = GoalsProbe(self.wm.out_dim, conf)
         elif conf.probe_model == 'none':
             probe_model = NoProbeHead()
         else:
             raise NotImplementedError(f'Unknown probe_model={conf.probe_model}')
         self.probe_model = probe_model
+
+        # Use TF2 weight initialization (TODO: Dreamer is missing this on probe model)
+
+        for m in self.modules():
+            init_weights_tf2(m)
 
     def init_optimizers(self, lr, lr_actor=None, lr_critic=None, eps=1e-5):
         optimizer_wm = torch.optim.AdamW(self.wm.parameters(), lr=lr, eps=eps)
@@ -79,26 +89,76 @@ class DreamerProbeVAE(nn.Module):
         return (loss_model, loss_probe), out_state, metrics, tensors, {}
 
 
+class LSTMVAEWorldModel(nn.Module):
+
+    def __init__(self, conf):
+        super().__init__()
+        self.state_dim = conf.deter_dim // 2  # For LSTM it's fair to divide by 2
+        self.out_dim = self.state_dim
+        self.embedding = VAEWorldModel(conf)
+        self.rnn = nn.LSTM(self.embedding.out_dim, self.state_dim)
+        self.dynamics = DenseNormalDecoder(self.state_dim, self.embedding.out_dim, hidden_layers=0)
+
+    def init_state(self, batch_size: int) -> Any:
+        device = next(self.rnn.parameters()).device
+        return (
+            torch.zeros((1, batch_size, self.state_dim), device=device),
+            torch.zeros((1, batch_size, self.state_dim), device=device),
+        )
+
+    def training_step(self,
+                      obs: Dict[str, Tensor],
+                      in_state: Any,
+                      iwae_samples: int = 1,
+                      do_open_loop=False,
+                      do_image_pred=False,
+                      ):
+        # VAE embedding
+
+        loss, embed, _, _, metrics, tensors = \
+            self.embedding.training_step(obs, None,
+                                         iwae_samples=iwae_samples,
+                                         do_image_pred=do_image_pred)
+        T, B, I = embed.shape[:3]
+        embed = embed.reshape((T, B * I, -1))  # (T,B,I,*) => (T,BI,*)
+        embed = embed.detach()  # Predict embeddings as they are
+
+        # RNN
+        
+        # TODO: reset state on episode start
+        features, out_state = self.rnn(embed, in_state)
+        features = features.reshape((T, B, I, -1))  # (T,BI,*) => (T,B,I,*)
+        out_state = (out_state[0].detach(), out_state[1].detach())  # Detach before next batch
+
+        # Predict
+
+        embed_next = embed[1:]
+        _, loss_dyn, embed_pred = self.dynamics.training_step(features[:-1], embed_next)
+        loss += loss_dyn.mean()
+        metrics['loss_dyn'] = loss_dyn.detach().mean()
+        tensors['loss_dyn'] = loss_dyn.detach()
+
+        return loss, features, None, out_state, metrics, tensors
+
+
 class VAEWorldModel(nn.Module):
 
     def __init__(self, conf):
         super().__init__()
         self.kl_weight = conf.kl_weight
-        self.features_dim = conf.stoch_dim
+        self.out_dim = conf.stoch_dim
         self.encoder = MultiEncoder(conf)
         self.post_mlp = nn.Sequential(nn.Linear(self.encoder.out_dim, 256),
                                       nn.ELU(),
                                       nn.Linear(256, 2 * conf.stoch_dim))
         self.decoder = MultiDecoder(conf.stoch_dim, conf)
-        for m in self.modules():
-            init_weights_tf2(m)
 
-    def init_state(self, batch_size: int) -> Any:
+    def init_state(self, batch_size: int):
         return None
 
     def training_step(self,
                       obs: Dict[str, Tensor],
-                      in_state: Any,
+                      in_state: Any = None,
                       iwae_samples: int = 1,
                       do_open_loop=False,
                       do_image_pred=False,
