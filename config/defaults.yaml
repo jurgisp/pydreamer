@@ -74,9 +74,9 @@ defaults:
   image_decoder: cnn
   image_decoder_layers: 0
   reward_input: False
-  reward_decoder_layers: 1
+  reward_decoder_layers: 4
   reward_decoder_categorical:
-  terminal_decoder_layers: 1
+  terminal_decoder_layers: 4
   map_stoch_dim: 64
   probe_model: none
   map_decoder: dense
@@ -88,7 +88,7 @@ defaults:
   lambda_gae: 0.95
   entropy: 0.003
   target_interval: 100
-  imag_horizon: 1
+  imag_horizon: 15
   actor_grad: reinforce
   actor_dist: onehot
 
