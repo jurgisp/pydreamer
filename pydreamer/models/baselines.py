@@ -97,7 +97,7 @@ class GRUVAEWorldModel(nn.Module):
         self.out_dim = self.state_dim
         self.embedding = VAEWorldModel(conf)
         self.rnn = nn.GRU(self.embedding.out_dim, self.state_dim)
-        self.dynamics = DenseNormalDecoder(self.state_dim, self.embedding.out_dim, hidden_layers=0)
+        self.dynamics = DenseNormalDecoder(self.state_dim, self.embedding.out_dim, hidden_layers=2)
 
     def init_state(self, batch_size: int) -> Any:
         device = next(self.rnn.parameters()).device
