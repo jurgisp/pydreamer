@@ -114,7 +114,16 @@ class MlflowEpisodeRepository(EpisodeRepository):
 class DataSequential(IterableDataset):
     """Dataset which processes episodes sequentially"""
 
-    def __init__(self, repository: EpisodeRepository, batch_length, batch_size, skip_first=True, reload_interval=0, buffer_size=0, reset_interval=0):
+    def __init__(self,
+                 repository: EpisodeRepository, 
+                 batch_length, 
+                 batch_size, 
+                 skip_first=True, 
+                 reload_interval=0, 
+                 buffer_size=0, 
+                 reset_interval=0,
+                 allow_mid_reset=True
+                 ):
         super().__init__()
         self.repository = repository
         self.batch_length = batch_length
@@ -123,6 +132,7 @@ class DataSequential(IterableDataset):
         self.reload_interval = reload_interval
         self.buffer_size = buffer_size
         self.reset_interval = reset_interval
+        self.allow_mid_reset = allow_mid_reset
         self.reload_files(True)
         assert len(self.files) > 0, 'No data found'
 
@@ -188,7 +198,11 @@ class DataSequential(IterableDataset):
 
             for batch, partial in it:
                 if partial:
-                    last_partial_batch = batch
+                    if self.allow_mid_reset:
+                        last_partial_batch = batch
+                    else:
+                        # If no mid-reset, just ignore the partial batch, and next batch will be from beginning
+                        last_partial_batch = None
                     break  # partial will always be last
                 yield batch
 
