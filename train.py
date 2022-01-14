@@ -228,7 +228,9 @@ def run(conf):
                 with timer('forward'):
                     with autocast(enabled=conf.amp):
 
-                        state = states.get(wid) or model.init_state(conf.batch_size * conf.iwae_samples)
+                        state = states.get(wid)
+                        if state is None:
+                            state = model.init_state(conf.batch_size * conf.iwae_samples)
                         losses, new_state, loss_metrics, tensors, dream_tensors = \
                             model.training_step(obs,
                                                 state,
