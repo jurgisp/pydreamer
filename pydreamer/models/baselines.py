@@ -113,10 +113,8 @@ class GRUVAEWorldModel(nn.Module):
 
         # Nuke state if there is reset
         
-        reset_any = torch.max(obs["reset"], dim=0).values
-        reset_first = obs["reset"].select(0, 0)
-        reset_invalid = reset_any & ~reset_first  # TODO: mask out loss by this, if we can not reset in the middle
-        state_mask = ~reset_any.unsqueeze(0).unsqueeze(-1)
+        reset_first = obs["reset"].select(0, 0)  # Assume only reset on batch start (allow_mid_reset=False)
+        state_mask = ~reset_first.unsqueeze(0).unsqueeze(-1)
         in_state = in_state * state_mask
 
         # VAE embedding

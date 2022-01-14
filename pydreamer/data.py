@@ -122,7 +122,7 @@ class DataSequential(IterableDataset):
                  reload_interval=0, 
                  buffer_size=0, 
                  reset_interval=0,
-                 allow_mid_reset=True
+                 allow_mid_reset=False
                  ):
         super().__init__()
         self.repository = repository
