@@ -16,7 +16,7 @@ from .rnn import *
 from .rssm import *
 
 
-class DreamerProbeVAE(nn.Module):
+class WorldModelProbe(nn.Module):
 
     def __init__(self, conf):
         super().__init__()
@@ -25,8 +25,8 @@ class DreamerProbeVAE(nn.Module):
 
         if conf.model == 'vae':
             self.wm = VAEWorldModel(conf)
-        elif conf.model == 'lstm_vae':
-            self.wm = LSTMVAEWorldModel(conf)
+        elif conf.model == 'gru_vae':
+            self.wm = GRUVAEWorldModel(conf)
         else:
             raise ValueError(conf.model)
 
@@ -89,23 +89,19 @@ class DreamerProbeVAE(nn.Module):
         return (loss_model, loss_probe), out_state, metrics, tensors, {}
 
 
-class LSTMVAEWorldModel(nn.Module):
+class GRUVAEWorldModel(nn.Module):
 
     def __init__(self, conf):
         super().__init__()
-        self.rnn_layers = conf.gru_layers
-        self.state_dim = conf.deter_dim // 2 // self.rnn_layers  # For LSTM it's fair to divide by 2
+        self.state_dim = conf.deter_dim
         self.out_dim = self.state_dim
         self.embedding = VAEWorldModel(conf)
-        self.rnn = nn.LSTM(self.embedding.out_dim, self.state_dim, num_layers=self.rnn_layers)
+        self.rnn = nn.GRU(self.embedding.out_dim, self.state_dim)
         self.dynamics = DenseNormalDecoder(self.state_dim, self.embedding.out_dim, hidden_layers=0)
 
     def init_state(self, batch_size: int) -> Any:
         device = next(self.rnn.parameters()).device
-        return (
-            torch.zeros((self.rnn_layers, batch_size, self.state_dim), device=device),
-            torch.zeros((self.rnn_layers, batch_size, self.state_dim), device=device),
-        )
+        return torch.zeros((1, batch_size, self.state_dim), device=device)
 
     def training_step(self,
                       obs: Dict[str, Tensor],
@@ -120,9 +116,8 @@ class LSTMVAEWorldModel(nn.Module):
         reset_any = torch.max(obs["reset"], dim=0).values
         reset_first = obs["reset"].select(0, 0)
         reset_invalid = reset_any & ~reset_first  # TODO: mask out loss by this, if we can not reset in the middle
-
         state_mask = ~reset_any.unsqueeze(0).unsqueeze(-1)
-        in_state = (in_state[0] * state_mask, in_state[1] * state_mask)
+        in_state = in_state * state_mask
 
         # VAE embedding
 
@@ -138,7 +133,7 @@ class LSTMVAEWorldModel(nn.Module):
         
         features, out_state = self.rnn(embed, in_state)
         features = features.reshape((T, B, I, -1))  # (T,BI,*) => (T,B,I,*)
-        out_state = (out_state[0].detach(), out_state[1].detach())  # Detach before next batch
+        out_state = out_state.detach()  # Detach before next batch
 
         # Predict
 

@@ -1,2 +1,2 @@
 from .dreamer import Dreamer
-from .baselines import DreamerProbeVAE
+from .baselines import WorldModelProbe
