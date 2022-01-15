@@ -146,6 +146,31 @@ miniworld:
   cnn_depth: 32
   data_workers: 6
 
+miniworld_offline:
+  # Env
+  env_id: MiniWorld-ScavengerHuntSmall-v0
+  env_no_terminal: True
+  map_size: 9
+  map_channels: 14
+  action_dim: 3
+  # Features
+  image_key: image
+  image_size: 64
+  image_channels: 3
+  image_categorical: False
+  map_key: map
+  map_categorical: True
+  reward_input: True
+  # Model
+  probe_model: goals
+  cnn_depth: 32
+  data_workers: 6
+  # Offline
+  allow_mid_reset: False
+  reward_decoder_layers: 1  # faster
+  terminal_decoder_layers: 1  # faster
+  imag_horizon: 1  # faster
+
 atari:
   n_env_steps: 200_000_000
   # Env
