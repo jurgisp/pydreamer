@@ -13,6 +13,7 @@ defaults:
   save_interval: 500
   eval_interval: 2000
   data_workers: 4
+  allow_mid_reset: True
   enable_profiler: False
   verbose: False
 

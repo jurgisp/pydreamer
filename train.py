@@ -156,7 +156,8 @@ def run(conf):
                           skip_first=True,
                           reload_interval=120 if online_data else 0,
                           buffer_size=conf.buffer_size if online_data else 0,
-                          reset_interval=conf.reset_interval)
+                          reset_interval=conf.reset_interval,
+                          allow_mid_reset=conf.allow_mid_reset)
     preprocess = Preprocessor(image_categorical=conf.image_channels if conf.image_categorical else None,
                               image_key=conf.image_key,
                               map_categorical=conf.map_channels if conf.map_categorical else None,
