@@ -66,12 +66,7 @@ spec:
           volumeMounts:
             - name: dshm
               mountPath: /dev/shm
-          command:
-            - sh
           args:
-            - scripts/xvfb_run.sh 
-            - python3
-            - train.py
             - --configs
             - defaults
             - $CONFIG

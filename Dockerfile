@@ -112,3 +112,4 @@ COPY . .
 # ------------------------
 
 FROM final-${TYPE} AS final
+ENTRYPOINT ["sh", "scripts/xvfb_run.sh", "python3", "train.py"]
