@@ -155,7 +155,7 @@ def run(conf):
                           conf.batch_size,
                           skip_first=True,
                           reload_interval=120 if online_data else 0,
-                          buffer_size=conf.buffer_size if online_data else 0,
+                          buffer_size=conf.buffer_size if online_data else conf.buffer_size_offline,
                           reset_interval=conf.reset_interval,
                           allow_mid_reset=conf.allow_mid_reset)
     preprocess = Preprocessor(image_categorical=conf.image_channels if conf.image_categorical else None,
@@ -299,7 +299,7 @@ def run(conf):
                         metrics.update({f'train/{k}_max': np.array(v).max() for k, v in metrics_max.items()})
                         metrics['train/steps'] = steps
                         metrics['_step'] = steps
-                        metrics['_loss'] = metrics['train/loss_model']
+                        metrics['_loss'] = metrics.get('train/loss_model', 0)
                         metrics['_timestamp'] = datetime.now().timestamp()
 
                         t = time.time()
@@ -353,13 +353,13 @@ def run(conf):
                             repository = MlflowEpisodeRepository(test_dirs)
                             data_test = DataSequential(repository, conf.batch_length, conf.test_batch_size, skip_first=False, reset_interval=conf.reset_interval)
                             test_iter = iter(DataLoader(preprocess(data_test), batch_size=None))
-                            evaluate('test', steps, model, test_iter, device, conf.test_batches, conf.iwae_samples, conf.keep_state, conf)
+                            evaluate('test', steps, model, test_iter, device, conf.test_batches, conf.iwae_samples, conf.keep_state, conf.test_save_size, conf)
 
                             # Eval = no state reset, multisampling
                             repository = MlflowEpisodeRepository(eval_dirs)
                             data_eval = DataSequential(repository, conf.batch_length, conf.eval_batch_size, skip_first=False)
                             eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
-                            evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.eval_samples, True, conf)
+                            evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.eval_samples, True, conf.eval_save_size, conf)
 
                         except Exception as e:
                             # This catch is useful if there is no eval data generated yet
@@ -388,6 +388,7 @@ def evaluate(prefix: str,
              eval_batches: int,
              eval_samples: int,
              keep_state: bool,
+             save_size: int,
              conf):
 
     start_time = time.time()
@@ -467,7 +468,7 @@ def evaluate(prefix: str,
             # Log one episode batch
 
             if do_output_tensors:
-                npz_datas.append(prepare_batch_npz(dict(**batch, **tensors), take_b=1))
+                npz_datas.append(prepare_batch_npz(dict(**batch, **tensors), take_b=save_size))
             if n_finished_episodes[0] > 0:
                 # log predictions until first episode is finished
                 do_output_tensors = False

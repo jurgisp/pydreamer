@@ -31,6 +31,7 @@ defaults:
   
   # Training
   buffer_size: 10_000_000
+  buffer_size_offline: 0
   reset_interval: 200
   iwae_samples: 1
   kl_balance: 0.8
@@ -55,9 +56,11 @@ defaults:
   # Eval
   test_batches: 61  # For unbiased test needs to be enough to cover full episodes
   test_batch_size: 10  # Smaller for faster test
+  test_save_size: 1
   eval_batches: 61  # Big enough to reach episode end (xN). +1 to log last episode
   eval_samples: 1  # no multi-sampling to have reproducible paper results
-  eval_batch_size: 10  # Limited by GPU mem
+  eval_batch_size: 32  # Limited by GPU mem
+  eval_save_size: 1  # How many envs to save in npz
 
   # Model
   model: dreamer
