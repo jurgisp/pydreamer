@@ -79,6 +79,8 @@ class MiniGrid(gym.Env):
         spaces['map_masked'] = gym.spaces.Box(0, 255, (n, n), np.uint8)
         spaces['map_vis'] = gym.spaces.Box(0, self.max_steps, (n, n), np.uint16)
         spaces['map_centered'] = gym.spaces.Box(0, 255, (m, m), np.uint8)
+        spaces['agent_pos'] = gym.spaces.Box(0., 100., (2,), np.float32)
+        spaces['agent_dir'] = gym.spaces.Box(-1., 1., (2,), np.float32)
         self.observation_space = gym.spaces.Dict(spaces)
         self.action_space = self.env.action_space
 
@@ -114,6 +116,9 @@ class MiniGrid(gym.Env):
         obs['map_masked'] = obs['map_agent'] * vis_mask
         obs['map_vis'] = self.update_map_last_seen(vis_mask)
         obs['map_centered'] = self.to_categorical(self.map_centered())
+        obs['agent_pos'] = np.array(self.env.agent_pos, dtype=np.float32)
+        agent_dir = int(self.env.agent_dir)  # type: ignore
+        obs['agent_dir'] = np.array([[+1, 0], [0, +1], [-1, 0], [0, -1]][agent_dir], dtype=np.float32)
 
         for k in obs:
             assert obs[k].shape == self.observation_space[k].shape, f"Wrong shape {k}: {obs[k].shape} != {self.observation_space[k].shape}"  # type: ignore
