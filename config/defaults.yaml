@@ -52,6 +52,8 @@ defaults:
   grad_clip_ac: 200
   image_decoder_min_prob: 0
   amp: True
+  separate_adams: True  # for baselines
+  probe_gradients: False  # for baselines
 
   # Eval
   test_batches: 61  # For unbiased test needs to be enough to cover full episodes

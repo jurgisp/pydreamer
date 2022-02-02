@@ -226,9 +226,8 @@ class DataSequential(IterableDataset):
             assert False, 'Legacy, shouldnt happen anymore'  # TODO: remove
             # data['map_centered'] = (data['map_centered'] * 255).clip(0, 255).astype(np.uint8)
 
-        # # Convert one-hot back to categorical
-        # if len(data['action'].shape) == 2:
-        #     data['action'] = data['action'].argmax(-1)
+        # Add action_next (action[i] -> obs[i] -> action_next[i] -> obs[i+1])
+        data['action_next'] = np.concatenate([data['action'][1:], np.zeros_like(data['action'][:1])])  # last one is zero
 
         n = lenb(data)
         if n < batch_length:

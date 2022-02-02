@@ -135,6 +135,11 @@ class Preprocessor:
             batch['action'] = to_onehot(batch['action'], self.action_dim)
         assert len(batch['action'].shape) == 3
         batch['action'] = batch['action'].astype(np.float32)
+        
+        if len(batch['action_next'].shape) == 2:
+            batch['action_next'] = to_onehot(batch['action_next'], self.action_dim)
+        assert len(batch['action_next'].shape) == 3
+        batch['action_next'] = batch['action_next'].astype(np.float32)
 
         # reward, terminal
 
@@ -171,7 +176,7 @@ class Preprocessor:
         # => float16
 
         if self.amp:
-            for key in ['image', 'action', 'map', 'map_coord', 'vecobs']:
+            for key in ['image', 'action', 'action_next', 'map', 'map_coord', 'vecobs']:
                 if key in batch:
                     batch[key] = batch[key].astype(np.float16)
 
