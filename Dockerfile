@@ -3,7 +3,8 @@ ARG ENV=dmlab
 # --build-arg TYPE={full|base}
 ARG TYPE=full
 
-FROM pytorch/pytorch:1.8.1-cuda10.2-cudnn7-devel AS base
+FROM pytorch/pytorch:1.9.1-cuda11.1-cudnn8-devel AS base
+# FROM pytorch/pytorch:1.8.1-cuda10.2-cudnn7-devel AS base
 
 # System packages for Atari, DMLab, MiniWorld... Throw in everything
 RUN apt-get update && apt-get install -y \
