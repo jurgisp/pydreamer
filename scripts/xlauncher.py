@@ -2,12 +2,14 @@ import json
 import os
 import random
 import warnings
+import yaml
 from pathlib import Path
 
 warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
 
 from absl import app, flags
 from xmanager import xm, xm_local
+
 
 CWD = Path(__file__).parent.parent
 EXPORT_VARS = ['MLFLOW_TRACKING_URI', 'MLFLOW_TRACKING_USERNAME', 'MLFLOW_TRACKING_PASSWORD', 'MLFLOW_EXPERIMENT_NAME']
@@ -19,10 +21,13 @@ flags.DEFINE_string('dockerfile', 'Dockerfile', '')
 flags.DEFINE_string('flagsfile', '', 'JSON flags file')
 # Launch with explicit PyDreamer parameters
 flags.DEFINE_string('configs', '', '')
-flags.DEFINE_string('config', '', 'Additional config to append to configs')
 flags.DEFINE_string('env_id', '', '')
-flags.DEFINE_string('run_name', '${expid}', '')
-flags.DEFINE_string('resume_id', '${rnd}', '')
+flags.DEFINE_string('run_name', '', '')
+flags.DEFINE_string('resume_id', '', '')
+# Launch multiple configs
+flags.DEFINE_string('configlist', '', 'Comma-separated list of config to launch, appended to --configs')
+# Launch from configfile
+flags.DEFINE_string('configfile', '', 'YAML config file, from which to launch all configs (only read headers, not actual config)')
 
 FLAGS = flags.FLAGS
 
@@ -41,21 +46,34 @@ def main(_):
         print(f'Launching {expid} ({len(flagslist)} runs) from {flagsfile}')
 
     else:
-        assert FLAGS.configs
-        configs = f'{FLAGS.configs},{FLAGS.config}' if FLAGS.config else FLAGS.configs
-        flagslist = [
-            {
-                'configs': configs,
-                'env_id': FLAGS.env_id,
-                'run_name': FLAGS.run_name,
-                'resume_id': FLAGS.resume_id,
+        assert FLAGS.configs, "--configs must be set"
+        assert not (bool(FLAGS.configlist) and bool(FLAGS.configfile)), "Maximum one of --configfile, --configlist should be set"
 
-            }
-        ]
-        if not FLAGS.run_name.startswith('$'):
-            expid = FLAGS.run_name
+        if FLAGS.configlist:
+            configlist = FLAGS.configlist.split(',')
+            expid = FLAGS.run_name or FLAGS.configlist.replace(',', '_')
+
+        elif FLAGS.configfile:
+            with open(FLAGS.configfile, 'r') as f:
+                conf_yaml = yaml.safe_load(f)
+            # Only reads config list, not actual configs
+            configlist = [k for k in conf_yaml if not k.startswith('.')]
+            expid = Path(FLAGS.configfile).stem
+
         else:
-            expid = configs.split(',')[-1]
+            configlist = ['']
+            expid = FLAGS.run_name or FLAGS.configs.split(',')[-1]
+
+        print('configlist:', configlist)
+
+        flagslist = []
+        for config in configlist:
+            flagslist.append({
+                'configs': f'{FLAGS.configs},{config}' if config else FLAGS.configs,
+                'env_id': FLAGS.env_id,
+                'run_name': FLAGS.run_name or config or expid,
+                'resume_id': FLAGS.resume_id or '${rnd}',
+            })
 
     # Launch experiment
 
@@ -68,7 +86,10 @@ def main(_):
         ])
 
         for flags_conf in flagslist:
-            context = {'expid': expid, 'rnd': str(random.randint(10000, 99999))}
+            context = {
+                'expid': expid,
+                'rnd': str(random.randint(10000, 99999))
+            }
             flags = {k: replace(v, context) for k, v in flags_conf.items()}
             flags = {k: v for k, v in flags.items() if v}  # Remove empty parameters
             print(f'Launching: {flags}')
