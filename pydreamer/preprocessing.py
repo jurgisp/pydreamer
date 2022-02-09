@@ -136,10 +136,11 @@ class Preprocessor:
         assert len(batch['action'].shape) == 3
         batch['action'] = batch['action'].astype(np.float32)
         
-        if len(batch['action_next'].shape) == 2:
-            batch['action_next'] = to_onehot(batch['action_next'], self.action_dim)
-        assert len(batch['action_next'].shape) == 3
-        batch['action_next'] = batch['action_next'].astype(np.float32)
+        if 'action_next' in batch:
+            if len(batch['action_next'].shape) == 2:
+                batch['action_next'] = to_onehot(batch['action_next'], self.action_dim)
+            assert len(batch['action_next'].shape) == 3
+            batch['action_next'] = batch['action_next'].astype(np.float32)
 
         # reward, terminal
 
