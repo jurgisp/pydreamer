@@ -1,5 +1,5 @@
 # --build-arg ENV={standard|dmlab|minerl}
-ARG ENV=standard
+ARG ENV=dmlab
 # --build-arg TYPE={full|base}
 ARG TYPE=full
 
