@@ -17,6 +17,9 @@ ENV_VARS = {k: os.environ[k] for k in EXPORT_VARS}
 
 # Xlauncher params
 flags.DEFINE_string('dockerfile', 'Dockerfile', '')
+flags.DEFINE_integer('a100', 0, '')
+flags.DEFINE_integer('v100', 0, '')
+flags.DEFINE_integer('p100', 0, '')
 # Launch from flagsfile
 flags.DEFINE_string('flagsfile', '', 'JSON flags file')
 # Launch with explicit PyDreamer parameters
@@ -98,10 +101,11 @@ def main(_):
 
             exp.add(xm.Job(
                 executable=executable,
-                executor=xm_local.Caip(xm.JobRequirements(a100=1)),  # A100
-                # executor=xm_local.Caip(xm.JobRequirements(p100=1, cpu=16 * xm.vCPU, ram=10 * xm.GiB)),  # P100
-                # executor=xm_local.Caip(xm.JobRequirements(v100=2, cpu=16 * xm.vCPU, ram=10 * xm.GiB)),  # V100
-                # executor=xm_local.Caip(xm.JobRequirements(t4=1, cpu=16 * xm.vCPU, ram=10 * xm.GiB)),  # T4
+                executor=xm_local.Caip(
+                    xm.JobRequirements(v100=FLAGS.v100, cpu=8 * FLAGS.v100, ram=10 * xm.GiB) if FLAGS.v100  # 1xV100 => n1-standard-8
+                    else xm.JobRequirements(p100=FLAGS.p100, cpu=16 * FLAGS.p100, ram=10 * xm.GiB) if FLAGS.p100  # 1xP100 => n1-standard-16
+                    else xm.JobRequirements(a100=FLAGS.a100 or 1),  # 1xA100 => a2-highgpu-1g (12CPU)
+                ),
                 args=flags,  # type: ignore
                 env_vars=ENV_VARS
             ))
