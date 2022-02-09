@@ -37,7 +37,7 @@ def to_list(s):
 def read_yamls(dir):
     conf = {}
     no_conf = True
-    for config_file in Path(dir).glob('*.yaml'):
+    for config_file in Path(dir).glob('**/*.yaml'):
         no_conf = False
         with config_file.open('r') as f:
             conf.update(yaml.safe_load(f))

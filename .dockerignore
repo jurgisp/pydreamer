@@ -15,4 +15,5 @@ _*.*
 
 results/
 !config/*.yaml
+!config/.local
 !.gcs_credentials
