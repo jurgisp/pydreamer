@@ -56,7 +56,7 @@ RUN ln -s '/opt/conda/lib/python3.7/site-packages/numpy/core/include/numpy' /usr
     sed -i 's@python3.5@python3.7@g' python.BUILD && \
     sed -i 's@glob(\[@glob(["include/numpy/\*\*/*.h", @g' python.BUILD && \
     sed -i 's@: \[@: ["include/numpy", @g' python.BUILD && \
-    sed -i 's@650250979303a649e21f87b5ccd02672af1ea6954b911342ea491f351ceb7122@1e9793e1c6ba66e7e0b6e5fe7fd0f9e935cc697854d5737adec54d93e5b3f730@g' WORKSPACE && \
+    sed -i 's@650250979303a649e21f87b5ccd02672af1ea6954b911342ea491f351ceb7122@682aee469c3ca857c4c38c37a6edadbfca4b04d42e56613b11590ec6aa4a278d@g' WORKSPACE && \
     sed -i 's@rules_cc-master@rules_cc-main@g' WORKSPACE && \
     sed -i 's@rules_cc/archive/master@rules_cc/archive/main@g' WORKSPACE && \
     bazel build -c opt python/pip_package:build_pip_package --incompatible_remove_legacy_whole_archive=0
