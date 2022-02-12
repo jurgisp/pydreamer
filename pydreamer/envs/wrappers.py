@@ -25,8 +25,9 @@ class TimeLimitWrapper(gym.Wrapper):
         obs, reward, done, info = self.env.step(action)  # type: ignore
         self.step_ += 1
         if self.step_ >= self.time_limit:
-            done = True
             info['time_limit'] = True
+            info['terminal'] = done
+            done = True
         return obs, reward, done, info
 
     def reset(self):
@@ -53,7 +54,7 @@ class ActionRewardResetWrapper(gym.Wrapper):
             action_vec = action
         obs['action'] = action_vec
         obs['reward'] = np.array(reward)
-        obs['terminal'] = np.array(False if self.no_terminal or info.get('time_limit') else done)
+        obs['terminal'] = np.array(False if self.no_terminal else info['terminal'] if info.get('time_limit') else done)
         obs['reset'] = np.array(False)
         return obs, reward, done, info
 
