@@ -585,7 +585,7 @@ def run_generator(env_id,
 def get_profiler(conf):
     if conf.enable_profiler:
         return torch.profiler.profile(
-            # activities=[ProfilerActivity.CUDA],
+            activities=[ProfilerActivity.CUDA],
             schedule=torch.profiler.schedule(wait=10, warmup=10, active=1, repeat=3),
             on_trace_ready=tools.tensorboard_trace_handler('./log'),
         )
