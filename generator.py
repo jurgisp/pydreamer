@@ -72,8 +72,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
     repository = MlflowEpisodeRepository(save_uri)
     repository2 = MlflowEpisodeRepository(save_uri2) if save_uri2 else repository
-    nfiles, steps, episodes = repository.count_steps()
-    info(f'Found existing {nfiles} files, {episodes} episodes, {steps} steps in {repository}')
+    nfiles, steps_saved, episodes = repository.count_steps()
+    info(f'Found existing {nfiles} files, {episodes} episodes, {steps_saved} steps in {repository}')
 
     # Env
 
@@ -96,12 +96,13 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     model_step = 0
     metrics_agg = defaultdict(list)
     all_returns = []
+    steps = 0
 
-    while steps < num_steps:
+    while steps_saved < num_steps:
 
         # Switch policy prefill => main
 
-        if steps >= num_steps_prefill and len(datas) == 0:
+        if steps_saved >= num_steps_prefill:
             info(f'Switching to main policy: {policy_main}')
             policy = create_policy(policy_main, env, model_conf)
 
@@ -120,7 +121,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                         debug('Generator model checkpoint not found, waiting...')
                         time.sleep(10)
 
-            if limit_step_ratio and steps >= model_step * limit_step_ratio:
+            if limit_step_ratio and steps_saved >= model_step * limit_step_ratio:
                 # Rate limiting - keep looping until new model checkpoint is loaded
                 time.sleep(1)
                 continue
@@ -162,8 +163,9 @@ def main(env_id='MiniGrid-MazeS11N-v0',
              f"  steps: {epsteps}"
              f",  reward: {data['reward'].sum():.1f}"
              f",  terminal: {data['terminal'].sum():.0f}"
-             f",  visited: {(data.get('map_seen', np.zeros(1))[-1] > 0).mean():.1%}"
+            #  f",  visited: {(data.get('map_seen', np.zeros(1))[-1] > 0).mean():.1%}"
              f",  total steps: {steps:.0f}"
+             f",  saved steps (train): {steps_saved:.0f}"
              f",  episodes: {episodes}"
              f",  fps: {fps:.0f}"
              )
@@ -174,7 +176,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             metrics.update({
                 f'{metrics_prefix}/episode_length': epsteps,
                 f'{metrics_prefix}/fps': fps,
-                f'{metrics_prefix}/steps': steps,
+                f'{metrics_prefix}/steps': steps,  # All steps since previous restart
+                f'{metrics_prefix}/steps_saved': steps_saved,  # Steps saved in the training repo
                 f'{metrics_prefix}/env_steps': steps * env_action_repeat,
                 f'{metrics_prefix}/episodes': episodes,
                 f'{metrics_prefix}/return': data['reward'].sum(),
@@ -254,6 +257,10 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                     # Categorical image, leave it alone
                     pass
                 repo.save_data(data, episodes - datas_episodes, episodes - 1, i)
+
+            if repo == repository:
+                # Only count steps in the training repo, so that prefill and limit_step_ratio works correctly
+                steps_saved += datas_steps
 
     info('Generator done.')
 
