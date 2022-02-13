@@ -122,7 +122,8 @@ class DataSequential(IterableDataset):
                  reload_interval=0, 
                  buffer_size=0, 
                  reset_interval=0,
-                 allow_mid_reset=False
+                 allow_mid_reset=False,
+                 check_nonempty=True,
                  ):
         super().__init__()
         self.repository = repository
@@ -134,7 +135,8 @@ class DataSequential(IterableDataset):
         self.reset_interval = reset_interval
         self.allow_mid_reset = allow_mid_reset
         self.reload_files(True)
-        assert len(self.files) > 0, 'No data found'
+        if check_nonempty:
+            assert len(self.files) > 0, 'No data found'
 
     def reload_files(self, is_first=False):
         verbose = get_worker_id() == 0

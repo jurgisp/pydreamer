@@ -47,7 +47,7 @@ def run(conf):
 
     device = torch.device(conf.device)
 
-    # Generator / Agent
+    # Training data generator
 
     input_dirs = []
     eval_dirs = []
@@ -56,45 +56,12 @@ def run(conf):
 
     if conf.offline_data_dir:
         # Offline data
-
-        input_dirs.extend(to_list(conf.offline_data_dir))
         online_data = False
-
+        input_dirs.extend(to_list(conf.offline_data_dir))
+    
     else:
         # Online data
-
         online_data = True
-
-        # Prefill
-
-        if conf.offline_prefill_dir:
-            # Prefill with existing offline data
-            input_dirs.extend(to_list(conf.offline_prefill_dir))
-        else:
-            # Prefill with random policy
-            info(f'Generator prefilling random data ({conf.generator_prefill_steps} steps)...')
-            for i in range(conf.generator_workers):
-                p = run_generator(conf.env_id,
-                                  conf,
-                                  f'{artifact_uri}/episodes/{i}',
-                                  worker_id=i,
-                                  policy=conf.generator_prefill_policy,
-                                  num_steps=conf.generator_prefill_steps // conf.generator_workers)
-                subprocesses.append(p)
-            # wait
-            while any(p.is_alive() for p in subprocesses):
-                time.sleep(1)
-                if any(not p.is_alive() and p.exitcode != 0 for p in subprocesses):
-                    raise Exception(f'Generator process died')
-            subprocesses.clear()
-
-        if conf.n_env_steps // conf.env_action_repeat <= conf.generator_prefill_steps:
-            # This is a legit case when generating offline data - it's a prefill-only job
-            info(f'Requested {conf.n_env_steps} steps, prefilled {conf.generator_prefill_steps} x{conf.env_action_repeat} - DONE')
-            return
-
-        # Agents
-
         info('Starting agent generators...')
         for i in range(conf.generator_workers):
             # If eval environment is the same, we can use one agent for both train and eval data
@@ -105,11 +72,14 @@ def run(conf):
                                   conf,
                                   save_uri=f'{artifact_uri}/episodes/{i}',
                                   save_uri2=f'{artifact_uri}/episodes_eval/{i}',
-                                  num_steps=(conf.n_env_steps // conf.env_action_repeat - conf.generator_prefill_steps) // conf.generator_workers,
+                                  num_steps=conf.n_env_steps // conf.env_action_repeat // conf.generator_workers,
                                   limit_step_ratio=conf.limit_step_ratio / conf.generator_workers,
                                   worker_id=i,
-                                  policy='network',
-                                  split_fraction=0.1)
+                                  policy_main='network',
+                                  policy_prefill=conf.generator_prefill_policy,
+                                  num_steps_prefill=conf.generator_prefill_steps // conf.generator_workers,
+                                  split_fraction=0.1,
+                                  )
                 input_dirs.append(f'{artifact_uri}/episodes/{i}')
                 eval_dirs.append(f'{artifact_uri}/episodes_eval/{i}')
             else:
@@ -117,14 +87,17 @@ def run(conf):
                 p = run_generator(conf.env_id,
                                   conf,
                                   f'{artifact_uri}/episodes/{i}',
-                                  num_steps=(conf.n_env_steps // conf.env_action_repeat - conf.generator_prefill_steps) // conf.generator_workers,
+                                  num_steps=conf.n_env_steps // conf.env_action_repeat // conf.generator_workers,
                                   limit_step_ratio=conf.limit_step_ratio / conf.generator_workers,
                                   worker_id=i,
-                                  policy='network')
+                                  policy_main='network',
+                                  policy_prefill=conf.generator_prefill_policy,
+                                  num_steps_prefill=conf.generator_prefill_steps // conf.generator_workers,
+                                  )
                 input_dirs.append(f'{artifact_uri}/episodes/{i}')
             subprocesses.append(p)
 
-    # Eval data
+    # Eval data generator
 
     if conf.offline_eval_dir:
         eval_dirs.extend(to_list(conf.offline_eval_dir))
@@ -136,8 +109,8 @@ def run(conf):
                 p = run_generator(conf.env_id_eval or conf.env_id,
                                   conf,
                                   f'{artifact_uri}/episodes_eval/{i}',
-                                  worker_id=99 - i,
-                                  policy='network',
+                                  worker_id=conf.generator_workers + i,
+                                  policy_main='network',
                                   metrics_prefix='agent_eval')
                 eval_dirs.append(f'{artifact_uri}/episodes_eval/{i}')
                 subprocesses.append(p)
@@ -147,10 +120,34 @@ def run(conf):
     else:
         test_dirs = eval_dirs
 
+    # Prefill
+
+    if conf.offline_prefill_dir:
+        input_dirs.extend(to_list(conf.offline_prefill_dir))
+    else:
+        # Wait for prefill
+        while True:
+            data_train_stats = DataSequential(MlflowEpisodeRepository(input_dirs), conf.batch_length, conf.batch_size, check_nonempty=False)
+            mlflow.log_metrics({
+                'data_steps': data_train_stats.stats_steps,
+                'data_env_steps': data_train_stats.stats_steps * conf.env_action_repeat,
+            }, step=0)
+            if data_train_stats.stats_steps < conf.generator_prefill_steps:
+                debug(f'Waiting for prefill: {data_train_stats.stats_steps}/{conf.generator_prefill_steps} steps...')
+                time.sleep(60)
+            else:
+                info(f'Done prefilling: {data_train_stats.stats_steps}/{conf.generator_prefill_steps} steps.')
+                break
+
+        if data_train_stats.stats_steps >= conf.n_env_steps // conf.env_action_repeat:
+            # Prefill-only job
+            info(f'Requested {conf.n_env_steps} steps, prefilled {data_train_stats.stats_steps} x{conf.env_action_repeat} - DONE')
+            return
+
+
     # Data reader
 
-    repository = MlflowEpisodeRepository(input_dirs)
-    data = DataSequential(repository,
+    data = DataSequential(MlflowEpisodeRepository(input_dirs),
                           conf.batch_length,
                           conf.batch_size,
                           skip_first=True,
@@ -178,12 +175,15 @@ def run(conf):
     # print(repr(model))
     mlflow_log_text(repr(model), 'architecture.txt')
 
-    # Training
-
     optimizers = model.init_optimizers(conf.adam_lr, conf.adam_lr_actor, conf.adam_lr_critic, conf.adam_eps)
     resume_step = tools.mlflow_load_checkpoint(model, optimizers)
     if resume_step:
         info(f'Loaded model from checkpoint epoch {resume_step}')
+
+
+    # ---------------------
+    # TRAINING
+    # ---------------------
 
     start_time = time.time()
     steps = resume_step or 0
@@ -287,8 +287,7 @@ def run(conf):
                     # Log data buffer size
 
                     if steps % conf.logbatch_interval == 0:
-                        repository = MlflowEpisodeRepository(input_dirs)
-                        data_train_stats = DataSequential(repository, conf.batch_length, conf.batch_size)
+                        data_train_stats = DataSequential(MlflowEpisodeRepository(input_dirs), conf.batch_length, conf.batch_size)
                         metrics['data_steps'].append(data_train_stats.stats_steps)
                         metrics['data_env_steps'].append(data_train_stats.stats_steps * conf.env_action_repeat)
 
@@ -350,14 +349,12 @@ def run(conf):
                     if conf.eval_interval and steps % conf.eval_interval == 0:
                         try:
                             # Test = same settings as train
-                            repository = MlflowEpisodeRepository(test_dirs)
-                            data_test = DataSequential(repository, conf.batch_length, conf.test_batch_size, skip_first=False, reset_interval=conf.reset_interval)
+                            data_test = DataSequential(MlflowEpisodeRepository(test_dirs), conf.batch_length, conf.test_batch_size, skip_first=False, reset_interval=conf.reset_interval)
                             test_iter = iter(DataLoader(preprocess(data_test), batch_size=None))
                             evaluate('test', steps, model, test_iter, device, conf.test_batches, conf.iwae_samples, conf.keep_state, conf.test_save_size, conf)
 
                             # Eval = no state reset, multisampling
-                            repository = MlflowEpisodeRepository(eval_dirs)
-                            data_eval = DataSequential(repository, conf.batch_length, conf.eval_batch_size, skip_first=False)
+                            data_eval = DataSequential(MlflowEpisodeRepository(eval_dirs), conf.batch_length, conf.eval_batch_size, skip_first=False)
                             eval_iter = iter(DataLoader(preprocess(data_eval), batch_size=None))
                             evaluate('eval', steps, model, eval_iter, device, conf.eval_batches, conf.eval_samples, True, conf.eval_save_size, conf)
 
@@ -546,14 +543,16 @@ def run_generator(env_id,
                   conf,
                   save_uri,
                   save_uri2=None,
-                  policy='network',
+                  policy_main='network',
+                  policy_prefill='random',
                   worker_id=0,
                   num_steps=int(1e9),
+                  num_steps_prefill=0,
                   limit_step_ratio=0,
                   block=False,
                   split_fraction=0.0,
                   metrics_prefix='agent',
-                  log_mlflow_metrics=True
+                  log_mlflow_metrics=True,
                   ):
     # Make sure generator subprcess logs to the same mlflow run
     os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
@@ -567,8 +566,10 @@ def run_generator(env_id,
                     env_action_repeat=conf.env_action_repeat,
                     env_no_terminal=conf.env_no_terminal,
                     limit_step_ratio=limit_step_ratio,
-                    policy=policy,
+                    policy_main=policy_main,
+                    policy_prefill=policy_prefill,
                     num_steps=num_steps,
+                    num_steps_prefill=num_steps_prefill,
                     worker_id=worker_id,
                     model_conf=conf,
                     log_mlflow_metrics=log_mlflow_metrics,

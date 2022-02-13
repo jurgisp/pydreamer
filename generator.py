@@ -28,8 +28,10 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          save_uri=None,
          save_uri2=None,
          worker_id=0,
-         policy='random',
+         policy_main='random',
+         policy_prefill='random',
          num_steps=int(1e6),
+         num_steps_prefill=0,
          env_no_terminal=False,
          env_time_limit=0,
          env_action_repeat=1,
@@ -55,7 +57,13 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     else:
         mlflow.start_run(run_name=f'{env_id}-{worker_id}')
 
-    info(f'Generator {worker_id} started: env={env_id}, n_steps={num_steps}, split_fraction={split_fraction}, metrics={metrics_prefix if log_mlflow_metrics else None}, save_uri={save_uri}')
+    info(f'Generator {worker_id} started:'
+         f' env={env_id}'
+         f', n_steps={num_steps:,}'
+         f', n_prefill={num_steps_prefill:,}'
+         f', split_fraction={split_fraction}'
+         f', metrics={metrics_prefix if log_mlflow_metrics else None}'
+         f', save_uri={save_uri}')
 
     if not save_uri:
         save_uri = f'{mlflow.active_run().info.artifact_uri}/episodes/{worker_id}'  # type: ignore
@@ -73,41 +81,13 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
     # Policy
 
-    model = None
-    if policy == 'network':
-        conf = model_conf
-        if conf.model == 'dreamer':
-            model = Dreamer(conf)
-        else:
-            assert False, conf.model
-        preprocess = Preprocessor(image_categorical=conf.image_channels if conf.image_categorical else None,
-                                  image_key=conf.image_key,
-                                  map_categorical=conf.map_channels if conf.map_categorical else None,
-                                  map_key=conf.map_key,
-                                  action_dim=env.action_size,  # type: ignore
-                                  clip_rewards=conf.clip_rewards)
-        policy = NetworkPolicy(model, preprocess)
-
-    elif policy == 'random':
-        policy = RandomPolicy(env.action_space)
-    elif policy == 'minigrid_wander':
-        from pydreamer.envs.minigrid import MinigridWanderPolicy
-        policy = MinigridWanderPolicy()
-    elif policy == 'maze_bouncing_ball':
-        from pydreamer.envs.miniworld import MazeBouncingBallPolicy
-        policy = MazeBouncingBallPolicy()
-    elif policy == 'maze_dijkstra':
-        from pydreamer.envs.miniworld import MazeDijkstraPolicy
-        step_size = env.params.params['forward_step'].default / env.room_size  # type: ignore
-        turn_size = env.params.params['turn_step'].default  # type: ignore
-        policy = MazeDijkstraPolicy(step_size, turn_size)
-    elif policy == 'goal_dijkstra':
-        from pydreamer.envs.miniworld import MazeDijkstraPolicy
-        step_size = env.params.params['forward_step'].default / env.room_size  # type: ignore
-        turn_size = env.params.params['turn_step'].default  # type: ignore
-        policy = MazeDijkstraPolicy(step_size, turn_size, goal_strategy='goal_direction', random_prob=0)
+    if num_steps_prefill:
+        # Start with prefill policy
+        info(f'Prefill policy: {policy_prefill}')
+        policy = create_policy(policy_prefill, env, model_conf)
     else:
-        assert False, 'Unknown policy'
+        info(f'Policy: {policy_main}')
+        policy = create_policy(policy_main, env, model_conf)
 
     # RUN
 
@@ -119,7 +99,15 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
     while steps < num_steps:
 
-        if model is not None:
+        # Switch policy prefill => main
+
+        if steps >= num_steps_prefill and len(datas) == 0:
+            info(f'Switching to main policy: {policy_main}')
+            policy = create_policy(policy_main, env, model_conf)
+
+        # Load network
+
+        if isinstance(policy, NetworkPolicy):
             if time.time() - last_model_load > model_reload_interval:
                 while True:
                     # takes ~10sec to load checkpoint
@@ -194,7 +182,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             })
 
             # Calculate return_discounted
-            
+
             rewards_v = data['reward'].copy()
             if not data['terminal'][-1]:
                 avg_value = rewards_v.mean() / (1.0 - metrics_gamma)
@@ -203,7 +191,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
             metrics[f'{metrics_prefix}/return_discounted'] = returns_discounted.mean()
 
             # Calculate policy_value_terminal
-            
+
             if data['terminal'][-1]:
                 value_terminal = data['policy_value'][-2] - data['reward'][-1]  # This should be zero, because value[last] = reward[last]
                 metrics[f'{metrics_prefix}/policy_value_terminal'] = value_terminal
@@ -227,7 +215,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
                 metrics_agg = {k: np.array(v).mean() for k, v in metrics_agg.items()}
                 metrics_agg[f'{metrics_prefix}/return_max'] = metrics_agg_max[f'{metrics_prefix}/return']
                 metrics_agg['_timestamp'] = datetime.now().timestamp()
-                mlflow.log_metrics(metrics_agg, step=model_step if model else 0)
+                mlflow.log_metrics(metrics_agg, step=model_step)
                 metrics_agg = defaultdict(list)
 
         # Save to npz
@@ -270,6 +258,47 @@ def main(env_id='MiniGrid-MazeS11N-v0',
     info('Generator done.')
 
 
+def create_policy(policy_type: str, env, model_conf):
+    if policy_type == 'network':
+        conf = model_conf
+        if conf.model == 'dreamer':
+            model = Dreamer(conf)
+        else:
+            assert False, conf.model
+        preprocess = Preprocessor(image_categorical=conf.image_channels if conf.image_categorical else None,
+                                  image_key=conf.image_key,
+                                  map_categorical=conf.map_channels if conf.map_categorical else None,
+                                  map_key=conf.map_key,
+                                  action_dim=env.action_size,  # type: ignore
+                                  clip_rewards=conf.clip_rewards)
+        return NetworkPolicy(model, preprocess)
+
+    if policy_type == 'random':
+        return RandomPolicy(env.action_space)
+
+    if policy_type == 'minigrid_wander':
+        from pydreamer.envs.minigrid import MinigridWanderPolicy
+        return MinigridWanderPolicy()
+
+    if policy_type == 'maze_bouncing_ball':
+        from pydreamer.envs.miniworld import MazeBouncingBallPolicy
+        return MazeBouncingBallPolicy()
+
+    if policy_type == 'maze_dijkstra':
+        from pydreamer.envs.miniworld import MazeDijkstraPolicy
+        step_size = env.params.params['forward_step'].default / env.room_size  # type: ignore
+        turn_size = env.params.params['turn_step'].default  # type: ignore
+        return MazeDijkstraPolicy(step_size, turn_size)
+
+    if policy_type == 'goal_dijkstra':
+        from pydreamer.envs.miniworld import MazeDijkstraPolicy
+        step_size = env.params.params['forward_step'].default / env.room_size  # type: ignore
+        turn_size = env.params.params['turn_step'].default  # type: ignore
+        return MazeDijkstraPolicy(step_size, turn_size, goal_strategy='goal_direction', random_prob=0)
+
+    raise ValueError(policy_type)
+
+
 class RandomPolicy:
     def __init__(self, action_space):
         self.action_space = action_space
@@ -304,7 +333,7 @@ class NetworkPolicy:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_id', type=str, required=True)
-    parser.add_argument('--policy', type=str, required=True)
+    parser.add_argument('--policy_main', type=str, required=True)
     parser.add_argument('--save_uri', type=str, default='')
     parser.add_argument('--num_steps', type=int, default=1_000_000)
     parser.add_argument('--worker_id', type=int, default=0)
