@@ -59,14 +59,16 @@ class DMMEnv(gym.Env):
                  level_name,
                  num_action_repeats=1,
                  action_set=ACTION_SET,
-                 address="localhost:2222"
+                 address="localhost:2222",
+                 worker_id=0,
                  ):
         # Get worker address which hosts environment from TF_CONFIG
         tf_config = os.environ.get('TF_CONFIG', None)
         if tf_config:
             debug(f"TF_CONFIG is set: {tf_config}")
             tf_config = json.loads(tf_config)
-            address = tf_config['cluster']['worker'][0]  # TODO: index
+            assert worker_id < len(tf_config['cluster']['worker']), f"Not enough workers for worker_id={worker_id}"
+            address = tf_config['cluster']['worker'][worker_id]
 
         settings = EnvironmentSettings(level_name=level_name, seed=random.randint(1, 999999))
         channel, connection, specs = _connect_to_environment(settings, address)

@@ -77,7 +77,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
     # Env
 
-    env = create_env(env_id, env_no_terminal, env_time_limit, env_action_repeat)
+    env = create_env(env_id, env_no_terminal, env_time_limit, env_action_repeat, worker_id)
 
     # Policy
 

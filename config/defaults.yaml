@@ -215,7 +215,7 @@ dmmemory:
   env_id: DMM-spot_diff_passive_train
   action_dim: 11
   kl_weight: 3.0
-  generator_workers: 1  # TODO
+  generator_workers: 4
 
 dmlab_offline:
   env_id: DmLab-rooms_watermaze

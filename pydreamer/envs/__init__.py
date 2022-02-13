@@ -8,7 +8,7 @@ import numpy as np
 from .wrappers import *
 
 
-def create_env(env_id: str, no_terminal: bool, env_time_limit: int, env_action_repeat: int):
+def create_env(env_id: str, no_terminal: bool, env_time_limit: int, env_action_repeat: int, worker_id: int):
 
     if env_id.startswith('MiniGrid-'):
         from .minigrid import MiniGrid
@@ -40,7 +40,7 @@ def create_env(env_id: str, no_terminal: bool, env_time_limit: int, env_action_r
     
     elif env_id.startswith('DMM-'):
         from .dmm import DMMEnv
-        env = DMMEnv(env_id.split('-', maxsplit=1)[1].lower(), num_action_repeats=env_action_repeat)
+        env = DMMEnv(env_id.split('-', maxsplit=1)[1].lower(), num_action_repeats=env_action_repeat, worker_id=worker_id)
         env = DictWrapper(env)
 
     elif env_id.startswith('MineRL'):
