@@ -17,9 +17,11 @@ ENV_VARS = {k: os.environ[k] for k in EXPORT_VARS}
 
 # Xlauncher params
 flags.DEFINE_string('dockerfile', 'Dockerfile', '')
+flags.DEFINE_string('dockerfile_actor', '', '')
 flags.DEFINE_integer('a100', 0, '')
 flags.DEFINE_integer('v100', 0, '')
 flags.DEFINE_integer('p100', 0, '')
+flags.DEFINE_integer('num_actors', 0, 'How many actors to launch')
 # Launch from flagsfile
 flags.DEFINE_string('flagsfile', '', 'JSON flags file')
 # Launch with explicit PyDreamer parameters
@@ -36,9 +38,6 @@ FLAGS = flags.FLAGS
 
 
 def main(_):
-    dockerpath = CWD
-    dockerfile = CWD / Path(FLAGS.dockerfile)
-
     # Parse flags list
 
     if FLAGS.flagsfile:
@@ -83,10 +82,19 @@ def main(_):
     with xm_local.create_experiment(expid) as exp:
         [executable] = exp.package([
             xm.Packageable(
-                executable_spec=xm.Dockerfile(str(dockerpath), str(dockerfile)),
+                executable_spec=xm.Dockerfile(str(CWD), str(CWD / FLAGS.dockerfile)),
                 executor_spec=xm_local.Caip.Spec(),
             ),
         ])
+        if FLAGS.dockerfile_actor:
+            [exec_actor] = exp.package([
+                xm.Packageable(
+                    executable_spec=xm.Dockerfile(str(CWD), str(CWD / FLAGS.dockerfile_actor)),
+                    executor_spec=xm_local.Caip.Spec(),
+                ),
+            ])
+        else:
+            exec_actor = executable
 
         for flags_conf in flagslist:
             context = {
@@ -99,7 +107,7 @@ def main(_):
 
             # Launch run
 
-            exp.add(xm.Job(
+            job = xm.Job(
                 executable=executable,
                 executor=xm_local.Caip(
                     xm.JobRequirements(v100=FLAGS.v100, cpu=8 * FLAGS.v100, ram=10 * xm.GiB) if FLAGS.v100  # 1xV100 => n1-standard-8
@@ -108,7 +116,19 @@ def main(_):
                 ),
                 args=flags,  # type: ignore
                 env_vars=ENV_VARS
-            ))
+            )
+
+            if FLAGS.num_actors:
+                # Multi-worker job
+                job = xm.JobGroup(
+                    learner=job,
+                    actor=xm.Job(
+                        executable=exec_actor,
+                        executor=xm_local.Caip(xm.JobRequirements(cpu=4 * xm.vCPU, ram=10 * xm.GiB, replicas=FLAGS.num_actors))
+                    ),
+                )
+
+            exp.add(job)
 
     print('--- LAUNCHER DONE ---')
 

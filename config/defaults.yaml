@@ -211,6 +211,12 @@ dmlab:
   env_no_terminal: True
   kl_weight: 3.0
 
+dmmemory:
+  env_id: DMM-spot_diff_passive_train
+  action_dim: 11
+  kl_weight: 3.0
+  generator_workers: 1  # TODO
+
 dmlab_offline:
   env_id: DmLab-rooms_watermaze
   action_dim: 15

@@ -35,7 +35,12 @@ def create_env(env_id: str, no_terminal: bool, env_time_limit: int, env_action_r
 
     elif env_id.startswith('DmLab-'):
         from .dmlab import DmLab
-        env = DmLab(env_id.split('-')[1].lower(), num_action_repeats=env_action_repeat)
+        env = DmLab(env_id.split('-', maxsplit=1)[1].lower(), num_action_repeats=env_action_repeat)
+        env = DictWrapper(env)
+    
+    elif env_id.startswith('DMM-'):
+        from .dmm import DMMEnv
+        env = DMMEnv(env_id.split('-', maxsplit=1)[1].lower(), num_action_repeats=env_action_repeat)
         env = DictWrapper(env)
 
     elif env_id.startswith('MineRL'):

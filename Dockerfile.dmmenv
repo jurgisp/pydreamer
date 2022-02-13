@@ -1,0 +1,19 @@
+FROM gcr.io/deepmind-environments/dm_memorytasks:v1.0.1 AS dm_memorytasks
+
+# FROM ubuntu:devel
+# COPY --from=dm_memorytasks /app/dm_memorytasks_app /app/dm_memorytasks_app
+# COPY --from=dm_memorytasks /usr/grte/v4/lib64 /usr/grte/v4/lib64
+
+ENV UNITY_OSMESA_PATH /app/dm_memorytasks_app/external_libosmesa_llvmpipe.so
+ENV UNITY_RENDERER software
+WORKDIR /app/dm_memorytasks_app
+
+ENTRYPOINT [ \
+    "/app/dm_memorytasks_app/Linux64Player", \
+    "-logfile", \
+    "-batchmode", \
+    "-noaudio", \
+    "--logtostderr", \
+    "--server_type=DM_ENV_RPC", \
+    "--uri_address=[::]:2222" \
+]

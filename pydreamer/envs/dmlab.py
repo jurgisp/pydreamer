@@ -15,6 +15,7 @@
 
 import os
 import gym
+import gym.spaces
 import numpy as np
 from PIL import Image
 
@@ -109,8 +110,8 @@ class DmLab(gym.Env):
                 ),
         )
         self.action_set = action_set
-        self.action_space = gym.spaces.Discrete(len(self.action_set))  # type: ignore
-        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)  # type: ignore
+        self.action_space = gym.spaces.Discrete(len(self.action_set))
+        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
 
     def observation(self):
         img = self.env.observations()['RGB_INTERLEAVED']
