@@ -96,6 +96,8 @@ class DMMEnv(gym.Env):
         assert timestep is not None
         obs = self.observation(timestep)
         done = timestep.last()
+        # NOTE: timestep.discount should distinguish terminal from time limit, but doesn't seem implemented in DMM
+        # is_terminal = timestep.discount == 0  
         return obs, reward, done, {}
 
     def observation(self, timestep: dm_env.TimeStep):

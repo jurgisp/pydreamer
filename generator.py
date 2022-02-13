@@ -85,9 +85,11 @@ def main(env_id='MiniGrid-MazeS11N-v0',
         # Start with prefill policy
         info(f'Prefill policy: {policy_prefill}')
         policy = create_policy(policy_prefill, env, model_conf)
+        is_prefill_policy = True
     else:
         info(f'Policy: {policy_main}')
         policy = create_policy(policy_main, env, model_conf)
+        is_prefill_policy = False
 
     # RUN
 
@@ -102,9 +104,10 @@ def main(env_id='MiniGrid-MazeS11N-v0',
 
         # Switch policy prefill => main
 
-        if steps_saved >= num_steps_prefill:
+        if is_prefill_policy and steps_saved >= num_steps_prefill:
             info(f'Switching to main policy: {policy_main}')
             policy = create_policy(policy_main, env, model_conf)
+            is_prefill_policy = False
 
         # Load network
 
@@ -165,8 +168,8 @@ def main(env_id='MiniGrid-MazeS11N-v0',
              f",  terminal: {data['terminal'].sum():.0f}"
             #  f",  visited: {(data.get('map_seen', np.zeros(1))[-1] > 0).mean():.1%}"
              f",  total steps: {steps:.0f}"
-             f",  saved steps (train): {steps_saved:.0f}"
              f",  episodes: {episodes}"
+             f",  saved steps (train): {steps_saved:.0f}"
              f",  fps: {fps:.0f}"
              )
 

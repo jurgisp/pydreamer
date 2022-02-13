@@ -58,7 +58,7 @@ def run(conf):
         # Offline data
         online_data = False
         input_dirs.extend(to_list(conf.offline_data_dir))
-    
+
     else:
         # Online data
         online_data = True
@@ -129,8 +129,9 @@ def run(conf):
         while True:
             data_train_stats = DataSequential(MlflowEpisodeRepository(input_dirs), conf.batch_length, conf.batch_size, check_nonempty=False)
             mlflow.log_metrics({
-                'data_steps': data_train_stats.stats_steps,
-                'data_env_steps': data_train_stats.stats_steps * conf.env_action_repeat,
+                'train/data_steps': data_train_stats.stats_steps,
+                'train/data_env_steps': data_train_stats.stats_steps * conf.env_action_repeat,
+                '_timestamp': datetime.now().timestamp(),
             }, step=0)
             if data_train_stats.stats_steps < conf.generator_prefill_steps:
                 debug(f'Waiting for prefill: {data_train_stats.stats_steps}/{conf.generator_prefill_steps} steps...')
@@ -143,7 +144,6 @@ def run(conf):
             # Prefill-only job
             info(f'Requested {conf.n_env_steps} steps, prefilled {data_train_stats.stats_steps} x{conf.env_action_repeat} - DONE')
             return
-
 
     # Data reader
 
@@ -179,7 +179,6 @@ def run(conf):
     resume_step = tools.mlflow_load_checkpoint(model, optimizers)
     if resume_step:
         info(f'Loaded model from checkpoint epoch {resume_step}')
-
 
     # ---------------------
     # TRAINING
@@ -476,7 +475,9 @@ def evaluate(prefix: str,
     if len(npz_datas) > 0:
         npz_data = {k: np.concatenate([d[k] for d in npz_datas], 1) for k in npz_datas[0]}
         print_once(f'Saving batch d2_wm_closed_{prefix}: ', {k: tuple(v.shape) for k, v in npz_data.items()})
-        tools.mlflow_log_npz(npz_data, f'{steps:07}.npz', subdir=f'd2_wm_closed_{prefix}', verbose=True)
+        r = npz_data['reward'][0].sum().item()
+        print(r)
+        tools.mlflow_log_npz(npz_data, f'{steps:07}_r{r:.0f}.npz', subdir=f'd2_wm_closed_{prefix}', verbose=True)
 
     info(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_finished_episodes.sum()} episodes')
 
