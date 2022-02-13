@@ -135,6 +135,7 @@ def run(conf):
             }, step=0)
             if data_train_stats.stats_steps < conf.generator_prefill_steps:
                 debug(f'Waiting for prefill: {data_train_stats.stats_steps}/{conf.generator_prefill_steps} steps...')
+                check_subprocesses(subprocesses)
                 time.sleep(60)
             else:
                 info(f'Done prefilling: {data_train_stats.stats_steps}/{conf.generator_prefill_steps} steps.')
@@ -319,16 +320,7 @@ def run(conf):
 
                         # Check subprocess
 
-                        subp_finished = []
-                        for p in subprocesses:
-                            if not p.is_alive():
-                                if p.exitcode == 0:
-                                    subp_finished.append(p)
-                                    info(f'Generator process {p.pid} finished')
-                                else:
-                                    raise Exception(f'Generator process {p.pid} died with exitcode {p.exitcode}')
-                        for p in subp_finished:
-                            subprocesses.remove(p)
+                        check_subprocesses(subprocesses)
 
                     # Save model
 
@@ -593,6 +585,19 @@ def get_profiler(conf):
         )
     else:
         return NoProfiler()
+
+
+def check_subprocesses(subprocesses):
+    subp_finished = []
+    for p in subprocesses:
+        if not p.is_alive():
+            if p.exitcode == 0:
+                subp_finished.append(p)
+                info(f'Generator process {p.pid} finished')
+            else:
+                raise Exception(f'Generator process {p.pid} died with exitcode {p.exitcode}')
+    for p in subp_finished:
+        subprocesses.remove(p)
 
 
 if __name__ == '__main__':
