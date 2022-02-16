@@ -6,7 +6,7 @@ import sys
 import tempfile
 import time
 import warnings
-from logging import debug, info
+from logging import debug, info, exception
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -116,7 +116,11 @@ def mlflow_load_checkpoint(model, optimizers=tuple(), artifact_path='checkpoints
         except Exception as e:  # TODO: check if it's an error instead of expected "not found"
             # Checkpoint not found
             return None
-        checkpoint = torch.load(path, map_location=map_location)
+        try:
+            checkpoint = torch.load(path, map_location=map_location)
+        except:
+            exception('Error reading checkpoint')
+            return None
         model.load_state_dict(checkpoint['model_state_dict'])
         for i, opt in enumerate(optimizers):
             opt.load_state_dict(checkpoint[f'optimizer_{i}_state_dict'])
