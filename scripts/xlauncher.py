@@ -33,6 +33,7 @@ flags.DEFINE_string('resume_id', '', '')
 flags.DEFINE_string('configlist', '', 'Comma-separated list of config to launch, appended to --configs')
 # Launch from configfile
 flags.DEFINE_string('configfile', '', 'YAML config file, from which to launch all configs (only read headers, not actual config)')
+flags.DEFINE_string('run_name_suffix', '', '')
 
 FLAGS = flags.FLAGS
 
@@ -70,10 +71,11 @@ def main(_):
 
         flagslist = []
         for config in configlist:
+            suffix = f'_{FLAGS.run_name_suffix}' if FLAGS.run_name_suffix else ''
             flagslist.append({
                 'configs': f'{FLAGS.configs},{config}' if config else FLAGS.configs,
                 'env_id': FLAGS.env_id,
-                'run_name': FLAGS.run_name or config or expid,
+                'run_name': FLAGS.run_name or f'{config}{suffix}',
                 'resume_id': FLAGS.resume_id or '${rnd}',
             })
 
