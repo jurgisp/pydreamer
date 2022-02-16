@@ -67,10 +67,16 @@ def mlflow_log_npz(data: dict, name, subdir=None, verbose=False, repository: Art
         save_npz(data, path)
         if verbose:
             debug(f'Uploading artifact {subdir}/{name} size {path.stat().st_size/1024/1024:.2f} MB')
-        if repository:
-            repository.log_artifact(str(path), artifact_path=subdir)
-        else:
-            mlflow.log_artifact(str(path), artifact_path=subdir)
+        while True:
+            try:
+                if repository:
+                    repository.log_artifact(str(path), artifact_path=subdir)
+                else:
+                    mlflow.log_artifact(str(path), artifact_path=subdir)
+                break
+            except:
+                exception('Error saving artifact - will retry.')
+                time.sleep(10)
 
 
 def mlflow_load_npz(name, repository: ArtifactRepository):
