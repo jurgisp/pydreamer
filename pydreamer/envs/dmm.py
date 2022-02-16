@@ -31,19 +31,37 @@ from dm_env_rpc.v1 import error as dm_env_rpc_error
 from dm_env_rpc.v1 import tensor_utils
 from PIL import Image
 
-ACTION_SET = {
-    0: {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': 0},
-    1: {'MOVE_BACK_FORWARD': +1, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': 0},
-    2: {'MOVE_BACK_FORWARD': -1, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': 0},
-    3: {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': +1, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': 0},
-    4: {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': -1, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': 0},
-    5: {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': +1, 'LOOK_DOWN_UP': 0},
-    6: {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': -1, 'LOOK_DOWN_UP': 0},
-    7: {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': +1},
-    8: {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': -1},
-    9: {'MOVE_BACK_FORWARD': +1, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': +1, 'LOOK_DOWN_UP': 0},
-    10: {'MOVE_BACK_FORWARD': +1, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': -1, 'LOOK_DOWN_UP': 0},
-}
+ACTION_SET = [
+    {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': 0},
+    {'MOVE_BACK_FORWARD': +1, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': 0},
+    {'MOVE_BACK_FORWARD': -1, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': 0},
+    {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': +1, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': 0},
+    {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': -1, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': 0},
+    {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': +1, 'LOOK_DOWN_UP': 0},
+    {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': -1, 'LOOK_DOWN_UP': 0},
+    # {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': +1},
+    # {'MOVE_BACK_FORWARD': 0, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': 0, 'LOOK_DOWN_UP': -1},
+    {'MOVE_BACK_FORWARD': +1, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': +1, 'LOOK_DOWN_UP': 0},
+    {'MOVE_BACK_FORWARD': +1, 'STRAFE_LEFT_RIGHT': 0, 'LOOK_LEFT_RIGHT': -1, 'LOOK_DOWN_UP': 0},
+]
+
+_MEMORY_TASK_LEVEL_NAMES = [
+    'spot_diff_motion_train',
+    'spot_diff_multi_train',
+    'spot_diff_passive_train',
+    'spot_diff_train',
+    'invisible_goal_empty_arena_train',
+    'invisible_goal_with_buildings_train',
+    'visible_goal_with_buildings_train',
+    'transitive_inference_train_small', 'transitive_inference_train_large',
+    # There are also levels:
+    #   *_interpolate
+    #   *_extrapolate
+    #   *_holdout_small
+    #   *_holdout_large
+    #   *_holdout_interpolate
+    #   *_holdout_extrapolate
+]
 
 
 class DMMEnv(gym.Env):
@@ -99,7 +117,7 @@ class DMMEnv(gym.Env):
         obs = self.observation(timestep)
         done = timestep.last()
         # NOTE: timestep.discount should distinguish terminal from time limit, but doesn't seem implemented in DMM
-        # is_terminal = timestep.discount == 0  
+        # is_terminal = timestep.discount == 0
         return obs, reward, done, {}
 
     def observation(self, timestep: dm_env.TimeStep):
