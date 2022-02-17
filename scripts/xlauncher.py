@@ -12,7 +12,12 @@ from xmanager import xm, xm_local
 
 
 CWD = Path(__file__).parent.parent
-EXPORT_VARS = ['MLFLOW_TRACKING_URI', 'MLFLOW_TRACKING_USERNAME', 'MLFLOW_TRACKING_PASSWORD', 'MLFLOW_EXPERIMENT_NAME']
+EXPORT_VARS = [
+    'MLFLOW_TRACKING_URI',
+    'MLFLOW_TRACKING_USERNAME',
+    'MLFLOW_TRACKING_PASSWORD',
+    'MLFLOW_EXPERIMENT_NAME',
+]
 ENV_VARS = {k: os.environ[k] for k in EXPORT_VARS}
 
 # Xlauncher params

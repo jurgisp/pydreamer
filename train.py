@@ -468,7 +468,6 @@ def evaluate(prefix: str,
         npz_data = {k: np.concatenate([d[k] for d in npz_datas], 1) for k in npz_datas[0]}
         print_once(f'Saving batch d2_wm_closed_{prefix}: ', {k: tuple(v.shape) for k, v in npz_data.items()})
         r = npz_data['reward'][0].sum().item()
-        print(r)
         tools.mlflow_log_npz(npz_data, f'{steps:07}_r{r:.0f}.npz', subdir=f'd2_wm_closed_{prefix}', verbose=True)
 
     info(f'Evaluation ({prefix}): done in {(time.time()-start_time):.0f} sec, recorded {n_finished_episodes.sum()} episodes')
