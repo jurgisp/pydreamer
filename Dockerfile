@@ -3,12 +3,11 @@ ARG ENV=dmlab
 # --build-arg TYPE={full|base}
 ARG TYPE=full
 
-FROM pytorch/pytorch:1.9.1-cuda11.1-cudnn8-devel AS base
-# FROM pytorch/pytorch:1.8.1-cuda10.2-cudnn7-devel AS base
+FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-devel AS base
 
 # System packages for Atari, DMLab, MiniWorld... Throw in everything
 RUN apt-get update && apt-get install -y \
-    git xvfb python3.7-dev python3-setuptools \
+    git xvfb \
     libglu1-mesa libglu1-mesa-dev libgl1-mesa-dev libosmesa6-dev mesa-utils freeglut3 freeglut3-dev \
     libglew2.0 libglfw3 libglfw3-dev zlib1g zlib1g-dev libsdl2-dev libjpeg-dev lua5.1 liblua5.1-0-dev libffi-dev \
     build-essential cmake g++-4.8 pkg-config software-properties-common gettext \
@@ -45,30 +44,30 @@ RUN pip3 install dm_control
 
 # adapted from https://github.com/google-research/seed_rl
 FROM base AS dmlab-env
-RUN echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" | \
-    tee /etc/apt/sources.list.d/bazel.list && \
-    curl https://bazel.build/bazel-release.pub.gpg | \
-    apt-key add - && \
-    apt-get update && apt-get install -y bazel
-RUN git clone https://github.com/deepmind/lab.git /dmlab
-WORKDIR /dmlab
-RUN git checkout "937d53eecf7b46fbfc56c62e8fc2257862b907f2"
-RUN ln -s '/opt/conda/lib/python3.7/site-packages/numpy/core/include/numpy' /usr/include/numpy && \
-    sed -i 's@python3.5@python3.7@g' python.BUILD && \
-    sed -i 's@glob(\[@glob(["include/numpy/\*\*/*.h", @g' python.BUILD && \
-    sed -i 's@: \[@: ["include/numpy", @g' python.BUILD && \
-    sed -i 's@650250979303a649e21f87b5ccd02672af1ea6954b911342ea491f351ceb7122@682aee469c3ca857c4c38c37a6edadbfca4b04d42e56613b11590ec6aa4a278d@g' WORKSPACE && \
-    sed -i 's@rules_cc-master@rules_cc-main@g' WORKSPACE && \
-    sed -i 's@rules_cc/archive/master@rules_cc/archive/main@g' WORKSPACE && \
-    bazel build -c opt python/pip_package:build_pip_package --incompatible_remove_legacy_whole_archive=0
-RUN pip3 install wheel && \
-    PYTHON_BIN_PATH=$(which python3) && \
-    ./bazel-bin/python/pip_package/build_pip_package /tmp/dmlab_pkg && \
-    pip3 install /tmp/dmlab_pkg/DeepMind_Lab-*.whl --force-reinstall && \
-    rm -rf /dmlab
-WORKDIR /app
-COPY scripts/dmlab_data_download.sh .
-RUN sh dmlab_data_download.sh
+# RUN echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" | \
+#     tee /etc/apt/sources.list.d/bazel.list && \
+#     curl https://bazel.build/bazel-release.pub.gpg | \
+#     apt-key add - && \
+#     apt-get update && apt-get install -y bazel
+# RUN git clone https://github.com/deepmind/lab.git /dmlab
+# WORKDIR /dmlab
+# RUN git checkout "937d53eecf7b46fbfc56c62e8fc2257862b907f2"
+# RUN ln -s '/opt/conda/lib/python3.7/site-packages/numpy/core/include/numpy' /usr/include/numpy && \
+#     sed -i 's@python3.5@python3.7@g' python.BUILD && \
+#     sed -i 's@glob(\[@glob(["include/numpy/\*\*/*.h", @g' python.BUILD && \
+#     sed -i 's@: \[@: ["include/numpy", @g' python.BUILD && \
+#     sed -i 's@650250979303a649e21f87b5ccd02672af1ea6954b911342ea491f351ceb7122@682aee469c3ca857c4c38c37a6edadbfca4b04d42e56613b11590ec6aa4a278d@g' WORKSPACE && \
+#     sed -i 's@rules_cc-master@rules_cc-main@g' WORKSPACE && \
+#     sed -i 's@rules_cc/archive/master@rules_cc/archive/main@g' WORKSPACE && \
+#     bazel build -c opt python/pip_package:build_pip_package --incompatible_remove_legacy_whole_archive=0
+# RUN pip3 install wheel && \
+#     PYTHON_BIN_PATH=$(which python3) && \
+#     ./bazel-bin/python/pip_package/build_pip_package /tmp/dmlab_pkg && \
+#     pip3 install /tmp/dmlab_pkg/DeepMind_Lab-*.whl --force-reinstall && \
+#     rm -rf /dmlab
+# WORKDIR /app
+# COPY scripts/dmlab_data_download.sh .
+# RUN sh dmlab_data_download.sh
 ENV DMLAB_DATASET_PATH "/app/dmlab_data"
 
 # ------------------------
