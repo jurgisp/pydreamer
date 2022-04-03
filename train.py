@@ -124,7 +124,7 @@ def run(conf):
 
     if conf.offline_prefill_dir:
         input_dirs.extend(to_list(conf.offline_prefill_dir))
-    else:
+    elif online_data:
         # Wait for prefill
         while True:
             data_train_stats = DataSequential(MlflowEpisodeRepository(input_dirs), conf.batch_length, conf.batch_size, check_nonempty=False)
