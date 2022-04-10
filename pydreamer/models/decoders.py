@@ -189,18 +189,24 @@ class CatImageDecoder(nn.Module):
         self.out_shape = out_shape
         norm = nn.LayerNorm if layer_norm else NoNorm
         layers = []
-        layers += [
-            nn.Linear(in_dim, hidden_dim),
-            norm(hidden_dim, eps=1e-3),
-            activation()]
-        for _ in range(hidden_layers - 1):
+        if hidden_layers >= 1:
             layers += [
-                nn.Linear(hidden_dim, hidden_dim),
+                nn.Linear(in_dim, hidden_dim),
                 norm(hidden_dim, eps=1e-3),
                 activation()]
-        layers += [
-            nn.Linear(hidden_dim, np.prod(out_shape)),
-            nn.Unflatten(-1, out_shape)]
+            for _ in range(hidden_layers - 1):
+                layers += [
+                    nn.Linear(hidden_dim, hidden_dim),
+                    norm(hidden_dim, eps=1e-3),
+                    activation()]
+            layers += [
+                nn.Linear(hidden_dim, np.prod(out_shape)),
+                nn.Unflatten(-1, out_shape)]
+        else:  
+            # hidden_layers == 0
+            layers += [
+                nn.Linear(in_dim, np.prod(out_shape)),
+                nn.Unflatten(-1, out_shape)]
         self.model = nn.Sequential(*layers)
         self.min_prob = min_prob
 
