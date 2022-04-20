@@ -19,6 +19,7 @@ EXPORT_VARS = [
     'MLFLOW_EXPERIMENT_NAME',
 ]
 ENV_VARS = {k: os.environ[k] for k in EXPORT_VARS}
+EXPID_PREFIX = os.environ.get('EXPID_PREFIX', '')
 
 # Xlauncher params
 flags.DEFINE_string('dockerfile', 'Dockerfile', '')
@@ -59,7 +60,7 @@ def main(_):
 
         if FLAGS.configlist:
             configlist = FLAGS.configlist.split(',')
-            expid = FLAGS.run_name or FLAGS.configlist.replace(',', '_')
+            expid = FLAGS.run_name or make_name(configlist)
 
         elif FLAGS.configfile:
             with open(FLAGS.configfile, 'r') as f:
@@ -86,7 +87,7 @@ def main(_):
 
     # Launch experiment
 
-    with xm_local.create_experiment(expid) as exp:
+    with xm_local.create_experiment(EXPID_PREFIX + expid) as exp:
         [executable] = exp.package([
             xm.Packageable(
                 executable_spec=xm.Dockerfile(str(CWD), str(CWD / FLAGS.dockerfile)),
@@ -145,6 +146,48 @@ def replace(s, vars):
     for k, v in vars.items():
         s = s.replace(f'${{{k}}}', v)
     return s
+
+
+def make_name(flagslist):
+    # Builds experiment name from a list of configs
+
+    def longest_prefix(strings):
+        first = strings[0]
+        if first == '':
+            return ''
+        i = 1
+        for i in range(1, len(first) + 1):
+            prefix = first[:i]
+            if any(s[:i] != prefix for s in strings):
+                break
+        i -= 1
+        if i == 0:
+            return ''
+        return first[:i]
+
+    def longest_suffix(strings):
+        first = strings[0]
+        if first == '':
+            return ''
+        i = 1
+        for i in range(1, len(first) + 1):
+            suffix = first[-i:]
+            if any(s[-i:] != suffix for s in strings):
+                break
+        i -= 1
+        if i == 0:
+            return ''
+        return first[-i:]
+
+    prefix = longest_prefix(flagslist)
+    if prefix:
+        flagslist = [s[len(prefix):] for s in flagslist]
+    suffix = longest_suffix(flagslist)
+    if suffix:
+        flagslist = [s[:-len(suffix)] for s in flagslist]
+    name = prefix + '|'.join(flagslist) + suffix
+    name = name[:100]
+    return name
 
 
 if __name__ == '__main__':
