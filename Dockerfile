@@ -1,5 +1,5 @@
 # --build-arg ENV={standard|dmlab|minerl}
-ARG ENV=dmlab
+ARG ENV=standard
 # --build-arg TYPE={full|base}
 ARG TYPE=full
 
@@ -25,7 +25,6 @@ FROM base AS standard-env
 RUN pip3 install atari-py==0.2.9
 RUN wget -L -nv http://www.atarimania.com/roms/Roms.rar && \
     unrar x Roms.rar && \
-    unzip ROMS.zip && \
     python3 -m atari_py.import_roms ROMS && \
     rm -rf Roms.rar ROMS.zip ROMS
 
