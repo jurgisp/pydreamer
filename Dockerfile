@@ -51,9 +51,11 @@ RUN echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8
 RUN git clone https://github.com/deepmind/lab.git /dmlab
 WORKDIR /dmlab
 RUN git checkout "937d53eecf7b46fbfc56c62e8fc2257862b907f2"
-RUN ln -s '/opt/conda/lib/python3.7/site-packages/numpy/core/include/numpy' /usr/include/numpy && \
-    sed -i 's@python3.5@python3.7@g' python.BUILD && \
-    sed -i 's@glob(\[@glob(["include/numpy/\*\*/*.h", @g' python.BUILD && \
+# To check where numpy headers are: python3 -c 'import numpy as np; print(np.get_include())'
+RUN ln -s '/opt/conda/lib/python3.8/site-packages/numpy/core/include/numpy' /usr/include/numpy && \
+    ln -s '/opt/conda/include/python3.8' /usr/include/python3.8 && \
+    sed -i 's@glob(\["include/python3.5/\*.h"\])@glob(["include/numpy/**/*.h", "include/python3.8/**/*.h"\])@g' python.BUILD && \
+    sed -i 's@python3.5@python3.8@g' python.BUILD && \
     sed -i 's@: \[@: ["include/numpy", @g' python.BUILD && \
     sed -i 's@650250979303a649e21f87b5ccd02672af1ea6954b911342ea491f351ceb7122@682aee469c3ca857c4c38c37a6edadbfca4b04d42e56613b11590ec6aa4a278d@g' WORKSPACE && \
     sed -i 's@rules_cc-master@rules_cc-main@g' WORKSPACE && \
