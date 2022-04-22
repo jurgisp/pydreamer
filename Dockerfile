@@ -58,7 +58,9 @@ RUN ln -s '/opt/conda/lib/python3.7/site-packages/numpy/core/include/numpy' /usr
     sed -i 's@650250979303a649e21f87b5ccd02672af1ea6954b911342ea491f351ceb7122@682aee469c3ca857c4c38c37a6edadbfca4b04d42e56613b11590ec6aa4a278d@g' WORKSPACE && \
     sed -i 's@rules_cc-master@rules_cc-main@g' WORKSPACE && \
     sed -i 's@rules_cc/archive/master@rules_cc/archive/main@g' WORKSPACE && \
-    bazel build -c opt python/pip_package:build_pip_package --incompatible_remove_legacy_whole_archive=0
+    sed -i 's@abseil-cpp-master@abseil-cpp-lts_2021_11_02@g' WORKSPACE && \
+    sed -i 's@abseil-cpp/archive/master@abseil-cpp/archive/lts_2021_11_02@g' WORKSPACE
+RUN bazel build -c opt python/pip_package:build_pip_package --incompatible_remove_legacy_whole_archive=0
 RUN pip3 install wheel && \
     PYTHON_BIN_PATH=$(which python3) && \
     ./bazel-bin/python/pip_package/build_pip_package /tmp/dmlab_pkg && \
