@@ -1,8 +1,3 @@
-# --build-arg ENV={standard|dmlab|minerl}
-ARG ENV=standard
-# --build-arg TYPE={full|base}
-ARG TYPE=full
-
 FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-devel AS base
 
 # System packages for Atari, DMLab, MiniWorld... Throw in everything
@@ -17,8 +12,6 @@ RUN apt-get update && apt-get install -y \
 # ------------------------
 # Standard environments
 # ------------------------
-
-FROM base AS standard-env
 
 # Atari
 
@@ -42,7 +35,6 @@ RUN pip3 install dm_control
 # ------------------------
 
 # adapted from https://github.com/google-research/seed_rl
-FROM base AS dmlab-env
 RUN echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" | \
     tee /etc/apt/sources.list.d/bazel.list && \
     curl https://bazel.build/bazel-release.pub.gpg | \
@@ -77,23 +69,14 @@ ENV DMLAB_DATASET_PATH "/app/dmlab_data"
 # MineRL (optional)
 # ------------------------
 
-FROM base AS minerl-env
 RUN apt-get update && apt-get install -y \
     openjdk-8-jdk libx11-6 x11-xserver-utils \
     && rm -rf /var/lib/apt/lists/*
 RUN pip3 install minerl==0.4.2.1
 
 # ------------------------
-# base
-# ------------------------
-
-FROM ${ENV}-env AS final-base
-
-# ------------------------
 # PyDreamer
 # ------------------------
-
-FROM ${ENV}-env AS final-full
 
 WORKDIR /app
 
@@ -110,9 +93,4 @@ ENV LANG "C.UTF-8"
 
 COPY . .
 
-# ------------------------
-# final
-# ------------------------
-
-FROM final-${TYPE} AS final
 ENTRYPOINT ["sh", "scripts/xvfb_run.sh", "python3", "train.py"]
