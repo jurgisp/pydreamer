@@ -163,16 +163,12 @@ class Preprocessor:
 
         if 'vecobs' in batch:
             batch['vecobs'] = batch['vecobs'].astype(np.float32)
-        else:
-            batch['vecobs'] = np.zeros((T, B, 64), np.float32)
-
-        # inventory, equipped (MineRL) # TODO: customized encoder/decoder
-
-        if 'inventory' in batch and 'equipped' in batch:
-            ni = batch['inventory'].shape[-1]
-            ne = batch['equipped'].shape[-1]
-            batch['vecobs'][:, :, :ni] = batch['inventory'].astype(np.float32)
-            batch['vecobs'][:, :, ni:ni + ne] = batch['equipped'].astype(np.float32)
+        elif 'inventory' in batch and 'equipped' in batch:
+            # inventory, equipped (MineRL) # TODO: customized encoder/decoder
+            batch['vecobs'] = np.concatenate([
+                batch['inventory'].astype(np.float32),
+                batch['equipped'].astype(np.float32)
+            ], axis=-1)
 
         # => float16
 
