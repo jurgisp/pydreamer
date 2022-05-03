@@ -50,7 +50,13 @@ def create_env(env_id: str, no_terminal: bool, env_time_limit: int, env_action_r
 
     elif env_id.startswith('DMC-'):
         from .dmc import DMC
-        env = DMC(env_id.split('-')[1].lower(), action_repeat=env_action_repeat)
+        env = DMC(env_id.split('-', maxsplit=1)[1].lower(), action_repeat=env_action_repeat)
+    
+    elif env_id.startswith('Embodied-'):
+        from .embodied import EmbodiedEnv
+        task = env_id.split('-', maxsplit=1)[1].lower()
+        env = EmbodiedEnv(task, action_repeat=env_action_repeat, time_limit=env_time_limit)
+        env_time_limit = 0  # This is handled by embodied.Env
 
     else:
         env = gym.make(env_id)
