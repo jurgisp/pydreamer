@@ -1,5 +1,12 @@
 FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-devel AS base
 
+# Fix nvidia package repo (see https://github.com/NVIDIA/nvidia-docker/issues/1631)
+RUN rm /etc/apt/sources.list.d/cuda.list && \
+    rm /etc/apt/sources.list.d/nvidia-ml.list && \
+    apt-key del 7fa2af80 && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64/7fa2af80.pub
+
 # System packages for Atari, DMLab, MiniWorld... Throw in everything
 RUN apt-get update && apt-get install -y \
     git xvfb \
@@ -69,10 +76,8 @@ ENV DMLAB_DATASET_PATH "/app/dmlab_data"
 # MineRL (optional)
 # ------------------------
 
-RUN apt-get update && apt-get install -y \
-    openjdk-8-jdk libx11-6 x11-xserver-utils \
-    && rm -rf /var/lib/apt/lists/*
-RUN pip3 install minerl==0.4.2.1
+RUN apt-get install -y openjdk-8-jdk libx11-6 x11-xserver-utils
+RUN pip3 install minerl==0.4.4
 
 # ------------------------
 # PyDreamer
@@ -84,6 +89,10 @@ COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@2e5a1cf878778dc33a6fd5c5288f81e71d6c6c1c#egg=gym-minigrid
 RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@e551b6c7ca245ca8f4e31471819728fb46ca256d#egg=gym-miniworld dmlab-maze-generator
+
+# TODO: this is for Embodied-minecraft environment. Need a local copy of embodied-private
+COPY embodied embodied
+RUN pip3 install -e embodied
 
 ENV MLFLOW_TRACKING_URI ""
 ENV MLFLOW_EXPERIMENT_NAME "Default"

@@ -234,6 +234,11 @@ vectorenv:
   image_encoder:
   image_decoder:
 
+minecraft:
+  env_id: Embodied-minecraft_discover
+  action_dim: 47
+  vecobs_size: 785
+
 debug:
   device: cpu
   log_interval: 5

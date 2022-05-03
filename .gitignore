@@ -12,3 +12,5 @@ _*.*
 !.gitignore
 !.dockerignore
 !data/minerl_*.npy
+
+embodied/
