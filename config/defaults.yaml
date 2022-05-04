@@ -101,7 +101,7 @@ defaults:
   # Generator
   generator_workers: 4
   generator_workers_eval: 1
-  generator_prefill_steps: 200_000
+  generator_prefill_steps: 50_000
   generator_prefill_policy: random
   limit_step_ratio: 0
   env_id:
@@ -184,7 +184,6 @@ atari:
   env_action_repeat: 4
   env_time_limit: 27_000  # =108_000/action_repeat = 30 minutes of game play.
   generator_workers: 1
-  generator_prefill_steps: 50_000
   clip_rewards: tanh
   # Model
   deter_dim: 1024
