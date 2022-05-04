@@ -153,31 +153,28 @@ def make_name(flagslist):
 
     def longest_prefix(strings):
         first = strings[0]
-        if first == '':
-            return ''
-        i = 1
-        for i in range(1, len(first) + 1):
-            prefix = first[:i]
-            if any(s[:i] != prefix for s in strings):
+        i = 0
+        while i < len(first):
+            prefix = first[:i+1]
+            if any(s[:i+1] != prefix for s in strings):
                 break
-        i -= 1
-        if i == 0:
-            return ''
+            i += 1
         return first[:i]
 
     def longest_suffix(strings):
         first = strings[0]
-        if first == '':
-            return ''
-        i = 1
-        for i in range(1, len(first) + 1):
-            suffix = first[-i:]
-            if any(s[-i:] != suffix for s in strings):
+        i = 0
+        while i < len(first):
+            suffix = first[-i-1:]
+            if any(s[-i-1:] != suffix for s in strings):
                 break
-        i -= 1
+            i += 1
         if i == 0:
             return ''
         return first[-i:]
+
+    if len(flagslist) == 1:
+        return flagslist[0]
 
     prefix = longest_prefix(flagslist)
     if prefix:
@@ -185,9 +182,8 @@ def make_name(flagslist):
     suffix = longest_suffix(flagslist)
     if suffix:
         flagslist = [s[:-len(suffix)] for s in flagslist]
-    name = prefix + '|'.join(flagslist) + suffix
-    name = name[:100]
-    return name
+    name = prefix + '(' + '|'.join(flagslist) + ')' + suffix
+    return name[:100]
 
 
 if __name__ == '__main__':
