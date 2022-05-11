@@ -46,18 +46,47 @@ def read_yamls(dir):
     return conf
 
 
-def mlflow_start_or_resume(run_name, resume_id=None):
+def mlflow_init(run_name, resume_id=None):
     import mlflow
-    run_id = None
-    info(f'Starting or resuming mlflow run ({os.environ.get("MLFLOW_TRACKING_URI", "local")}) ...')
-    if resume_id:
-        runs = mlflow.search_runs(filter_string=f'tags.resume_id="{resume_id}"')
-        if len(runs) > 0:
-            run_id = runs.run_id.iloc[0]  # type: ignore
-            info(f'Resumed mlflow run {run_id} ({resume_id})')
-    run = mlflow.start_run(run_name=run_name, run_id=run_id, tags={'resume_id': resume_id or ''})
-    info(f'Started mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
+
+    uri = os.environ.get("MLFLOW_TRACKING_URI", "local")
+    run = mlflow.active_run()
+    if run:
+        # Run already active
+        pass
+    
+    elif os.environ.get('MLFLOW_RUN_ID'):
+        # Run not active, but specific ID set (probably subprocess)
+        run = mlflow.start_run(run_id=os.environ['MLFLOW_RUN_ID'])
+        info(f'Reinitialized mlflow run {run.info.run_id} ({resume_id}) in {uri}/{run.info.experiment_id}')
+    
+    else:
+        resume_run_id = None
+        if resume_id:
+            # Resume ID specified - try to find the same run
+            runs = mlflow.search_runs(filter_string=f'tags.resume_id="{resume_id}"')
+            if len(runs) > 0:
+                resume_run_id = runs.run_id.iloc[0]  # type: ignore
+        
+        if resume_run_id:
+            # Resuming run
+            run = mlflow.start_run(run_id=resume_run_id)
+            info(f'Resumed mlflow run {run.info.run_id} ({resume_id}) in {uri}/{run.info.experiment_id}')
+        else:
+            # Starting new run
+            run = mlflow.start_run(run_name=run_name, tags={'resume_id': resume_id or ''})
+            info(f'Started mlflow run {run.info.run_id} ({resume_id}) in {uri}/{run.info.experiment_id}')
+    
+    os.environ['MLFLOW_RUN_ID'] = run.info.run_id  # for subprocesses
     return run
+
+def mlflow_log_params(params: dict):
+    import mlflow
+    try:
+        mlflow.log_params({k: v for k, v in params.items() if not len(repr(v)) > 250})  # filter too long
+    except Exception as e:
+        # This happens when resuming and config has different parameters - it's fine
+        exception('Error in mlflow.log_params (it is ok if params changed).')
 
 def mlflow_log_metrics(metrics: dict, step: int):
     import mlflow

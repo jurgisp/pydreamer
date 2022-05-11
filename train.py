@@ -1,25 +1,18 @@
-import os
 import time
 from collections import defaultdict
 from datetime import datetime
-from itertools import chain
 from logging import critical, debug, error, info, warning
-from multiprocessing import Process
-from pathlib import Path
 from typing import Iterator, Optional
 
 import mlflow
 import numpy as np
 import scipy.special
 import torch
-import torch.distributions as D
-import torch.nn as nn
-from torch import Tensor, tensor
+from torch import Tensor
 from torch.cuda.amp import GradScaler, autocast
 from torch.profiler import ProfilerActivity
 from torch.utils.data import DataLoader
 
-import generator
 from pydreamer import tools
 from pydreamer.data import DataSequential, MlflowEpisodeRepository
 from pydreamer.models import *
@@ -27,99 +20,49 @@ from pydreamer.models.functions import map_structure, nanmean
 from pydreamer.preprocessing import Preprocessor, WorkerInfoPreprocess
 from pydreamer.tools import *
 
-torch.distributions.Distribution.set_default_validate_args(False)
-torch.backends.cudnn.benchmark = True  # type: ignore
 
 
 def run(conf):
-    mlflow_start_or_resume(conf.run_name or conf.resume_id, conf.resume_id)
-    try:
-        mlflow.log_params({k: v for k, v in vars(conf).items() if not len(repr(v)) > 250})  # filter too long
-    except Exception as e:
-        # This happens when resuming and config has different parameters - it's fine
-        error(f'ERROR in mlflow.log_params: {repr(e)}')
+    
+    configure_logging(prefix='[TRAIN]')
+    mlrun = mlflow_init('')
+    artifact_uri = mlrun.info.artifact_uri
 
+    torch.distributions.Distribution.set_default_validate_args(False)
+    torch.backends.cudnn.benchmark = True  # type: ignore
     device = torch.device(conf.device)
-
-    # Training data generator
-
-    input_dirs = []
-    eval_dirs = []
-    subprocesses: list[Process] = []
-    artifact_uri: str = mlflow.active_run().info.artifact_uri  # type: ignore
+    
+    # Data directories
 
     if conf.offline_data_dir:
-        # Offline data
         online_data = False
-        input_dirs.extend(to_list(conf.offline_data_dir))
-
+        input_dirs = to_list(conf.offline_data_dir)
     else:
-        # Online data
         online_data = True
-        info('Starting agent generators...')
-        for i in range(conf.generator_workers):
-            # If eval environment is the same, we can use one agent for both train and eval data
-            share_eval_generator = not conf.env_id_eval
-            if share_eval_generator:
-                # One train+eval generator
-                p = run_generator(conf.env_id,
-                                  conf,
-                                  save_uri=f'{artifact_uri}/episodes/{i}',
-                                  save_uri2=f'{artifact_uri}/episodes_eval/{i}',
-                                  num_steps=conf.n_env_steps // conf.env_action_repeat // conf.generator_workers,
-                                  limit_step_ratio=conf.limit_step_ratio / conf.generator_workers,
-                                  worker_id=i,
-                                  policy_main='network',
-                                  policy_prefill=conf.generator_prefill_policy,
-                                  num_steps_prefill=conf.generator_prefill_steps // conf.generator_workers,
-                                  split_fraction=0.1,
-                                  )
-                input_dirs.append(f'{artifact_uri}/episodes/{i}')
-                eval_dirs.append(f'{artifact_uri}/episodes_eval/{i}')
-            else:
-                # Separate train generator
-                p = run_generator(conf.env_id,
-                                  conf,
-                                  f'{artifact_uri}/episodes/{i}',
-                                  num_steps=conf.n_env_steps // conf.env_action_repeat // conf.generator_workers,
-                                  limit_step_ratio=conf.limit_step_ratio / conf.generator_workers,
-                                  worker_id=i,
-                                  policy_main='network',
-                                  policy_prefill=conf.generator_prefill_policy,
-                                  num_steps_prefill=conf.generator_prefill_steps // conf.generator_workers,
-                                  )
-                input_dirs.append(f'{artifact_uri}/episodes/{i}')
-            subprocesses.append(p)
-
-    # Eval data generator
+        input_dirs = [
+            f'{artifact_uri}/episodes/{i}'
+            for i in range(max(conf.generator_workers_train, conf.generator_workers))
+        ]
+    
+    if conf.offline_prefill_dir:
+        input_dirs.extend(to_list(conf.offline_prefill_dir))
 
     if conf.offline_eval_dir:
-        eval_dirs.extend(to_list(conf.offline_eval_dir))
+        eval_dirs = to_list(conf.offline_eval_dir)
     else:
-        if not eval_dirs:
-            # Separate eval generator
-            info('Starting eval generator...')
-            for i in range(conf.generator_workers_eval):
-                p = run_generator(conf.env_id_eval or conf.env_id,
-                                  conf,
-                                  f'{artifact_uri}/episodes_eval/{i}',
-                                  worker_id=conf.generator_workers + i,
-                                  policy_main='network',
-                                  metrics_prefix='agent_eval')
-                eval_dirs.append(f'{artifact_uri}/episodes_eval/{i}')
-                subprocesses.append(p)
+        eval_dirs = [
+            f'{artifact_uri}/episodes_eval/{i}'
+            for i in range(max(conf.generator_workers_eval, conf.generator_workers))
+        ]
 
     if conf.offline_test_dir:
         test_dirs = to_list(conf.offline_test_dir)
     else:
         test_dirs = eval_dirs
 
-    # Prefill
+    # Wait for prefill
 
-    if conf.offline_prefill_dir:
-        input_dirs.extend(to_list(conf.offline_prefill_dir))
-    elif online_data:
-        # Wait for prefill
+    if online_data:
         while True:
             data_train_stats = DataSequential(MlflowEpisodeRepository(input_dirs), conf.batch_length, conf.batch_size, check_nonempty=False)
             mlflow_log_metrics({
@@ -129,15 +72,14 @@ def run(conf):
             }, step=0)
             if data_train_stats.stats_steps < conf.generator_prefill_steps:
                 debug(f'Waiting for prefill: {data_train_stats.stats_steps}/{conf.generator_prefill_steps} steps...')
-                check_subprocesses(subprocesses)
-                time.sleep(60)
+                time.sleep(10)
             else:
                 info(f'Done prefilling: {data_train_stats.stats_steps}/{conf.generator_prefill_steps} steps.')
                 break
 
-        if data_train_stats.stats_steps >= conf.n_env_steps // conf.env_action_repeat:
-            # Prefill-only job
-            info(f'Requested {conf.n_env_steps} steps, prefilled {data_train_stats.stats_steps} x{conf.env_action_repeat} - DONE')
+        if data_train_stats.stats_steps * conf.env_action_repeat >= conf.n_env_steps:
+            # Prefill-only job, or resumed already finished job
+            info(f'Finished {conf.n_env_steps} env steps.')
             return
 
     # Data reader
@@ -284,6 +226,9 @@ def run(conf):
                         data_train_stats = DataSequential(MlflowEpisodeRepository(input_dirs), conf.batch_length, conf.batch_size)
                         metrics['data_steps'].append(data_train_stats.stats_steps)
                         metrics['data_env_steps'].append(data_train_stats.stats_steps * conf.env_action_repeat)
+                        if data_train_stats.stats_steps * conf.env_action_repeat >= conf.n_env_steps:
+                            info(f'Finished {conf.n_env_steps} env steps.')
+                            return
 
                     # Log metrics
 
@@ -312,10 +257,6 @@ def run(conf):
                         metrics = defaultdict(list)
                         metrics_max = defaultdict(list)
 
-                        # Check subprocess
-
-                        check_subprocesses(subprocesses)
-
                     # Save model
 
                     if steps % conf.save_interval == 0:
@@ -324,9 +265,9 @@ def run(conf):
 
                     # Stop
 
-                    if steps >= conf.n_steps or (online_data and len(subprocesses) == 0):
-                        info('Stopping')
-                        break
+                    if steps >= conf.n_steps:
+                        info(f'Finished {conf.n_steps} grad steps.')
+                        return
 
                 # Evaluate
 
@@ -525,50 +466,6 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
     return {k: unpreprocess(k, v) for k, v in data.items()}
 
 
-def run_generator(env_id,
-                  conf,
-                  save_uri,
-                  save_uri2=None,
-                  policy_main='network',
-                  policy_prefill='random',
-                  worker_id=0,
-                  num_steps=int(1e9),
-                  num_steps_prefill=0,
-                  limit_step_ratio=0,
-                  block=False,
-                  split_fraction=0.0,
-                  metrics_prefix='agent',
-                  log_mlflow_metrics=True,
-                  ):
-    # Make sure generator subprcess logs to the same mlflow run
-    os.environ['MLFLOW_RUN_ID'] = mlflow.active_run().info.run_id  # type: ignore
-    p = Process(target=generator.main,
-                daemon=True,
-                kwargs=dict(
-                    env_id=env_id,
-                    save_uri=save_uri,
-                    save_uri2=save_uri2,
-                    env_time_limit=conf.env_time_limit,
-                    env_action_repeat=conf.env_action_repeat,
-                    env_no_terminal=conf.env_no_terminal,
-                    limit_step_ratio=limit_step_ratio,
-                    policy_main=policy_main,
-                    policy_prefill=policy_prefill,
-                    num_steps=num_steps,
-                    num_steps_prefill=num_steps_prefill,
-                    worker_id=worker_id,
-                    model_conf=conf,
-                    log_mlflow_metrics=log_mlflow_metrics,
-                    split_fraction=split_fraction,
-                    metrics_prefix=metrics_prefix,
-                    metrics_gamma=conf.gamma,
-                ))
-    p.start()
-    if block:
-        p.join()
-    return p
-
-
 def get_profiler(conf):
     if conf.enable_profiler:
         return torch.profiler.profile(
@@ -579,15 +476,3 @@ def get_profiler(conf):
     else:
         return NoProfiler()
 
-
-def check_subprocesses(subprocesses):
-    subp_finished = []
-    for p in subprocesses:
-        if not p.is_alive():
-            if p.exitcode == 0:
-                subp_finished.append(p)
-                info(f'Generator process {p.pid} finished')
-            else:
-                raise Exception(f'Generator process {p.pid} died with exitcode {p.exitcode}')
-    for p in subp_finished:
-        subprocesses.remove(p)

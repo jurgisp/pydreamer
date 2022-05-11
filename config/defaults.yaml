@@ -99,8 +99,9 @@ defaults:
   actor_dist: onehot
 
   # Generator
-  generator_workers: 4
-  generator_workers_eval: 1
+  generator_workers: 4        # train+eval generators
+  generator_workers_train: 0  # train-only generators
+  generator_workers_eval: 0   # eval-only generators
   generator_prefill_steps: 50_000
   generator_prefill_policy: random
   limit_step_ratio: 0

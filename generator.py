@@ -47,16 +47,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          ):
 
     configure_logging(prefix=f'[GEN {worker_id}]', info_color=LogColorFormatter.GREEN)
-
-    # Mlflow
-
-    if 'MLFLOW_RUN_ID' in os.environ:
-        run = mlflow.active_run()
-        if run is None:
-            run = mlflow.start_run(run_id=os.environ['MLFLOW_RUN_ID'])
-    else:
-        mlflow.start_run(run_name=f'{env_id}-{worker_id}')
-
+    mlrun = mlflow_init('')
     info(f'Generator {worker_id} started:'
          f' env={env_id}'
          f', n_steps={num_steps:,}'
@@ -66,7 +57,7 @@ def main(env_id='MiniGrid-MazeS11N-v0',
          f', save_uri={save_uri}')
 
     if not save_uri:
-        save_uri = f'{mlflow.active_run().info.artifact_uri}/episodes/{worker_id}'  # type: ignore
+        save_uri = f'{mlrun.info.artifact_uri}/episodes/{worker_id}'
     if not save_uri2:
         assert split_fraction == 0.0, 'Specify two save destinations, if splitting'
 
