@@ -103,13 +103,17 @@ def launch():
 
     # Wait & watch
 
-    while len(subprocesses) > 0:
-        check_subprocesses(subprocesses)
-        time.sleep(1)
+    try:
+        while len(subprocesses) > 0:
+            check_subprocesses(subprocesses)
+            time.sleep(1)
+    finally:
+        for p in subprocesses:
+            p.kill()  # Non-daemon processes (trainer) need to be killed
 
 
 def run_trainer(conf):
-    p = Process(target=train.run, daemon=True, args=[conf])
+    p = Process(target=train.run, daemon=False, args=[conf])
     p.start()
     return p
 
