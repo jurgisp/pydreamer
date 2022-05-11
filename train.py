@@ -128,7 +128,7 @@ def run(conf):
         # Wait for prefill
         while True:
             data_train_stats = DataSequential(MlflowEpisodeRepository(input_dirs), conf.batch_length, conf.batch_size, check_nonempty=False)
-            mlflow.log_metrics({
+            mlflow_log_metrics({
                 'train/data_steps': data_train_stats.stats_steps,
                 'train/data_env_steps': data_train_stats.stats_steps * conf.env_action_repeat,
                 '_timestamp': datetime.now().timestamp(),
@@ -314,7 +314,7 @@ def run(conf):
                              f"  fps: {metrics['train/fps']:.3f}"
                              )
                         if steps > conf.log_interval:  # Skip the first batch, because the losses are very high and mess up y axis
-                            mlflow.log_metrics(metrics, step=steps)
+                            mlflow_log_metrics(metrics, step=steps)
                         metrics = defaultdict(list)
                         metrics_max = defaultdict(list)
 
@@ -462,7 +462,7 @@ def evaluate(prefix: str,
                 do_output_tensors = False
 
     metrics_eval = {f'{prefix}/{k}': np.array(v).mean() for k, v in metrics_eval.items()}
-    mlflow.log_metrics(metrics_eval, step=steps)
+    mlflow_log_metrics(metrics_eval, step=steps)
 
     if len(npz_datas) > 0:
         npz_data = {k: np.concatenate([d[k] for d in npz_datas], 1) for k in npz_datas[0]}

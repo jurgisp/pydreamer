@@ -59,6 +59,15 @@ def mlflow_start_or_resume(run_name, resume_id=None):
     info(f'Started mlflow run {run.info.run_id} in experiment {run.info.experiment_id}')
     return run
 
+def mlflow_log_metrics(metrics: dict, step: int):
+    import mlflow
+    while True:
+        try:
+            mlflow.log_metrics(metrics, step=step)
+            break
+        except:
+            exception('Error logging metrics - will retry.')
+            time.sleep(10)
 
 def mlflow_log_npz(data: dict, name, subdir=None, verbose=False, repository: ArtifactRepository = None):
     import mlflow
