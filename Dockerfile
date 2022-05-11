@@ -102,4 +102,4 @@ ENV LANG "C.UTF-8"
 
 COPY . .
 
-ENTRYPOINT ["sh", "scripts/xvfb_run.sh", "python3", "train.py"]
+ENTRYPOINT ["sh", "scripts/xvfb_run.sh", "python3", "launch.py"]

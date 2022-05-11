@@ -122,20 +122,20 @@ rm -rf Roms.rar *ROMS.zip ROMS
 Run training (debug CPU mode)
 
 ```sh
-python train.py --configs defaults atari debug --env_id Atari-Pong
+python launch.py --configs defaults atari debug --env_id Atari-Pong
 ```
 
 Run training (full GPU mode)
 
 ```sh
-python train.py --configs defaults atari atari_pong --run_name atari_pong_1
+python launch.py --configs defaults atari atari_pong --run_name atari_pong_1
 ```
 
 ### Running with Docker
 
 ```sh
 docker build . -f Dockerfile -t pydreamer
-docker run -it pydreamer sh scripts/xvfb_run.sh python3 train.py --configs defaults atari atari_pong
+docker run -it pydreamer sh scripts/xvfb_run.sh python3 launch.py --configs defaults atari atari_pong
 ```
 
 ### Running on Kubernetes
@@ -155,7 +155,7 @@ The typical usage is to specify `--configs defaults {env_config} {experiment}`, 
 You can also override individual parameters with command line arguments, e.g.
 
 ```sh
-python train.py --configs defaults atari --env_id Atari-Pong --gamma 0.995
+python launch.py --configs defaults atari --env_id Atari-Pong --gamma 0.995
 ```
 
 ## Mlflow Tracking

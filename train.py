@@ -1,12 +1,7 @@
-import argparse
-import logging
-import logging.config
 import os
-import sys
 import time
 from collections import defaultdict
 from datetime import datetime
-from distutils.util import strtobool
 from itertools import chain
 from logging import critical, debug, error, info, warning
 from multiprocessing import Process
@@ -15,7 +10,6 @@ from typing import Iterator, Optional
 
 import mlflow
 import numpy as np
-import rich.traceback
 import scipy.special
 import torch
 import torch.distributions as D
@@ -248,7 +242,7 @@ def run(conf):
                     for opt in optimizers:
                         opt.zero_grad()
                     for loss in losses:
-                        scaler.scale(loss).backward()
+                        scaler.scale(loss).backward()  # type: ignore
 
                 # Grad step
 
@@ -597,32 +591,3 @@ def check_subprocesses(subprocesses):
                 raise Exception(f'Generator process {p.pid} died with exitcode {p.exitcode}')
     for p in subp_finished:
         subprocesses.remove(p)
-
-
-if __name__ == '__main__':
-    rich.traceback.install()
-    configure_logging(prefix='[TRAIN]')
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--configs', nargs='+', required=True)
-    args, remaining = parser.parse_known_args()
-
-    # Config from YAML
-    conf = {}
-    configs = tools.read_yamls('./config')
-    for name in args.configs:
-        if ',' in name:
-            for n in name.split(','):
-                conf.update(configs[n])
-        else:
-            conf.update(configs[name])
-
-    # Override config from command-line
-    parser = argparse.ArgumentParser()
-    for key, value in conf.items():
-        type_ = type(value) if value is not None else str
-        if type_ == bool:
-            type_ = lambda x: bool(strtobool(x))
-        parser.add_argument(f'--{key}', type=type_, default=value)
-    conf = parser.parse_args(remaining)
-
-    run(conf)
