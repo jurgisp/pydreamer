@@ -2,8 +2,6 @@ defaults:
   # Job
   n_steps: 100_000_000
   n_env_steps: 1_000_000_000
-  run_name:
-  resume_id:
   offline_data_dir:
   offline_prefill_dir:
   offline_test_dir:

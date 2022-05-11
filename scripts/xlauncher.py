@@ -81,8 +81,8 @@ def main(_):
             flagslist.append({
                 'configs': f'{FLAGS.configs},{config}' if config else FLAGS.configs,
                 'env_id': FLAGS.env_id,
-                'run_name': FLAGS.run_name or f'{config}{suffix}',
-                'resume_id': FLAGS.resume_id or '${rnd}',
+                'MLFLOW_RUN_NAME': FLAGS.run_name or f'{config}{suffix}',
+                'MLFLOW_RESUME_ID': FLAGS.resume_id or random_string(),
             })
 
     # Launch experiment
@@ -105,13 +105,12 @@ def main(_):
             exec_actor = executable
 
         for flags_conf in flagslist:
-            context = {
-                'expid': expid,
-                'rnd': str(random.randint(10000, 99999))
-            }
-            flags = {k: replace(v, context) for k, v in flags_conf.items()}
-            flags = {k: v for k, v in flags.items() if v}  # Remove empty parameters
+            flags = {k: v for k, v in flags_conf.items() if v}  # Remove empty parameters
             print(f'Launching: {flags}')
+            
+            # ALL_CAPS flags => env variables
+            env_flags = {k: v for k, v in flags.items() if k.upper() == k}
+            flags = {k: v for k, v in flags.items() if k not in env_flags}
 
             # Launch run
 
@@ -123,7 +122,7 @@ def main(_):
                     else xm.JobRequirements(a100=FLAGS.a100 or 1),  # 1xA100 => a2-highgpu-1g (12CPU)
                 ),
                 args=flags,  # type: ignore
-                env_vars=ENV_VARS
+                env_vars=dict(**ENV_VARS, **env_flags),
             )
 
             if FLAGS.num_actors:
@@ -132,7 +131,8 @@ def main(_):
                     learner=job,
                     actor=xm.Job(
                         executable=exec_actor,
-                        executor=xm_local.Caip(xm.JobRequirements(cpu=4 * xm.vCPU, ram=10 * xm.GiB, replicas=FLAGS.num_actors))
+                        executor=xm_local.Caip(xm.JobRequirements(cpu=4 * xm.vCPU, ram=10 * xm.GiB, replicas=FLAGS.num_actors)),
+                        env_vars=dict(**ENV_VARS, **env_flags),
                     ),
                 )
 
@@ -141,11 +141,9 @@ def main(_):
     print('--- LAUNCHER DONE ---')
 
 
-def replace(s, vars):
-    # Replaces ${expid}, etc with value
-    for k, v in vars.items():
-        s = s.replace(f'${{{k}}}', v)
-    return s
+def random_string(length=5):
+    import string
+    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
 
 
 def make_name(flagslist):
@@ -155,8 +153,8 @@ def make_name(flagslist):
         first = strings[0]
         i = 0
         while i < len(first):
-            prefix = first[:i+1]
-            if any(s[:i+1] != prefix for s in strings):
+            prefix = first[:i + 1]
+            if any(s[:i + 1] != prefix for s in strings):
                 break
             i += 1
         return first[:i]
@@ -165,8 +163,8 @@ def make_name(flagslist):
         first = strings[0]
         i = 0
         while i < len(first):
-            suffix = first[-i-1:]
-            if any(s[-i-1:] != suffix for s in strings):
+            suffix = first[-i - 1:]
+            if any(s[-i - 1:] != suffix for s in strings):
                 break
             i += 1
         if i == 0:

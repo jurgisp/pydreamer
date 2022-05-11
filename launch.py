@@ -41,7 +41,7 @@ def launch():
 
     # Mlflow
 
-    mlrun = mlflow_init(conf.run_name or conf.resume_id, conf.resume_id)
+    mlrun = mlflow_init()
     artifact_uri = mlrun.info.artifact_uri
     mlflow_log_params(vars(conf))
 

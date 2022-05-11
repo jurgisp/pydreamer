@@ -128,7 +128,7 @@ python launch.py --configs defaults atari debug --env_id Atari-Pong
 Run training (full GPU mode)
 
 ```sh
-python launch.py --configs defaults atari atari_pong --run_name atari_pong_1
+python launch.py --configs defaults atari atari_pong
 ```
 
 ### Running with Docker

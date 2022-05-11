@@ -63,6 +63,10 @@ spec:
               value: ${AZURE_STORAGE_ACCESS_KEY}
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: .gcs_credentials
+            - name: MLFLOW_RUN_NAME
+              value: ${EXPERIMENT}
+            - name: MLFLOW_RESUME_ID
+              value: ${RESUMEID}
           volumeMounts:
             - name: dshm
               mountPath: /dev/shm
@@ -71,10 +75,6 @@ spec:
             - defaults
             - $CONFIG
             - $EXPERIMENT
-            - --run_name
-            - $EXPERIMENT
-            - --resume_id
-            - $RESUMEID
           resources:
             limits:
               nvidia.com/gpu: 1

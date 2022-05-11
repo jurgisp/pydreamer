@@ -25,7 +25,7 @@ from pydreamer.tools import *
 def run(conf):
     
     configure_logging(prefix='[TRAIN]')
-    mlrun = mlflow_init('')
+    mlrun = mlflow_init()
     artifact_uri = mlrun.info.artifact_uri
 
     torch.distributions.Distribution.set_default_validate_args(False)

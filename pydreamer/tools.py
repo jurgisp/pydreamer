@@ -46,10 +46,12 @@ def read_yamls(dir):
     return conf
 
 
-def mlflow_init(run_name, resume_id=None):
+def mlflow_init():
     import mlflow
+    run_name = os.environ.get('MLFLOW_RUN_NAME')
+    resume_id = os.environ.get('MLFLOW_RESUME_ID')
+    uri = os.environ.get('MLFLOW_TRACKING_URI', 'local')
 
-    uri = os.environ.get("MLFLOW_TRACKING_URI", "local")
     run = mlflow.active_run()
     if run:
         # Run already active
