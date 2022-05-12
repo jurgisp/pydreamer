@@ -132,6 +132,7 @@ def main(_):
                     actor=xm.Job(
                         executable=exec_actor,
                         executor=xm_local.Caip(xm.JobRequirements(cpu=4 * xm.vCPU, ram=10 * xm.GiB, replicas=FLAGS.num_actors)),
+                        args=flags,  # type: ignore
                         env_vars=dict(**ENV_VARS, **env_flags),
                     ),
                 )

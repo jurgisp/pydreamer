@@ -46,7 +46,7 @@ def read_yamls(dir):
     return conf
 
 
-def mlflow_init():
+def mlflow_init(wait_for_resume=False):
     import mlflow
     run_name = os.environ.get('MLFLOW_RUN_NAME')
     resume_id = os.environ.get('MLFLOW_RESUME_ID')
@@ -66,9 +66,19 @@ def mlflow_init():
         resume_run_id = None
         if resume_id:
             # Resume ID specified - try to find the same run
-            runs = mlflow.search_runs(filter_string=f'tags.resume_id="{resume_id}"')
-            if len(runs) > 0:
-                resume_run_id = runs.run_id.iloc[0]  # type: ignore
+            while True:
+                runs = mlflow.search_runs(filter_string=f'tags.resume_id="{resume_id}"')
+                if len(runs) > 0:
+                    resume_run_id = runs.run_id.iloc[0]  # type: ignore
+                    break
+                else:
+                    if wait_for_resume:
+                        debug(f'Waiting until mlflow run ({resume_id}) is available...')
+                        time.sleep(10)
+                    else:
+                        break
+        else:
+            assert not wait_for_resume, "Wait for resume, but no MLFLOW_RESUME_ID"
         
         if resume_run_id:
             # Resuming run
