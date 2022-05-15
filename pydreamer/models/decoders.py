@@ -82,20 +82,18 @@ class MultiDecoder(nn.Module):
                        terminal_rec=terminal_rec.detach())
 
         if extra_metrics:
-            mask_rewardp = obs['reward'] > 0  # mask where reward is positive
-            loss_rewardp = loss_reward * mask_rewardp / mask_rewardp  # set to nan where ~mask
-            metrics.update(loss_rewardp=nanmean(loss_rewardp))
-            tensors.update(loss_rewardp=loss_rewardp)
-
-            mask_rewardn = obs['reward'] < 0  # mask where reward is negative
-            loss_rewardn = loss_reward * mask_rewardn / mask_rewardn  # set to nan where ~mask
-            metrics.update(loss_rewardn=nanmean(loss_rewardn))
-            tensors.update(loss_rewardn=loss_rewardn)
+            reward_values = self.reward.support if isinstance(self.reward, DenseCategoricalSupportDecoder) else [-1.0, 1.0]
+            for rew in reward_values:
+                # Logprobs for specific reward values
+                mask_rewardp = obs['reward'] == rew  # mask where reward has value
+                loss_rewardp = loss_reward * mask_rewardp / mask_rewardp  # set to nan where ~mask
+                metrics[f'loss_reward{rew:.0f}'] = nanmean(loss_rewardp)
+                tensors[f'loss_reward{rew:.0f}'] = loss_rewardp
 
             mask_terminal1 = obs['terminal'] > 0  # mask where terminal is 1
             loss_terminal1 = loss_terminal * mask_terminal1 / mask_terminal1  # set to nan where ~mask
-            metrics.update(loss_terminal1=nanmean(loss_terminal1))
-            tensors.update(loss_terminal1=loss_terminal1)
+            metrics['loss_terminal1'] = nanmean(loss_terminal1)
+            tensors['loss_terminal1'] = loss_terminal1
 
         return loss_reconstr, metrics, tensors
 
@@ -315,11 +313,12 @@ class DenseCategoricalSupportDecoder(nn.Module):
         assert isinstance(support, list)
         super().__init__()
         self.model = MLP(in_dim, len(support), hidden_dim, hidden_layers, layer_norm)
-        self.support = nn.Parameter(torch.tensor(support), requires_grad=False)
+        self.support = np.array(support).astype(float)
+        self._support = nn.Parameter(torch.tensor(support).to(torch.float), requires_grad=False)
 
     def forward(self, features: Tensor) -> D.Distribution:
         y = self.model.forward(features)
-        p = CategoricalSupport(logits=y.float(), support=self.support.data)
+        p = CategoricalSupport(logits=y.float(), sup=self._support.data)
         return p
 
     def loss(self, output: D.Distribution, target: Tensor) -> Tensor:
@@ -328,7 +327,7 @@ class DenseCategoricalSupportDecoder(nn.Module):
 
     def to_categorical(self, target: Tensor) -> Tensor:
         # TODO: should interpolate between adjacent values, like in MuZero
-        distances = torch.square(target.unsqueeze(-1) - self.support)
+        distances = torch.square(target.unsqueeze(-1) - self._support)
         return distances.argmin(-1)
 
     def training_step(self, features: TensorTBIF, target: Tensor) -> Tuple[TensorTBI, TensorTB, TensorTB]:

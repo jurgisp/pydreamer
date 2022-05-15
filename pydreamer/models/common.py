@@ -76,11 +76,11 @@ class NoNorm(nn.Module):
 
 class CategoricalSupport(D.Categorical):
 
-    def __init__(self, logits, support):
-        assert logits.shape[-1:] == support.shape
+    def __init__(self, logits, sup):
+        assert logits.shape[-1:] == sup.shape
         super().__init__(logits=logits)
-        self.support = support
+        self.sup = sup
 
     @property
     def mean(self):
-        return torch.einsum('...i,i->...', self.probs, self.support)
+        return torch.einsum('...i,i->...', self.probs, self.sup)
