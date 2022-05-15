@@ -319,7 +319,7 @@ class NetworkPolicy:
         obs_model: Dict[str, Tensor] = map_structure(batch, torch.from_numpy)  # type: ignore
 
         with torch.no_grad():
-            action_distr, new_state, metrics = self.model.forward(obs_model, self.state)
+            action_distr, new_state, metrics = self.model.inference(obs_model, self.state)
             action = action_distr.sample()
             self.state = new_state
 

@@ -71,10 +71,10 @@ class Dreamer(nn.Module):
     def init_state(self, batch_size: int):
         return self.wm.init_state(batch_size)
 
-    def forward(self,
-                obs: Dict[str, Tensor],
-                in_state: Any,
-                ) -> Tuple[D.Distribution, Any, Dict]:
+    def inference(self,
+                  obs: Dict[str, Tensor],
+                  in_state: Any,
+                  ) -> Tuple[D.Distribution, Any, Dict]:
         assert 'action' in obs, 'Observation should contain previous action'
         act_shape = obs['action'].shape
         assert len(act_shape) == 3 and act_shape[0] == 1, f'Expected shape (1,B,A), got {act_shape}'
