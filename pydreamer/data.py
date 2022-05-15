@@ -144,7 +144,7 @@ class DataSequential(IterableDataset):
             debug(f'Reading files from {self.repository}...')
 
         files_all = self.repository.list_files()
-        files_all.sort(key=lambda e: -e.episode_to)
+        files_all.sort(key=lambda e: -e.episode_to)  # TODO: prefill should be sorted first. can we use timestamp?
 
         files = []
         steps_total = 0

@@ -236,6 +236,8 @@ minecraft:
   env_id: Embodied-minecraft_diamond
   action_dim: 29
   vecobs_size: 27
+  clip_rewards: log1p
+  generator_workers: 4
 
 debug:
   device: cpu
