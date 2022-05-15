@@ -28,6 +28,7 @@ flags.DEFINE_integer('a100', 0, '')
 flags.DEFINE_integer('v100', 0, '')
 flags.DEFINE_integer('p100', 0, '')
 flags.DEFINE_integer('num_actors', 0, 'How many actors to launch')
+flags.DEFINE_integer('cpu_actors', 4, 'Number of CPUs per actor')
 # Launch from flagsfile
 flags.DEFINE_string('flagsfile', '', 'JSON flags file')
 # Launch with explicit PyDreamer parameters
@@ -45,6 +46,8 @@ FLAGS = flags.FLAGS
 
 
 def main(_):
+    run_name_suffix = f'_{FLAGS.run_name_suffix}' if FLAGS.run_name_suffix else ''
+
     # Parse flags list
 
     if FLAGS.flagsfile:
@@ -77,17 +80,16 @@ def main(_):
 
         flagslist = []
         for config in configlist:
-            suffix = f'_{FLAGS.run_name_suffix}' if FLAGS.run_name_suffix else ''
             flagslist.append({
                 'configs': f'{FLAGS.configs},{config}' if config else FLAGS.configs,
                 'env_id': FLAGS.env_id,
-                'MLFLOW_RUN_NAME': FLAGS.run_name or f'{config}{suffix}',
+                'MLFLOW_RUN_NAME': FLAGS.run_name or f'{config}{run_name_suffix}',
                 'MLFLOW_RESUME_ID': FLAGS.resume_id or random_string(),
             })
 
     # Launch experiment
 
-    with xm_local.create_experiment(EXPID_PREFIX + expid) as exp:
+    with xm_local.create_experiment(EXPID_PREFIX + expid + run_name_suffix) as exp:
         [executable] = exp.package([
             xm.Packageable(
                 executable_spec=xm.Dockerfile(str(CWD), str(CWD / FLAGS.dockerfile)),
@@ -131,7 +133,7 @@ def main(_):
                     learner=job,
                     actor=xm.Job(
                         executable=exec_actor,
-                        executor=xm_local.Caip(xm.JobRequirements(cpu=4 * xm.vCPU, ram=10 * xm.GiB, replicas=FLAGS.num_actors)),
+                        executor=xm_local.Caip(xm.JobRequirements(cpu=FLAGS.cpu_actors * xm.vCPU, ram=8 * xm.GiB, replicas=FLAGS.num_actors)),
                         args=flags,  # type: ignore
                         env_vars=dict(**ENV_VARS, **env_flags),
                     ),
