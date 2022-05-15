@@ -21,7 +21,6 @@ from pydreamer.preprocessing import Preprocessor, WorkerInfoPreprocess
 from pydreamer.tools import *
 
 
-
 def run(conf):
     
     configure_logging(prefix='[TRAIN]')
@@ -98,7 +97,7 @@ def run(conf):
                               map_key=conf.map_key,
                               action_dim=conf.action_dim,
                               clip_rewards=conf.clip_rewards,
-                              amp=conf.device.startswith('cuda') and conf.amp)
+                              amp=conf.amp and device.type == 'cuda')
 
     # MODEL
 
@@ -107,7 +106,6 @@ def run(conf):
     else:
         model: Dreamer = WorldModelProbe(conf)  # type: ignore
     model.to(device)
-
     print(model)
     # print(repr(model))
     mlflow_log_text(repr(model), 'architecture.txt')
@@ -222,7 +220,7 @@ def run(conf):
 
                     # Log data buffer size
 
-                    if steps % conf.logbatch_interval == 0:
+                    if online_data and steps % conf.logbatch_interval == 0:
                         data_train_stats = DataSequential(MlflowEpisodeRepository(input_dirs), conf.batch_length, conf.batch_size)
                         metrics['data_steps'].append(data_train_stats.stats_steps)
                         metrics['data_env_steps'].append(data_train_stats.stats_steps * conf.env_action_repeat)
@@ -475,4 +473,3 @@ def get_profiler(conf):
         )
     else:
         return NoProfiler()
-
