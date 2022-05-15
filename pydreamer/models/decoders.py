@@ -32,10 +32,11 @@ class MultiDecoder(nn.Module):
             assert False, conf.image_decoder
 
         if conf.reward_decoder_categorical:
-            self.reward = DenseCategoricalSupportDecoder(in_dim=features_dim,
-                                                         support=conf.reward_decoder_categorical,
-                                                         hidden_layers=conf.reward_decoder_layers,
-                                                         layer_norm=conf.layer_norm)
+            self.reward = DenseCategoricalSupportDecoder(
+                in_dim=features_dim,
+                support=clip_rewards_np(conf.reward_decoder_categorical, conf.clip_rewards),  # reward_decoder_categorical values are untransformed 
+                hidden_layers=conf.reward_decoder_layers,
+                layer_norm=conf.layer_norm)
         else:
             self.reward = DenseNormalDecoder(in_dim=features_dim, hidden_layers=conf.reward_decoder_layers, layer_norm=conf.layer_norm)
 
@@ -60,14 +61,14 @@ class MultiDecoder(nn.Module):
             loss_reconstr += self.image_weight * loss_image_tbi
             metrics.update(loss_image=loss_image.detach().mean())
             tensors.update(loss_image=loss_image.detach(),
-                        image_rec=image_rec.detach())
+                           image_rec=image_rec.detach())
 
         if self.vecobs:
             loss_vecobs_tbi, loss_vecobs, vecobs_rec = self.vecobs.training_step(features, obs['vecobs'])
             loss_reconstr += self.vecobs_weight * loss_vecobs_tbi
             metrics.update(loss_vecobs=loss_vecobs.detach().mean())
             tensors.update(loss_vecobs=loss_vecobs.detach(),
-                        vecobs_rec=vecobs_rec.detach())
+                           vecobs_rec=vecobs_rec.detach())
 
         loss_reward_tbi, loss_reward, reward_rec = self.reward.training_step(features, obs['reward'])
         loss_reconstr += self.reward_weight * loss_reward_tbi
@@ -82,13 +83,22 @@ class MultiDecoder(nn.Module):
                        terminal_rec=terminal_rec.detach())
 
         if extra_metrics:
-            reward_values = self.reward.support if isinstance(self.reward, DenseCategoricalSupportDecoder) else [-1.0, 1.0]
-            for rew in reward_values:
-                # Logprobs for specific reward values
-                mask_rewardp = obs['reward'] == rew  # mask where reward has value
-                loss_rewardp = loss_reward * mask_rewardp / mask_rewardp  # set to nan where ~mask
-                metrics[f'loss_reward{rew:.0f}'] = nanmean(loss_rewardp)
-                tensors[f'loss_reward{rew:.0f}'] = loss_rewardp
+            if isinstance(self.reward, DenseCategoricalSupportDecoder):
+                # TODO: logic should be moved to appropriate decoder
+                reward_cat = self.reward.to_categorical(obs['reward'])
+                for i in range(len(self.reward.support)):
+                    # Logprobs for specific categorical reward values
+                    mask_rewardp = reward_cat == i  # mask where categorical reward has specific value
+                    loss_rewardp = loss_reward * mask_rewardp / mask_rewardp  # set to nan where ~mask
+                    metrics[f'loss_reward{i}'] = nanmean(loss_rewardp)  # index by support bucket, not by value
+                    tensors[f'loss_reward{i}'] = loss_rewardp
+            else:
+                for sig in [-1, 1]:
+                    # Logprobs for positive and negative rewards
+                    mask_rewardp = torch.sign(obs['reward']) == sig  # mask where reward is positive or negative
+                    loss_rewardp = loss_reward * mask_rewardp / mask_rewardp  # set to nan where ~mask
+                    metrics[f'loss_reward{sig}'] = nanmean(loss_rewardp)
+                    tensors[f'loss_reward{sig}'] = loss_rewardp
 
             mask_terminal1 = obs['terminal'] > 0  # mask where terminal is 1
             loss_terminal1 = loss_terminal * mask_terminal1 / mask_terminal1  # set to nan where ~mask
@@ -310,7 +320,7 @@ class DenseCategoricalSupportDecoder(nn.Module):
     """
 
     def __init__(self, in_dim, support=[0.0, 1.0], hidden_dim=400, hidden_layers=2, layer_norm=True):
-        assert isinstance(support, list)
+        assert isinstance(support, (list, np.ndarray))
         super().__init__()
         self.model = MLP(in_dim, len(support), hidden_dim, hidden_layers, layer_norm)
         self.support = np.array(support).astype(float)

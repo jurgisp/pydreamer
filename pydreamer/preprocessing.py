@@ -3,6 +3,7 @@ from typing import Callable, Dict, Tuple
 import numpy as np
 from torch.utils.data import IterableDataset, get_worker_info
 
+from .models.functions import clip_rewards_np
 from .tools import *
 
 
@@ -146,10 +147,7 @@ class Preprocessor:
 
         batch['terminal'] = batch.get('terminal', np.zeros((T, B))).astype(np.float32)
         batch['reward'] = batch.get('reward', np.zeros((T, B))).astype(np.float32)
-        if self.clip_rewards == 'tanh':
-            batch['reward'] = np.tanh(batch['reward'])
-        if self.clip_rewards == 'log1p':
-            batch['reward'] = np.log1p(batch['reward'])
+        batch['reward'] = clip_rewards_np(batch['reward'], self.clip_rewards)
 
         # map_coord
 
