@@ -148,6 +148,10 @@ def run(conf):
                 profiler.step()
                 steps += 1
                 will_log_batch = steps % conf.logbatch_interval == 1
+                will_image_pred = (
+                    will_log_batch or
+                    steps % conf.log_interval >= int(conf.log_interval * 0.9)  # 10% of batches
+                )
 
                 # Make batch
 
@@ -165,13 +169,11 @@ def run(conf):
                         if state is None:
                             state = model.init_state(conf.batch_size * conf.iwae_samples)
                         losses, new_state, loss_metrics, tensors, dream_tensors = \
-                            model.training_step(obs,
-                                                state,
-                                                iwae_samples=conf.iwae_samples,
-                                                imag_horizon=conf.imag_horizon,
-                                                do_image_pred=(will_log_batch or
-                                                               steps % conf.log_interval >= int(conf.log_interval * 0.9)),  # 10% of batches
-                                                do_dream_tensors=will_log_batch)
+                            model.training_step(
+                                obs,
+                                state,
+                                do_image_pred=will_image_pred,
+                                do_dream_tensors=will_log_batch)
                         if conf.keep_state:
                             states[wid] = new_state
 

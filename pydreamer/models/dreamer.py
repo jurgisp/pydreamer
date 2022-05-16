@@ -22,6 +22,8 @@ class Dreamer(nn.Module):
         super().__init__()
         assert conf.action_dim > 0, "Need to set action_dim to match environment"
         state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1)
+        self.iwae_samples = conf.iwae_samples
+        self.imag_horizon = conf.imag_horizon
 
         # World model
 
@@ -95,8 +97,8 @@ class Dreamer(nn.Module):
     def training_step(self,
                       obs: Dict[str, Tensor],
                       in_state: Any,
-                      iwae_samples: int = 1,
-                      imag_horizon: int = 1,
+                      iwae_samples: Optional[int] = None,
+                      imag_horizon: Optional[int] = None,
                       do_open_loop=False,
                       do_image_pred=False,
                       do_dream_tensors=False,
@@ -105,6 +107,8 @@ class Dreamer(nn.Module):
         assert 'reward' in obs, '`reward` required in observation'
         assert 'reset' in obs, '`reset` required in observation'
         assert 'terminal' in obs, '`terminal` required in observation'
+        iwae_samples = int(iwae_samples or self.iwae_samples)
+        imag_horizon = int(imag_horizon or self.imag_horizon)
         T, B = obs['action'].shape[:2]
         I, H = iwae_samples, imag_horizon
 
