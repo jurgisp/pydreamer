@@ -341,7 +341,7 @@ class WorldModel(nn.Module):
         assert loss_kl.shape == loss_reconstr.shape
         loss_model_tbi = self.kl_weight * loss_kl + loss_reconstr
         loss_model = -logavgexp(-loss_model_tbi, dim=2)
-        loss_model += self.aux_critic_weight * loss_critic_aux
+        loss = loss_model.mean() + self.aux_critic_weight * loss_critic_aux
 
         # Metrics
 
@@ -372,4 +372,4 @@ class WorldModel(nn.Module):
                 tensors.update(**tensors_logprob)  # logprob_image, ...
                 tensors.update(**tensors_pred)  # image_pred, ...
 
-        return loss_model.mean(), features, states, out_state, metrics, tensors
+        return loss, features, states, out_state, metrics, tensors
