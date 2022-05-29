@@ -65,6 +65,14 @@ class ActorCritic(nn.Module):
                       terminals: TensorJM,
                       log_only=False
                       ):
+        """
+        The ordering is as follows:
+            features[0] 
+            -> actions[0] -> rewards[1], terminals[1], features[1]
+            -> actions[1] -> ...
+            ...
+            -> actions[H-1] -> rewards[H], terminals[H], features[H]
+        """
         if not log_only:
             if self.train_steps % self.target_interval == 0:
                 self.update_critic_target()

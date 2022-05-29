@@ -21,7 +21,7 @@ class Dreamer(nn.Module):
     def __init__(self, conf):
         super().__init__()
         assert conf.action_dim > 0, "Need to set action_dim to match environment"
-        state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1)
+        features_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1)
         self.iwae_samples = conf.iwae_samples
         self.imag_horizon = conf.imag_horizon
 
@@ -31,7 +31,7 @@ class Dreamer(nn.Module):
 
         # Actor critic
 
-        self.ac = ActorCritic(in_dim=state_dim,
+        self.ac = ActorCritic(in_dim=features_dim,
                               out_actions=conf.action_dim,
                               layer_norm=conf.layer_norm,
                               gamma=conf.gamma,
@@ -45,9 +45,9 @@ class Dreamer(nn.Module):
         # Map probe
 
         if conf.probe_model == 'map':
-            probe_model = MapProbeHead(state_dim + 4, conf)
+            probe_model = MapProbeHead(features_dim + 4, conf)
         elif conf.probe_model == 'goals':
-            probe_model = GoalsProbe(state_dim, conf)
+            probe_model = GoalsProbe(features_dim, conf)
         elif conf.probe_model == 'none':
             probe_model = NoProbeHead()
         else:
@@ -218,6 +218,7 @@ class WorldModel(nn.Module):
         self.stoch_discrete = conf.stoch_discrete
         self.kl_weight = conf.kl_weight
         self.kl_balance = None if conf.kl_balance == 0.5 else conf.kl_balance
+        self.aux_critic_weight = conf.aux_critic_weight
 
         # Encoder
 
@@ -239,6 +240,22 @@ class WorldModel(nn.Module):
                              gru_layers=conf.gru_layers,
                              gru_type=conf.gru_type,
                              layer_norm=conf.layer_norm)
+
+        # Auxiliary critic
+
+        if conf.aux_critic:
+            self.ac_aux = ActorCritic(in_dim=features_dim,
+                                      out_actions=conf.action_dim,
+                                      layer_norm=conf.layer_norm,
+                                      gamma=conf.gamma,
+                                      lambda_gae=conf.lambda_gae,
+                                      entropy_weight=conf.entropy,
+                                      target_interval=conf.target_interval,
+                                      actor_grad=conf.actor_grad,
+                                      actor_dist=conf.actor_dist,
+                                      )
+        else:
+            self.ac_aux = None
 
         # Init
 
@@ -264,7 +281,6 @@ class WorldModel(nn.Module):
                       do_image_pred=False,
                       forward_only=False
                       ):
-
         # Encoder
 
         embed = self.encoder(obs)
@@ -305,11 +321,27 @@ class WorldModel(nn.Module):
             z = post_samples.reshape(dpost.batch_shape + dpost.event_shape)
             loss_kl = dpost.log_prob(z) - dprior.log_prob(z)
 
+        # Auxiliary critic loss
+
+        if self.ac_aux:
+            features_tb = features.select(2, 0)  # (T,B,I) => (T,B) - assume I=1
+            (_, loss_critic_aux), metrics_ac, tensors_ac = \
+                self.ac_aux.training_step(features_tb,
+                                          obs['action'][1:],
+                                          obs['reward'],
+                                          obs['terminal'])
+            metrics.update(loss_critic_aux=metrics_ac['loss_critic'],
+                           policy_value_aux=metrics_ac['policy_value_im'])
+            tensors.update(policy_value_aux=tensors_ac['value'])
+        else:
+            loss_critic_aux = 0.0
+
         # Total loss
 
         assert loss_kl.shape == loss_reconstr.shape
         loss_model_tbi = self.kl_weight * loss_kl + loss_reconstr
         loss_model = -logavgexp(-loss_model_tbi, dim=2)
+        loss_model += self.aux_critic_weight * loss_critic_aux
 
         # Metrics
 

@@ -52,6 +52,7 @@ defaults:
   amp: False  # AMP no longer helps on A100
   separate_adams: True  # for baselines
   probe_gradients: False  # for baselines
+  aux_critic_weight: 1.0
 
   # Eval
   test_batches: 61  # For unbiased test needs to be enough to cover full episodes
@@ -81,6 +82,9 @@ defaults:
   reward_decoder_layers: 4
   reward_decoder_categorical:
   terminal_decoder_layers: 4
+  aux_critic: False
+  
+  # Probe
   map_stoch_dim: 64
   probe_model: none
   map_decoder: dense
