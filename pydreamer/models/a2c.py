@@ -61,8 +61,8 @@ class ActorCritic(nn.Module):
     def training_step(self,
                       features: TensorJMF,
                       actions: TensorHMA,
-                      rewards: D.Distribution,
-                      terminals: D.Distribution,
+                      rewards: TensorJM,
+                      terminals: TensorJM,
                       log_only=False
                       ):
         if not log_only:
@@ -70,9 +70,9 @@ class ActorCritic(nn.Module):
                 self.update_critic_target()
             self.train_steps += 1
 
-        reward1: TensorHM = rewards.mean[1:]
-        terminal0: TensorHM = terminals.mean[:-1]
-        terminal1: TensorHM = terminals.mean[1:]
+        reward1: TensorHM = rewards[1:]
+        terminal0: TensorHM = terminals[:-1]
+        terminal1: TensorHM = terminals[1:]
 
         # GAE from https://arxiv.org/abs/1506.02438 eq (16)
         #   advantage_gae[t] = advantage[t] + (gamma lambda) advantage[t+1] + (gamma lambda)^2 advantage[t+2] + ...
@@ -97,20 +97,20 @@ class ActorCritic(nn.Module):
         # When calculating losses, should ignore terminal states, or anything after, so:
         #   reality_weight[i] = (1-terminal[0]) (1-terminal[1]) ... (1-terminal[i])
         # Note this takes care of the case when initial state features[0] is terminal - it will get weighted by (1-terminals[0]).
-        reality_weight = (1 - terminal0.detach()).log().cumsum(dim=0).exp()
+        reality_weight = (1 - terminal0).log().cumsum(dim=0).exp()
 
         # Critic loss
 
-        value: TensorJM = self.critic.forward(features.detach())
+        value: TensorJM = self.critic.forward(features)
         value0: TensorHM = value[:-1]
         loss_critic = 0.5 * torch.square(value_target.detach() - value0)
         loss_critic = (loss_critic * reality_weight).mean()
 
         # Actor loss
 
-        policy_distr = self.forward_actor(features.detach()[:-1])  # TODO: we could reuse this from dream()
+        policy_distr = self.forward_actor(features[:-1])  # TODO: we could reuse this from dream()
         if self.actor_grad == 'reinforce':
-            action_logprob = policy_distr.log_prob(actions.detach())
+            action_logprob = policy_distr.log_prob(actions)
             loss_policy = - action_logprob * advantage_gae.detach()
         elif self.actor_grad == 'dynamics':
             loss_policy = - value_target
