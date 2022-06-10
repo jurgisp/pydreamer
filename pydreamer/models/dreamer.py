@@ -247,10 +247,10 @@ class WorldModel(nn.Module):
             self.ac_aux = ActorCritic(in_dim=features_dim,
                                       out_actions=conf.action_dim,
                                       layer_norm=conf.layer_norm,
-                                      gamma=conf.gamma,
-                                      lambda_gae=conf.lambda_gae,
+                                      gamma=conf.gamma_aux,
+                                      lambda_gae=conf.lambda_gae_aux,
                                       entropy_weight=conf.entropy,
-                                      target_interval=conf.target_interval,
+                                      target_interval=conf.target_interval_aux,
                                       actor_grad=conf.actor_grad,
                                       actor_dist=conf.actor_dist,
                                       )

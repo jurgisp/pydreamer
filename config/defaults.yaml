@@ -52,7 +52,6 @@ defaults:
   amp: False  # AMP no longer helps on A100
   separate_adams: True  # for baselines
   probe_gradients: False  # for baselines
-  aux_critic_weight: 1.0
 
   # Eval
   test_batches: 61  # For unbiased test needs to be enough to cover full episodes
@@ -82,7 +81,6 @@ defaults:
   reward_decoder_layers: 4
   reward_decoder_categorical:
   terminal_decoder_layers: 4
-  aux_critic: False
   
   # Probe
   map_stoch_dim: 64
@@ -99,6 +97,13 @@ defaults:
   imag_horizon: 15
   actor_grad: reinforce
   actor_dist: onehot
+
+  # Auxiliary Actor critic
+  aux_critic: False
+  aux_critic_weight: 1.0
+  gamma_aux: 0.99
+  lambda_gae_aux: 0.95
+  target_interval_aux: 1000
 
   # Generator
   generator_workers: 4        # train+eval generators
