@@ -29,6 +29,7 @@ flags.DEFINE_integer('v100', 0, '')
 flags.DEFINE_integer('p100', 0, '')
 flags.DEFINE_integer('num_actors', 0, 'How many actors to launch')
 flags.DEFINE_integer('cpu_actors', 4, 'Number of CPUs per actor')
+flags.DEFINE_integer('seeds', 1, 'How many times to launch each run')
 # Launch from flagsfile
 flags.DEFINE_string('flagsfile', '', 'JSON flags file')
 # Launch with explicit PyDreamer parameters
@@ -80,12 +81,13 @@ def main(_):
 
         flagslist = []
         for config in configlist:
-            flagslist.append({
-                'configs': f'{FLAGS.configs},{config}' if config else FLAGS.configs,
-                'env_id': FLAGS.env_id,
-                'MLFLOW_RUN_NAME': FLAGS.run_name or f'{config}{run_name_suffix}',
-                'MLFLOW_RESUME_ID': FLAGS.resume_id or random_string(),
-            })
+            for i in range(FLAGS.seeds):
+                flagslist.append({
+                    'configs': f'{FLAGS.configs},{config}' if config else FLAGS.configs,
+                    'env_id': FLAGS.env_id,
+                    'MLFLOW_RUN_NAME': FLAGS.run_name or f'{config}{run_name_suffix}',
+                    'MLFLOW_RESUME_ID': FLAGS.resume_id or random_string(),
+                })
 
     # Launch experiment
 
