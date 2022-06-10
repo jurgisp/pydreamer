@@ -94,11 +94,14 @@ def mlflow_init(wait_for_resume=False):
 
 def mlflow_log_params(params: dict):
     import mlflow
-    try:
-        mlflow.log_params({k: v for k, v in params.items() if not len(repr(v)) > 250})  # filter too long
-    except Exception as e:
-        # This happens when resuming and config has different parameters - it's fine
-        exception('Error in mlflow.log_params (it is ok if params changed).')
+    kvs = list(params.items())
+    kvs = [(k, v) for k, v in params.items() if not len(repr(v)) > 250]  # filter too long
+    for i in range(0, len(kvs), 100):  # log_params() allows max 100
+        try:
+            mlflow.log_params(dict(kvs[i:i + 100]))
+        except Exception as e:
+            # This happens when resuming and config has different parameters - it's fine
+            exception('Error in mlflow.log_params (it is ok if params changed).')
 
 def mlflow_log_metrics(metrics: dict, step: int):
     import mlflow
