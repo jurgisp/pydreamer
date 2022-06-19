@@ -12,11 +12,13 @@ class DictWrapper(gym.ObservationWrapper):
         super().__init__(env)
         # self.observation_space = ...  # TODO
 
-    def observation(self, obs_img):
-        if len(obs_img.shape) == 1:
-            return {'vecobs': obs_img}  # Vector env
+    def observation(self, obs):
+        if isinstance(obs, dict):
+            return obs  # Already a dictionary
+        if len(obs.shape) == 1:
+            return {'vecobs': obs}  # Vector env
         else:
-            return {'image': obs_img}  # Image env
+            return {'image': obs}  # Image env
 
 
 class TimeLimitWrapper(gym.Wrapper):
