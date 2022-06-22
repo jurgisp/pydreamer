@@ -90,7 +90,7 @@ RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@2e5a1cf878778dc
 RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@e551b6c7ca245ca8f4e31471819728fb46ca256d#egg=gym-miniworld dmlab-maze-generator
 
 # DMC-based 3d memory maze
-RUN pip3 install git+https://github.com/jurgisp/dmc-memory-maze.git@fec3d47c806049f5830065f44645d3279d335260#egg=dmc-memory-maze
+RUN pip3 install git+https://github.com/jurgisp/dmc-memory-maze.git@9fc43cbd485210c7a77bde3232d7dca2125cb316#egg=dmc-memory-maze
 
 # ------------------------
 # PyDreamer
