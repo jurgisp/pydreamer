@@ -56,12 +56,12 @@ def mlflow_init(wait_for_resume=False):
     if run:
         # Run already active
         pass
-    
+
     elif os.environ.get('MLFLOW_RUN_ID'):
         # Run not active, but specific ID set (probably subprocess)
         run = mlflow.start_run(run_id=os.environ['MLFLOW_RUN_ID'])
         info(f'Reinitialized mlflow run {run.info.run_id} ({resume_id}) in {uri}/{run.info.experiment_id}')
-    
+
     else:
         resume_run_id = None
         if resume_id:
@@ -79,7 +79,7 @@ def mlflow_init(wait_for_resume=False):
                         break
         else:
             assert not wait_for_resume, "Wait for resume, but no MLFLOW_RESUME_ID"
-        
+
         if resume_run_id:
             # Resuming run
             run = mlflow.start_run(run_id=resume_run_id)
@@ -88,20 +88,28 @@ def mlflow_init(wait_for_resume=False):
             # Starting new run
             run = mlflow.start_run(run_name=run_name, tags={'resume_id': resume_id or ''})
             info(f'Started mlflow run {run.info.run_id} ({resume_id}) in {uri}/{run.info.experiment_id}')
-    
+
     os.environ['MLFLOW_RUN_ID'] = run.info.run_id  # for subprocesses
     return run
 
+
 def mlflow_log_params(params: dict):
     import mlflow
-    kvs = list(params.items())
-    kvs = [(k, v) for k, v in params.items() if not len(repr(v)) > 250]  # filter too long
-    for i in range(0, len(kvs), 100):  # log_params() allows max 100
+    MAX_VALUE_LENGTH = 250
+    MAX_BATCH_SIZE = 100
+    kvs = [
+        (str(k), str(v))
+        for k, v in params.items()
+        if 1 <= len(str(v)) <= MAX_VALUE_LENGTH  # Filter out too long values. Also filter out empty strings, for some reason causes INVALID_PARAMETER_VALUE
+    ]
+    for i in range(0, len(kvs), MAX_BATCH_SIZE):  # log_params() allows max 100 items
         try:
-            mlflow.log_params(dict(kvs[i:i + 100]))
+            params_batch = dict(kvs[i:i + MAX_BATCH_SIZE])
+            mlflow.log_params(params_batch)
         except Exception as e:
             # This happens when resuming and config has different parameters - it's fine
             exception('Error in mlflow.log_params (it is ok if params changed).')
+
 
 def mlflow_log_metrics(metrics: dict, step: int):
     import mlflow
@@ -112,6 +120,7 @@ def mlflow_log_metrics(metrics: dict, step: int):
         except:
             exception('Error logging metrics - will retry.')
             time.sleep(10)
+
 
 def mlflow_log_npz(data: dict, name, subdir=None, verbose=False, repository: ArtifactRepository = None):
     import mlflow
