@@ -42,6 +42,7 @@ flags.DEFINE_string('configlist', '', 'Comma-separated list of config to launch,
 # Launch from configfile
 flags.DEFINE_string('configfile', '', 'YAML config file, from which to launch all configs (only read headers, not actual config)')
 flags.DEFINE_string('run_name_suffix', '', '')
+flags.DEFINE_bool('fixed_resume', False, 'Sets resume_id automatically based on run name, so it can be rerun and resumed.')
 
 FLAGS = flags.FLAGS
 
@@ -86,7 +87,7 @@ def main(_):
                     'configs': f'{FLAGS.configs},{config}' if config else FLAGS.configs,
                     'env_id': FLAGS.env_id,
                     'MLFLOW_RUN_NAME': FLAGS.run_name or f'{config}{run_name_suffix}',
-                    'MLFLOW_RESUME_ID': FLAGS.resume_id or random_string(),
+                    'MLFLOW_RESUME_ID': FLAGS.resume_id or (f'{config}{run_name_suffix}_{i}' if FLAGS.fixed_resume else random_string()),
                 })
 
     # Launch experiment
