@@ -92,6 +92,9 @@ RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@e551b6c7ca245c
 # DMC-based 3d memory maze
 RUN pip3 install git+https://github.com/jurgisp/dmc-memory-maze.git@b6fbd8b2c3e3ecd144b0a3911fec0a421f863f4e#egg=dmc-memory-maze
 
+# procgen  # TODO: move up
+RUN pip3 install procgen
+
 # ------------------------
 # PyDreamer
 # ------------------------

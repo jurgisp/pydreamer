@@ -251,6 +251,11 @@ dmc_memmaze:
   action_dim: 6
   entropy: 0.001
 
+procgen:
+  env_id: procgen:procgen-coinrun-v0
+  action_dim: 15
+  kl_weight: 0.1
+
 debug:
   device: cpu
   log_interval: 5
