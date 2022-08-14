@@ -48,12 +48,12 @@ def launch():
     artifact_uri = mlrun.info.artifact_uri
     mlflow_log_params(vars(conf))
 
-    # Launch train/eval generators
+    # Launch train+eval generators
 
     subprocesses: List[Process] = []
     for i in range(conf.generator_workers):
         if belongs_to_worker('generator', i):
-            info(f'Launching train/eval generator {i}')
+            info(f'Launching train+eval generator {i}')
             p = launch_generator(
                 conf.env_id,
                 conf,
