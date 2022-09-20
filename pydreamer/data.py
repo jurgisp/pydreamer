@@ -95,17 +95,23 @@ class MlflowEpisodeRepository(EpisodeRepository):
 
 
     def parse_episode_name(self, fname):
-        # fname = 'ep{epfrom}_{episode}-r{reward}-{steps}.npz'
-        #       | 'ep{episode}-r{reward}-{steps}.npz'
         # TODO: regex
         fname = fname.split('/')[-1].split('.')[0]
-        steps = fname.split('-')[-1]
-        steps = int(steps) if steps.isnumeric() else 0
-        ep_from = fname.split('ep')[1].split('-')[0].split('_')[0]
-        ep_from = int(ep_from) if ep_from.isnumeric() else 0
-        ep_to = fname.split('ep')[1].split('-')[0].split('_')[-1]
-        ep_to = int(ep_to) if ep_to.isnumeric() else 0
-        return (ep_from, ep_to, steps)
+        if fname.startswith('ep'):
+            # fname = 'ep{epfrom}_{episode}-r{reward}-{steps}.npz'
+            #       | 'ep{episode}-r{reward}-{steps}.npz'
+            steps = fname.split('-')[-1]
+            steps = int(steps) if steps.isnumeric() else 0
+            ep_from = fname.split('ep')[1].split('-')[0].split('_')[0]
+            ep_from = int(ep_from) if ep_from.isnumeric() else 0
+            ep_to = fname.split('ep')[1].split('-')[0].split('_')[-1]
+            ep_to = int(ep_to) if ep_to.isnumeric() else 0
+            return (ep_from, ep_to, steps)
+        else:
+            # fname = '{timestamp}-{steps}
+            steps = fname.split('-')[-1]
+            steps = int(steps) if steps.isnumeric() else 0
+            return (0, 0, steps)
 
     def __repr__(self):
         return f'{self.artifact_uris}'
