@@ -436,9 +436,8 @@ def prepare_batch_npz(data: Dict[str, Tensor], take_b=999):
         elif len(x.shape) == 3:  # 1D vector
             pass
 
-        elif len(x.shape) == 4:  # 2D tensor - categorical image
-            assert (x.dtype == np.int64 or x.dtype == np.uint8) and key.startswith('map'), \
-                f'Unexpected 2D tensor: {key}: {x.shape}, {x.dtype}'
+        elif len(x.shape) == 4:  # 2D tensor
+            pass
 
         elif len(x.shape) == 5:  # 3D tensor - image
             assert x.dtype == np.float32 and (key.startswith('image') or key.startswith('map')), \
