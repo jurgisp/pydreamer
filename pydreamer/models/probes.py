@@ -43,13 +43,14 @@ class MapProbeHead(nn.Module):
         with torch.no_grad():
             map_pred = map_pred.detach()
             acc_map = self.accuracy(map_pred, obs['map'])
-            acc_map_seen = self.accuracy(map_pred, obs['map'], obs['map_seen_mask'])
             tensors = dict(map_rec=map_pred,
                            loss_map=loss.detach(),
                            acc_map=acc_map)
             metrics = dict(loss_map=loss.mean(),
-                           acc_map=nanmean(acc_map),
-                           acc_map_seen=nanmean(acc_map_seen))
+                           acc_map=nanmean(acc_map))
+            if 'map_seen_mask' in obs:
+                acc_map_seen = self.accuracy(map_pred, obs['map'], obs['map_seen_mask'])
+                metrics['acc_map_seen'] = nanmean(acc_map_seen)
 
         return loss.mean(), metrics, tensors
 
