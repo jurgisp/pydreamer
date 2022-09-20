@@ -83,7 +83,6 @@ defaults:
   terminal_decoder_layers: 4
   
   # Probe
-  map_stoch_dim: 64
   probe_model: none
   map_decoder: dense
   map_hidden_layers: 4
