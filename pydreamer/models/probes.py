@@ -12,6 +12,22 @@ from .decoders import *
 from .rnn import *
 from .rssm import *
 
+class MapGoalsProbe(nn.Module):
+    """Combined MapProbeHead and GoalsProbe."""
+
+    def __init__(self, state_dim, conf):
+        super().__init__()
+        self.map_probe = MapProbeHead(state_dim + 4, conf)
+        self.goals_probe = GoalsProbe(state_dim, conf)
+
+    def training_step(self, features: TensorTBIF, obs: Dict[str, Tensor]):
+        loss_map, metrics_map, tensors_map = self.map_probe.training_step(features, obs)
+        loss_goals, metrics_goals, tensors_goals = self.goals_probe.training_step(features, obs)
+        loss_total = loss_map + loss_goals
+        metrics = dict(**metrics_map, **metrics_goals)
+        tensors = dict(**tensors_map, **tensors_goals)
+        return loss_total, metrics, tensors
+
 
 class MapProbeHead(nn.Module):
 

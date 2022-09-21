@@ -42,6 +42,8 @@ class WorldModelProbe(nn.Module):
             probe_model = MapProbeHead(self.wm.out_dim + 4, conf)
         elif conf.probe_model == 'goals':
             probe_model = GoalsProbe(self.wm.out_dim, conf)
+        elif conf.probe_model == 'map+goals':
+            probe_model = MapGoalsProbe(self.wm.out_dim, conf)
         elif conf.probe_model == 'none':
             probe_model = NoProbeHead()
         else:
@@ -81,7 +83,7 @@ class WorldModelProbe(nn.Module):
                       obs: Dict[str, Tensor],
                       in_state: Any,
                       iwae_samples: int = 1,
-                      imag_horizon: int = None,
+                      imag_horizon: Optional[int] = None,
                       do_open_loop=False,
                       do_image_pred=False,
                       do_dream_tensors=False,
