@@ -168,6 +168,15 @@ class Preprocessor:
                 batch['equipped'].astype(np.float32)
             ], axis=-1)
 
+        # probe goal_direction
+
+        if 'targets_vec' in batch:
+            batch['goals_direction'] = batch['targets_vec'].reshape(
+                batch['targets_vec'].shape[:-2] + (-1,)  # (*,G,2) => (*,2G)
+            ).astype(np.float32)
+        if 'target_vec' in batch:
+            batch['goal_direction'] = batch['target_vec'].astype(np.float32)
+
         # => float16
 
         if self.amp:

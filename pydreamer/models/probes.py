@@ -76,7 +76,7 @@ class GoalsProbe(nn.Module):
         super().__init__()
         self.decoders = nn.ModuleDict({
             'goal_direction': DenseNormalDecoder(in_dim=state_dim, out_dim=2, hidden_layers=4, layer_norm=True),
-            'goals_direction': DenseNormalDecoder(in_dim=state_dim, out_dim=12, hidden_layers=4, layer_norm=True),
+            'goals_direction': DenseNormalDecoder(in_dim=state_dim, out_dim=conf.goals_size * 2, hidden_layers=4, layer_norm=True),
         })
 
     def training_step(self, features: TensorTBIF, obs: Dict[str, Tensor]):
@@ -99,12 +99,13 @@ class GoalsProbe(nn.Module):
             pred = tensors['goals_direction_pred']
             mse_per_coord = (goals - pred) ** 2  # (T,B,12)
             mse_per_goal = mse_per_coord.reshape(mse_per_coord.shape[:-1] + (-1, 2)).sum(-1)  # (T,B,6)
-            # This is sum over all goals, average over batch
-            #   mse_goals = 0.5 * loss_goals_direction
-            metrics['mse_goals'] = mse_per_goal.sum(-1).mean()
+            # This is mean over all goals, average over batch
+            metrics['mse_goals'] = mse_per_goal.mean(-1).mean()
 
             # Baseline variance, should be equal to mse_goals for a stupid model
-            metrics['var_goals'] = goals.reshape((-1, goals.shape[-1])).var(0).sum()
+            var_per_coord = goals.reshape((-1, goals.shape[-1])).var(0)
+            var_per_goal = var_per_coord.reshape((-1, 2)).sum(-1)
+            metrics['var_goals'] = var_per_goal.mean()
 
             log_ranges = [-1, 0, 5, 10, 50, 200, 1000]
             visage = obs.get('goals_visage')  # "visage" = "visible age" = "steps since last seen"

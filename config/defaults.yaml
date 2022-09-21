@@ -20,12 +20,15 @@ defaults:
   image_size: 64
   image_channels: 3
   image_categorical: False
+  action_dim: 0
+  clip_rewards:
+  
+  # Probe features
   map_key:
   map_size: 11
   map_channels: 4
   map_categorical: True
-  action_dim: 0
-  clip_rewards:
+  goals_size: 6
   
   # Training
   buffer_size: 10_000_000
