@@ -55,21 +55,35 @@ class Dreamer(nn.Module):
         else:
             raise NotImplementedError(f'Unknown probe_model={conf.probe_model}')
         self.probe_model = probe_model
+        self.probe_gradients = conf.probe_gradients
 
     def init_optimizers(self, lr, lr_actor=None, lr_critic=None, eps=1e-5):
-        optimizer_wm = torch.optim.AdamW(self.wm.parameters(), lr=lr, eps=eps)
-        optimizer_probe = torch.optim.AdamW(self.probe_model.parameters(), lr=lr, eps=eps)
-        optimizer_actor = torch.optim.AdamW(self.ac.actor.parameters(), lr=lr_actor or lr, eps=eps)
-        optimizer_critic = torch.optim.AdamW(self.ac.critic.parameters(), lr=lr_critic or lr, eps=eps)
-        return optimizer_wm, optimizer_probe, optimizer_actor, optimizer_critic
+        if not self.probe_gradients:
+            optimizer_wm = torch.optim.AdamW(self.wm.parameters(), lr=lr, eps=eps)
+            optimizer_probe = torch.optim.AdamW(self.probe_model.parameters(), lr=lr, eps=eps)
+            optimizer_actor = torch.optim.AdamW(self.ac.actor.parameters(), lr=lr_actor or lr, eps=eps)
+            optimizer_critic = torch.optim.AdamW(self.ac.critic.parameters(), lr=lr_critic or lr, eps=eps)
+            return optimizer_wm, optimizer_probe, optimizer_actor, optimizer_critic
+        else:
+            optimizer_wmprobe = torch.optim.AdamW(self.wm.parameters(), lr=lr, eps=eps)
+            optimizer_actor = torch.optim.AdamW(self.ac.actor.parameters(), lr=lr_actor or lr, eps=eps)
+            optimizer_critic = torch.optim.AdamW(self.ac.critic.parameters(), lr=lr_critic or lr, eps=eps)
+            return optimizer_wmprobe, optimizer_actor, optimizer_critic
 
     def grad_clip(self, grad_clip, grad_clip_ac=None):
-        grad_metrics = {
-            'grad_norm': nn.utils.clip_grad_norm_(self.wm.parameters(), grad_clip),
-            'grad_norm_probe': nn.utils.clip_grad_norm_(self.probe_model.parameters(), grad_clip),
-            'grad_norm_actor': nn.utils.clip_grad_norm_(self.ac.actor.parameters(), grad_clip_ac or grad_clip),
-            'grad_norm_critic': nn.utils.clip_grad_norm_(self.ac.critic.parameters(), grad_clip_ac or grad_clip),
-        }
+        if not self.probe_gradients:
+            grad_metrics = {
+                'grad_norm': nn.utils.clip_grad_norm_(self.wm.parameters(), grad_clip),
+                'grad_norm_probe': nn.utils.clip_grad_norm_(self.probe_model.parameters(), grad_clip),
+                'grad_norm_actor': nn.utils.clip_grad_norm_(self.ac.actor.parameters(), grad_clip_ac or grad_clip),
+                'grad_norm_critic': nn.utils.clip_grad_norm_(self.ac.critic.parameters(), grad_clip_ac or grad_clip),
+            }
+        else:
+            grad_metrics = {
+                'grad_norm': nn.utils.clip_grad_norm_(self.wm.parameters(), grad_clip),
+                'grad_norm_actor': nn.utils.clip_grad_norm_(self.ac.actor.parameters(), grad_clip_ac or grad_clip),
+                'grad_norm_critic': nn.utils.clip_grad_norm_(self.ac.critic.parameters(), grad_clip_ac or grad_clip),
+            }
         return grad_metrics
 
     def init_state(self, batch_size: int):
@@ -125,7 +139,8 @@ class Dreamer(nn.Module):
 
         # Map probe
 
-        loss_probe, metrics_probe, tensors_probe = self.probe_model.training_step(features.detach(), obs)
+        features_probe = features.detach() if not self.probe_gradients else features
+        loss_probe, metrics_probe, tensors_probe = self.probe_model.training_step(features_probe, obs)
         metrics.update(**metrics_probe)
         tensors.update(**tensors_probe)
 
@@ -164,7 +179,11 @@ class Dreamer(nn.Module):
                 assert dream_tensors['action_pred'].shape == obs['action'].shape
                 assert dream_tensors['image_pred'].shape == obs['image'].shape
 
-        return (loss_model, loss_probe, loss_actor, loss_critic), out_state, metrics, tensors, dream_tensors
+        if not self.probe_gradients:
+            losses = (loss_model, loss_probe, loss_actor, loss_critic)
+        else:
+            losses = (loss_model + loss_probe, loss_actor, loss_critic)
+        return losses, out_state, metrics, tensors, dream_tensors
 
     def dream(self, in_state: StateB, imag_horizon: int, dynamics_gradients=False):
         features = []

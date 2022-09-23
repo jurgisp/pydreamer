@@ -53,7 +53,6 @@ defaults:
   grad_clip_ac: 200
   image_decoder_min_prob: 0
   amp: False  # AMP no longer helps on A100
-  separate_adams: True  # for baselines
   probe_gradients: False  # for baselines
 
   # Eval

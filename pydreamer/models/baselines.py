@@ -20,7 +20,6 @@ class WorldModelProbe(nn.Module):
 
     def __init__(self, conf):
         super().__init__()
-        self.separate_adams = conf.separate_adams
         self.probe_gradients = conf.probe_gradients
 
         # World model
@@ -56,7 +55,7 @@ class WorldModelProbe(nn.Module):
             init_weights_tf2(m)
 
     def init_optimizers(self, lr, lr_actor=None, lr_critic=None, eps=1e-5):
-        if self.separate_adams:
+        if not self.probe_gradients:
             optimizer_wm = torch.optim.AdamW(self.wm.parameters(), lr=lr, eps=eps)
             optimizer_probe = torch.optim.AdamW(self.probe_model.parameters(), lr=lr, eps=eps)
             return optimizer_wm, optimizer_probe
@@ -65,7 +64,7 @@ class WorldModelProbe(nn.Module):
             return (optimizer,)
 
     def grad_clip(self, grad_clip, grad_clip_ac=None):
-        if self.separate_adams:
+        if not self.probe_gradients:
             grad_metrics = {
                 'grad_norm': nn.utils.clip_grad_norm_(self.wm.parameters(), grad_clip),
                 'grad_norm_probe': nn.utils.clip_grad_norm_(self.probe_model.parameters(), grad_clip),
@@ -105,7 +104,7 @@ class WorldModelProbe(nn.Module):
         metrics.update(**metrics_probe)
         tensors.update(**tensors_probe)
 
-        if self.separate_adams:
+        if not self.probe_gradients:
             losses = (loss_model, loss_probe)
         else:
             losses = (loss_model + loss_probe,)
