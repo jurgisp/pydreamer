@@ -151,7 +151,7 @@ class Preprocessor:
 
         # map_coord
 
-        if 'agent_pos' in batch and 'agent_dir' in batch:
+        if 'agent_pos' in batch and 'agent_dir' in batch and 'map' in batch:
             map_size = float(batch['map'].shape[-2])
             agent_pos = batch['agent_pos'] / map_size * 2 - 1.0
             agent_dir = batch['agent_dir']
