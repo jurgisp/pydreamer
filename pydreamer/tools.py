@@ -127,18 +127,23 @@ def mlflow_log_npz(data: dict, name, subdir=None, verbose=False, repository: Art
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / name
         save_npz(data, path)
-        if verbose:
-            debug(f'Uploading artifact {subdir}/{name} size {path.stat().st_size/1024/1024:.2f} MB')
-        while True:
-            try:
-                if repository:
-                    repository.log_artifact(str(path), artifact_path=subdir)
-                else:
-                    mlflow.log_artifact(str(path), artifact_path=subdir)
-                break
-            except:
-                exception('Error saving artifact - will retry.')
-                time.sleep(10)
+        mlflow_log_artifact(path, subdir, verbose, repository)
+
+
+def mlflow_log_artifact(path: Path, subdir=None, verbose=True, repository: ArtifactRepository = None):
+    import mlflow
+    if verbose:
+        debug(f'Uploading artifact {subdir}/{path.name} size {path.stat().st_size/1024/1024:.2f} MB')
+    while True:
+        try:
+            if repository:
+                repository.log_artifact(str(path), artifact_path=subdir)
+            else:
+                mlflow.log_artifact(str(path), artifact_path=subdir)
+            break
+        except:
+            exception('Error saving artifact - will retry.')
+            time.sleep(10)
 
 
 def mlflow_load_npz(name, repository: ArtifactRepository):
@@ -150,15 +155,13 @@ def mlflow_load_npz(name, repository: ArtifactRepository):
 
 
 def mlflow_log_text(text, name: str, subdir=None):
-    import mlflow
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / name
         path.write_text(text)
-        mlflow.log_artifact(str(path), artifact_path=subdir)
+        mlflow_log_artifact(path, subdir)
 
 
 def mlflow_save_checkpoint(model, optimizers, steps):
-    import mlflow
     import torch
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / 'latest.pt'
@@ -168,8 +171,7 @@ def mlflow_save_checkpoint(model, optimizers, steps):
         for i, opt in enumerate(optimizers):
             checkpoint[f'optimizer_{i}_state_dict'] = opt.state_dict()
         torch.save(checkpoint, path)
-        debug(f'Uploading artifact checkpoints/{path.name} size {path.stat().st_size/1024/1024:.2f} MB')
-        mlflow.log_artifact(str(path), artifact_path='checkpoints')
+        mlflow_log_artifact(path, subdir='checkpoints')
 
 
 def mlflow_load_checkpoint(model, optimizers=tuple(), artifact_path='checkpoints/latest.pt', map_location=None):
