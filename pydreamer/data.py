@@ -68,6 +68,14 @@ class MlflowEpisodeRepository(EpisodeRepository):
         mlflow_log_npz(data, fname, repository=self.write_repo)
 
     def list_files(self) -> List[FileInfo]:
+        while True:
+            try:
+                return self._list_files()
+            except:
+                exception('Error listing files - will retry.')
+                time.sleep(10)
+
+    def _list_files(self) -> List[FileInfo]:
         files = []
         for repo in self.read_repos:
             for f in repo.list_artifacts(''):  # type: ignore
