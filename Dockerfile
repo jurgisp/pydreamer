@@ -83,17 +83,11 @@ RUN pip3 install minerl==0.4.4
 # My environments
 # ------------------------
 
-# Minigrid (2d maze)
-RUN pip3 install git+https://github.com/jurgisp/gym-minigrid.git@2e5a1cf878778dc33a6fd5c5288f81e71d6c6c1c#egg=gym-minigrid
-
-# Miniworld (3d memory maze)
-RUN pip3 install git+https://github.com/jurgisp/gym-miniworld.git@e551b6c7ca245ca8f4e31471819728fb46ca256d#egg=gym-miniworld dmlab-maze-generator
-
-# DMC-based 3d memory maze
-RUN pip3 install git+https://github.com/jurgisp/dmc-memory-maze.git@b6fbd8b2c3e3ecd144b0a3911fec0a421f863f4e#egg=dmc-memory-maze
-
-# procgen  # TODO: move up
+# procgen
 RUN pip3 install procgen
+
+# Memory maze
+RUN pip3 install memory-maze==1.0.2
 
 # ------------------------
 # PyDreamer
@@ -105,8 +99,8 @@ COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 
 # TODO: this is for Embodied-minecraft environment. Need a local copy of embodied-private
-COPY embodied embodied
-RUN pip3 install -e embodied
+# COPY embodied embodied
+# RUN pip3 install -e embodied
 
 ENV MLFLOW_TRACKING_URI ""
 ENV MLFLOW_EXPERIMENT_NAME "Default"

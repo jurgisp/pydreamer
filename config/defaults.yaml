@@ -25,10 +25,10 @@ defaults:
   
   # Probe features
   map_key:
-  map_size: 11
-  map_channels: 4
+  map_size: 0
+  map_channels: 0
   map_categorical: True
-  goals_size: 6
+  goals_size: 0
   
   # Training
   buffer_size: 10_000_000
@@ -247,8 +247,8 @@ minecraft:
   vecobs_size: 27
   clip_rewards: log1p
 
-dmc_memmaze:
-  env_id: dmc_memory_maze:MemoryMaze-9x9-v0
+memmaze:
+  env_id: memory_maze:MemoryMaze-9x9-v0
   action_dim: 6
   entropy: 0.001
 
