@@ -135,7 +135,7 @@ python launch.py --configs defaults atari atari_pong
 
 ```sh
 docker build . -f Dockerfile -t pydreamer
-docker run -it pydreamer sh scripts/xvfb_run.sh python3 launch.py --configs defaults atari atari_pong
+docker run -it pydreamer --configs defaults atari atari_pong
 ```
 
 ### Running on Kubernetes

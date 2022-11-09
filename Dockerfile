@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y \
 
 # Atari
 
-RUN pip3 install atari-py==0.2.9
+RUN pip3 install gym==0.19.0 atari-py==0.2.9 opencv-python
 RUN wget -L -nv http://www.atarimania.com/roms/Roms.rar && \
     unrar x Roms.rar && \
     python3 -m atari_py.import_roms ROMS && \
@@ -37,54 +37,55 @@ RUN mkdir -p /root/.mujoco && \
     rm mujoco.tar.gz
 RUN pip3 install dm_control
 
+# procgen
+
+RUN pip3 install procgen
+
 # ------------------------
 # DMLab (optional)
 # ------------------------
 
-# adapted from https://github.com/google-research/seed_rl
-RUN echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" | \
-    tee /etc/apt/sources.list.d/bazel.list && \
-    curl https://bazel.build/bazel-release.pub.gpg | \
-    apt-key add - && \
-    apt-get update && apt-get install -y bazel
-RUN git clone https://github.com/deepmind/lab.git /dmlab
-WORKDIR /dmlab
-RUN git checkout "937d53eecf7b46fbfc56c62e8fc2257862b907f2"
-# To check where numpy headers are: python3 -c 'import numpy as np; print(np.get_include())'
-RUN ln -s '/opt/conda/lib/python3.8/site-packages/numpy/core/include/numpy' /usr/include/numpy && \
-    ln -s '/opt/conda/include/python3.8' /usr/include/python3.8 && \
-    sed -i 's@glob(\["include/python3.5/\*.h"\])@glob(["include/numpy/**/*.h", "include/python3.8/**/*.h"\])@g' python.BUILD && \
-    sed -i 's@python3.5@python3.8@g' python.BUILD && \
-    sed -i 's@: \[@: ["include/numpy", @g' python.BUILD && \
-    sed -i 's@650250979303a649e21f87b5ccd02672af1ea6954b911342ea491f351ceb7122@682aee469c3ca857c4c38c37a6edadbfca4b04d42e56613b11590ec6aa4a278d@g' WORKSPACE && \
-    sed -i 's@rules_cc-master@rules_cc-main@g' WORKSPACE && \
-    sed -i 's@rules_cc/archive/master@rules_cc/archive/main@g' WORKSPACE && \
-    sed -i 's@abseil-cpp-master@abseil-cpp-lts_2021_11_02@g' WORKSPACE && \
-    sed -i 's@abseil-cpp/archive/master@abseil-cpp/archive/lts_2021_11_02@g' WORKSPACE
-RUN bazel build -c opt python/pip_package:build_pip_package --incompatible_remove_legacy_whole_archive=0
-RUN pip3 install wheel && \
-    PYTHON_BIN_PATH=$(which python3) && \
-    ./bazel-bin/python/pip_package/build_pip_package /tmp/dmlab_pkg && \
-    pip3 install /tmp/dmlab_pkg/DeepMind_Lab-*.whl --force-reinstall && \
-    rm -rf /dmlab
-WORKDIR /app
-COPY scripts/dmlab_data_download.sh .
-RUN sh dmlab_data_download.sh
-ENV DMLAB_DATASET_PATH "/app/dmlab_data"
+# # adapted from https://github.com/google-research/seed_rl
+# RUN echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" | \
+#     tee /etc/apt/sources.list.d/bazel.list && \
+#     curl https://bazel.build/bazel-release.pub.gpg | \
+#     apt-key add - && \
+#     apt-get update && apt-get install -y bazel
+# RUN git clone https://github.com/deepmind/lab.git /dmlab
+# WORKDIR /dmlab
+# RUN git checkout "937d53eecf7b46fbfc56c62e8fc2257862b907f2"
+# # To check where numpy headers are: python3 -c 'import numpy as np; print(np.get_include())'
+# RUN ln -s '/opt/conda/lib/python3.8/site-packages/numpy/core/include/numpy' /usr/include/numpy && \
+#     ln -s '/opt/conda/include/python3.8' /usr/include/python3.8 && \
+#     sed -i 's@glob(\["include/python3.5/\*.h"\])@glob(["include/numpy/**/*.h", "include/python3.8/**/*.h"\])@g' python.BUILD && \
+#     sed -i 's@python3.5@python3.8@g' python.BUILD && \
+#     sed -i 's@: \[@: ["include/numpy", @g' python.BUILD && \
+#     sed -i 's@650250979303a649e21f87b5ccd02672af1ea6954b911342ea491f351ceb7122@682aee469c3ca857c4c38c37a6edadbfca4b04d42e56613b11590ec6aa4a278d@g' WORKSPACE && \
+#     sed -i 's@rules_cc-master@rules_cc-main@g' WORKSPACE && \
+#     sed -i 's@rules_cc/archive/master@rules_cc/archive/main@g' WORKSPACE && \
+#     sed -i 's@abseil-cpp-master@abseil-cpp-lts_2021_11_02@g' WORKSPACE && \
+#     sed -i 's@abseil-cpp/archive/master@abseil-cpp/archive/lts_2021_11_02@g' WORKSPACE
+# RUN bazel build -c opt python/pip_package:build_pip_package --incompatible_remove_legacy_whole_archive=0
+# RUN pip3 install wheel && \
+#     PYTHON_BIN_PATH=$(which python3) && \
+#     ./bazel-bin/python/pip_package/build_pip_package /tmp/dmlab_pkg && \
+#     pip3 install /tmp/dmlab_pkg/DeepMind_Lab-*.whl --force-reinstall && \
+#     rm -rf /dmlab
+# WORKDIR /app
+# COPY scripts/dmlab_data_download.sh .
+# RUN sh dmlab_data_download.sh
+# ENV DMLAB_DATASET_PATH "/app/dmlab_data"
 
 # ------------------------
 # MineRL (optional)
 # ------------------------
 
-RUN apt-get install -y openjdk-8-jdk libx11-6 x11-xserver-utils
-RUN pip3 install minerl==0.4.4
+# RUN apt-get install -y openjdk-8-jdk libx11-6 x11-xserver-utils
+# RUN pip3 install minerl==0.4.4
 
 # ------------------------
 # My environments
 # ------------------------
-
-# procgen
-RUN pip3 install procgen
 
 # Memory maze
 RUN pip3 install memory-maze==1.0.2
@@ -97,10 +98,6 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt
-
-# TODO: this is for Embodied-minecraft environment. Need a local copy of embodied-private
-# COPY embodied embodied
-# RUN pip3 install -e embodied
 
 ENV MLFLOW_TRACKING_URI ""
 ENV MLFLOW_EXPERIMENT_NAME "Default"
