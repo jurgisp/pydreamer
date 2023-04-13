@@ -120,6 +120,7 @@ class ActorCritic(nn.Module):
         if self.actor_grad == 'reinforce':
             action_logprob = policy_distr.log_prob(actions)
             loss_policy = - action_logprob * advantage_gae.detach()
+            assert (loss_policy.requires_grad and policy_entropy.requires_grad) or not loss_critic.requires_grad
         elif self.actor_grad == 'dynamics':
             loss_policy = - value_target
         else:
@@ -128,7 +129,6 @@ class ActorCritic(nn.Module):
         policy_entropy = policy_distr.entropy()
         loss_actor = loss_policy - self.entropy_weight * policy_entropy
         loss_actor = (loss_actor * reality_weight).mean()
-        assert (loss_policy.requires_grad and policy_entropy.requires_grad) or not loss_critic.requires_grad
 
         with torch.no_grad():
             metrics = dict(loss_critic=loss_critic.detach(),
