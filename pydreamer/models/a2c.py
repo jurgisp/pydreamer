@@ -117,6 +117,7 @@ class ActorCritic(nn.Module):
         # Actor loss
 
         policy_distr = self.forward_actor(features[:-1])  # TODO: we could reuse this from dream()
+        policy_entropy = policy_distr.entropy()
         if self.actor_grad == 'reinforce':
             action_logprob = policy_distr.log_prob(actions)
             loss_policy = - action_logprob * advantage_gae.detach()
@@ -126,7 +127,6 @@ class ActorCritic(nn.Module):
         else:
             assert False, self.actor_grad
 
-        policy_entropy = policy_distr.entropy()
         loss_actor = loss_policy - self.entropy_weight * policy_entropy
         loss_actor = (loss_actor * reality_weight).mean()
 
